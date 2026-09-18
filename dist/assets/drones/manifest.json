@@ -1,0 +1,40 @@
+{
+  "source_unchanged": true,
+  "source_sha256": "b636e30b416c977a4b0ef94e00f4e41c328e763fef07b5cc596bd808568d9b50",
+  "models": [
+    {
+      "role": "SCOUT",
+      "bytes": 6349080,
+      "meshes": 19,
+      "triangles": 120462,
+      "download": "GR_SCOUT_01.glb.gz",
+      "compressedBytes": 1386746
+    },
+    {
+      "role": "CARGO",
+      "bytes": 6808080,
+      "meshes": 19,
+      "triangles": 127862,
+      "download": "GR_CARGO_01.glb.gz",
+      "compressedBytes": 1487759
+    },
+    {
+      "role": "UTILITY",
+      "bytes": 7976712,
+      "meshes": 19,
+      "triangles": 154014,
+      "download": "GR_UTILITY_01.glb.gz",
+      "compressedBytes": 1791394
+    },
+    {
+      "role": "RELAY",
+      "bytes": 6969932,
+      "meshes": 19,
+      "triangles": 132852,
+      "download": "GR_RELAY_01.glb.gz",
+      "compressedBytes": 1524220
+    }
+  ],
+  "runtime": "Lossless gzip transport. Decompress to standard GLB; original Blender source is unchanged.",
+  "materials": "Shared separate-map 1024px PBR in textures/. Albedo sRGB; other maps linear, OpenGL normals. Source maps remain 2048px in the Blender library."
+}

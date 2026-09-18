@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+import {JSDOM} from 'jsdom';
+import {bindCameraControls} from './dist/camera-input.js';
+import {CommanderRenderer} from './dist/fleet-commander-renderer.js';
+import {DirectorCamera} from './dist/director-camera.js';
+import * as T from './dist/three.js';
+const dom=new JSDOM('<canvas></canvas>'),w=dom.window,canvas=w.document.querySelector('canvas');canvas.setPointerCapture=()=>{};let objectives=0;
+const r={canvas,view:'orbit',distance:300,cameraZoom:1,azimuth:0,elevation:.2,directorCamera:new DirectorCamera(),zoomBy:CommanderRenderer.prototype.zoomBy,onObjective:()=>objectives++,worldPoint:()=>[0,20,0]};const unbind=bindCameraControls(r);
+const pointer=(type,id,x,y)=>{const e=new w.Event(type);Object.assign(e,{pointerId:id,clientX:x,clientY:y,button:0});canvas.dispatchEvent(e);};
+pointer('pointerdown',1,10,10);pointer('pointerup',1,10,10);assert.equal(objectives,1);
+pointer('pointerdown',1,10,10);pointer('pointermove',1,50,20);pointer('pointerup',1,50,20);assert.equal(objectives,1);assert(r.azimuth<0);
+pointer('pointerdown',1,10,10);pointer('pointerdown',2,110,10);pointer('pointermove',2,210,10);assert.equal(r.distance,150);pointer('pointerup',2,210,10);pointer('pointerup',1,10,10);assert.equal(objectives,1,'pinch release must not place objective');
+r.view='free';pointer('pointerdown',1,10,10);pointer('pointermove',1,50,10);pointer('pointerup',1,50,10);assert(!r.directorCamera.groundAutoAim);r.zoomBy(.5);assert.equal(r.cameraZoom,2);r.zoomBy(.0001);assert.equal(r.cameraZoom,4);r.zoomBy(999);assert.equal(r.cameraZoom,.65);assert.equal(objectives,1);
+const cam=new T.PerspectiveCamera(),sim={drones:[],running:true,fleet:{options:{reducedMotion:false}}};r.directorCamera.keys.add('e');r.directorCamera.update(cam,sim,'free',null,1);assert(cam.position.y>10);r.directorCamera.update(cam,sim,'ground',null,.016);assert(Math.abs(cam.position.y-1.7)<1e-9);
+unbind();dom.window.close();console.log('PASS: mouse orbit, touch pinch zoom, no accidental objective after multitouch, free-look bounds, altitude movement and cleanup.');
