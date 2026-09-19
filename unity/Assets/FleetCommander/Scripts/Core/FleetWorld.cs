@@ -36,12 +36,13 @@ namespace FleetCommander.Core
         public int Winner { get; private set; } = -1;
         DroneState[] next = Array.Empty<DroneState>();
         float[] damage = Array.Empty<float>();
+        int[] groupIndices=Array.Empty<int>();readonly int[] groupCounts=new int[4];
         public FleetWorld(FleetConfig config, int count, BattleSettings battle = null) { Config = config; Battle = battle; Resize(count); }
 
         public void Resize(int count)
         {
             count = Mathf.Clamp(count, 0, IsBattle ? MaxBattleDrones : MaxDrones);
-            States = new DroneState[count]; next = new DroneState[count]; damage = new float[count]; Time = 0; Winner = -1; Events.Clear();
+            States = new DroneState[count]; next = new DroneState[count]; damage = new float[count]; groupIndices=new int[count]; Time = 0; Winner = -1; Events.Clear();
             for (int i = 0; i < count; i++)
             {
                 Vector3 home = FormationMath.Grid(i, count, 2.5f) + new Vector3(0, .65f, 130);
@@ -49,7 +50,9 @@ namespace FleetCommander.Core
                 foreach (var box in Obstacles) if (Mathf.Abs(home.x-box.center.x) < box.extents.x+2 && Mathf.Abs(home.z-box.center.z) < box.extents.z+2) home.y = box.max.y + .7f;
                 States[i] = DroneState.Create(i, IsBattle ? i % 2 : i % 4, home);
             }
+            IndexGroups();
         }
+        void IndexGroups(){Array.Clear(groupCounts,0,4);for(int i=0;i<Count;i++)groupIndices[i]=groupCounts[States[i].fleetId]++;}
         public void Launch(int group = -1)
         {
             for (int i = 0; i < Count; i++) if ((group < 0 || States[i].fleetId == group) && States[i].phase == FlightPhase.Grounded && States[i].battery01 >= .2f && !States[i].disabled)
@@ -99,7 +102,7 @@ namespace FleetCommander.Core
                     Vector3 aboveHome = s.home + Vector3.up * Mathf.Max(6,Config.height*.4f);
                     s.target = Vector2.Distance(new Vector2(s.position.x,s.position.z),new Vector2(s.home.x,s.home.z)) < 1.2f ? s.home : aboveHome;
                 }
-                else s.target = IsBattle ? BattleTarget(i, ref s) : FormationMath.Target(Config,i,Count,Time,s.fleetId);
+                else s.target = IsBattle ? BattleTarget(i, ref s) : FormationMath.Target(Config,i,Count,Time,s.fleetId,groupIndices[i],groupCounts[s.fleetId]);
                 Vector3 desired = Vector3.ClampMagnitude((s.target-s.position)*1.3f,Config.speed * (s.frame == FrameKind.Cargo ? .65f : 1));
                 Vector3 force = (desired-s.velocity)*2.6f;
                 if (Config.boids && s.phase == FlightPhase.Flying) force += Neighbors.Steering(States,i,Config);
@@ -181,7 +184,7 @@ namespace FleetCommander.Core
                 float.IsNaN(s.battery01)||s.battery01<0||s.battery01>1||float.IsNaN(s.health)||s.health<0||s.health>100||s.position.magnitude>2000||s.home.magnitude>2000||s.target.magnitude>2000||
                 float.IsNaN(s.cooldown)||float.IsInfinity(s.cooldown)||s.cooldown<0||s.cooldown>20||s.payloads<0||s.payloads>3||s.id<0||s.palette<0||s.palette>8)
                 throw new ArgumentException("Invalid drone state.");
-            Resize(states.Length); Array.Copy(states,States,states.Length); Time=time;
+            Resize(states.Length); Array.Copy(states,States,states.Length);IndexGroups(); Time=time;
         }
     }
 }

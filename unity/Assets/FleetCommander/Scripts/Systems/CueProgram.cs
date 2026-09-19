@@ -17,7 +17,7 @@ namespace FleetCommander.Systems
         {
             Stop();var compiled=new List<Cue>();float clock=0,newLoop=0;
             if(source==null||source.Length>32000)throw new ArgumentException("Program exceeds 32,000 characters.");
-            foreach(string raw in source.Split('\n'))
+            foreach(string raw in source.Split(new[]{'\n'}))
             {
                 string line=raw.Trim();if(line.Length==0||line.StartsWith("#"))continue;
                 var a=line.Split(new[]{' '},StringSplitOptions.RemoveEmptyEntries);a[0]=a[0].ToLowerInvariant();

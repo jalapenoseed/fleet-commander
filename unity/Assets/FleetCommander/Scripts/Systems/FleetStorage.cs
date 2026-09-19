@@ -31,6 +31,7 @@ namespace FleetCommander.Systems
         {
             if(string.IsNullOrWhiteSpace(text)||text.Length>12000000)throw new ArgumentException("Fleet JSON is empty or exceeds 12 MB.");
             var header=JsonUtility.FromJson<Header>(text);
+            if(header==null)throw new ArgumentException("Expected a Fleet Commander JSON object.");
             if(header.kind=="fleet-commander-fleet"||header.kind=="gridrunner-commander-fleet")return ImportBrowser(text);
             var s=JsonUtility.FromJson<FleetSave>(text);Validate(s);return s;
         }

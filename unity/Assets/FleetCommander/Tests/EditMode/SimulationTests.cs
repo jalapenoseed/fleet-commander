@@ -113,5 +113,16 @@ namespace FleetCommander.Tests
             foreach(string text in new[]{"ABCDEFGHIJKLMNOPQRSTUVWXYZ","0123456789!?- .","❤️","⭐","🙂","🤖"}){var points=ArtStudio.Text(text);Assert.Greater(points.Length,0);Assert.LessOrEqual(points.Length,4096);foreach(var p in points)Assert.True(FleetConfig.Finite(p.position));}
             Assert.Throws<ArgumentException>(()=>ArtStudio.Text(""));
         }
+        [Test] public void UnevenImportedSquadsUseUniqueSlots()
+        {
+            var c=new FleetConfig{boids=false,wind=0};c.groups[1].enabled=true;c.groups[1].formation=FormationKind.Grid;
+            var w=new FleetWorld(c,8);var roster=(DroneState[])w.States.Clone();for(int i=0;i<roster.Length;i++)roster[i].fleetId=1;
+            w.Restore(roster,0);w.Launch();w.Step(.01f);for(int i=0;i<8;i++)for(int j=i+1;j<8;j++)Assert.AreNotEqual(w.States[i].target,w.States[j].target);
+        }
+        [Test] public void ReplayCapturesIndependentActionEvents()
+        {
+            var w=new FleetWorld(new FleetConfig(),2,new BattleSettings());w.Launch();var r=new ReplayBuffer();w.DropPayload(0);r.Record(w,.1f);
+            Assert.Greater(r.Frames[0].events.Length,0);w.Events.Clear();Assert.Greater(r.Frames[0].events.Length,0);
+        }
     }
 }

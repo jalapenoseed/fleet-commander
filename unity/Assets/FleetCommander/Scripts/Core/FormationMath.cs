@@ -32,11 +32,11 @@ namespace FleetCommander.Core
         {
             unchecked { uint x = (uint)(i + 1) * 747796405u + 2891336453u; x = ((x >> (int)((x >> 28) + 4)) ^ x) * 277803737u; return ((x >> 22) ^ x) / (float)uint.MaxValue; }
         }
-        public static Vector3 Target(FleetConfig c, int i, int n, float time, int team)
+        public static Vector3 Target(FleetConfig c, int i, int n, float time, int team, int groupIndex=-1, int groupCount=-1)
         {
             var group = c.groups[Mathf.Clamp(team, 0, 3)];
             var shape = group.enabled ? group.formation : c.formation;
-            int index = group.enabled ? i / 4 : i, count = group.enabled ? (n + 3 - team) / 4 : n;
+            int index = group.enabled ? (groupIndex<0?i/4:groupIndex) : i, count = group.enabled ? (groupCount<0?(n+3-team)/4:groupCount) : n;
             Vector3 p = shape == FormationKind.Art && c.art.Length > 0
                 ? c.art[Mathf.Min(c.art.Length - 1, index % Mathf.Max(1, Mathf.Min(count, c.art.Length)) * c.art.Length / Mathf.Max(1, Mathf.Min(count, c.art.Length)))].position + Vector3.forward * (index / c.art.Length) * 2
                 : Point(shape, index, count, c.spacing);
