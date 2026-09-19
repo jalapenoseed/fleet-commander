@@ -165,6 +165,7 @@ namespace FleetCommander.Core
         public bool DropPayload(int index)
         {
             if(!IsBattle || index<0 || index>=Count || States[index].phase!=FlightPhase.Flying || States[index].payloads==0) return false;
+            Events.Clear();
             States[index].payloads--;
             Vector3 p=States[index].position; Events.Add(new BattleEvent{from=p,to=new Vector3(p.x,.7f,p.z),team=States[index].fleetId,payload=true});
             // An intentionally abstract arcade pulse, not a weapon/ballistics model.
@@ -173,10 +174,12 @@ namespace FleetCommander.Core
         }
         public void Restore(DroneState[] states,float time)
         {
-            if(states==null || states.Length>(IsBattle?MaxBattleDrones:MaxDrones))throw new ArgumentException("Invalid roster.");
+            if(states==null || states.Length>(IsBattle?MaxBattleDrones:MaxDrones)||float.IsNaN(time)||float.IsInfinity(time)||time<0)throw new ArgumentException("Invalid roster.");
             foreach(var s in states) if(!FleetConfig.Finite(s.position)||!FleetConfig.Finite(s.velocity)||!FleetConfig.Finite(s.home)||
+                !FleetConfig.Finite(s.target)||!FleetConfig.Finite(s.acceleration)||!FleetConfig.Finite(new Vector3(s.rotation.x,s.rotation.y,s.rotation.z))||float.IsNaN(s.rotation.w)||float.IsInfinity(s.rotation.w)||
                 !Enum.IsDefined(typeof(FlightPhase),s.phase)||!Enum.IsDefined(typeof(FrameKind),s.frame)||s.fleetId<0||s.fleetId>3||
-                float.IsNaN(s.battery01)||s.battery01<0||s.battery01>1||float.IsNaN(s.health)||s.health<0||s.health>100||s.position.magnitude>2000)
+                float.IsNaN(s.battery01)||s.battery01<0||s.battery01>1||float.IsNaN(s.health)||s.health<0||s.health>100||s.position.magnitude>2000||s.home.magnitude>2000||s.target.magnitude>2000||
+                float.IsNaN(s.cooldown)||float.IsInfinity(s.cooldown)||s.cooldown<0||s.cooldown>20||s.payloads<0||s.payloads>3||s.id<0||s.palette<0||s.palette>8)
                 throw new ArgumentException("Invalid drone state.");
             Resize(states.Length); Array.Copy(states,States,states.Length); Time=time;
         }

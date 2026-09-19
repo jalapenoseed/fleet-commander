@@ -2,9 +2,7 @@
   "name": "FleetCommander.Tests",
   "rootNamespace": "FleetCommander.Tests",
   "references": [
-    "FleetCommander",
-    "UnityEngine.TestRunner",
-    "UnityEditor.TestRunner"
+    "FleetCommander"
   ],
   "includePlatforms": [
     "Editor"

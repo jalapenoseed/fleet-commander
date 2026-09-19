@@ -20,6 +20,7 @@ namespace FleetCommander
             var rig=cameraObject.AddComponent<DroneCameraRig>();rig.Simulator=sim;
             var environment=new GameObject("Arena environment");environment.transform.SetParent(transform);environment.AddComponent<ArenaEnvironment>().Simulator=sim;
             gameObject.AddComponent<DroneRenderer>().Simulator=sim;gameObject.AddComponent<BattleEffects>().Simulator=sim;
+            gameObject.AddComponent<WeatherRenderer>().Simulator=sim;
             var sound=gameObject.AddComponent<FleetAudio>();sound.Simulator=sim;
             var ui=gameObject.AddComponent<CommanderUI>();ui.Simulator=sim;ui.Rig=rig;ui.Audio=sound;rig.UI=ui;
             cameraObject.AddComponent<FleetBloom>();

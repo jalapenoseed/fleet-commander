@@ -252,6 +252,7 @@ namespace FleetCommander.UI
             reticle.style.display=Rig.Mode==CameraMode.FPV||Rig.Mode==CameraMode.Mounted?DisplayStyle.Flex:DisplayStyle.None;
             // Keep desktop controls reachable on narrower windows through horizontal scrolling/wrapping.
             sidebar.style.width=Root.resolvedStyle.width<900?290:340;
+            float pageTop=Mathf.Max(155,nav.layout.y+nav.resolvedStyle.height+12);sidebar.style.top=pageTop;telemetry.style.top=pageTop;
         }
         void TogglePause(){if(Simulator.Replay.Playing)Simulator.Replay.Paused=!Simulator.Replay.Paused;else Simulator.Paused=!Simulator.Paused;}
         void NextDrone(){Simulator.Selected=(Simulator.Selected+1)%Mathf.Max(1,Simulator.Active.Count);}
