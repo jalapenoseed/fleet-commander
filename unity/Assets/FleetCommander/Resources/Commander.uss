@@ -30,3 +30,12 @@
 .reticle { position: absolute; left: 50%; top: 50%; }
 .crosshair { color: rgb(100, 255, 205); font-size: 30px; }
 .pixel-canvas { margin-top: 8px; margin-bottom: 8px; flex-shrink: 0; }
+.reset-button { background-color: rgb(15, 31, 40); color: rgb(150, 196, 208); border-color: rgb(48, 74, 84); font-size: 10px; height: 29px; min-height: 29px; }
+.scoreboard { white-space: normal; padding: 12px; margin-bottom: 12px; background-color: rgb(13, 32, 43); border-left-width: 2px; border-left-color: rgb(89, 196, 219); color: rgb(206, 234, 244); font-size: 12px; }
+.blue-button { border-color: rgb(77, 161, 237); color: rgb(166, 215, 255); }
+.red-button { border-color: rgb(221, 102, 111); color: rgb(255, 175, 176); }
+.combat-hud { position: absolute; bottom: 79px; left: 390px; right: 325px; align-items: center; }
+.round-banner { -unity-text-align: middle-center; white-space: normal; background-color: rgba(6, 17, 24, 0.88); color: rgb(216, 235, 242); padding: 8px 18px; font-size: 14px; -unity-font-style: bold; }
+.round-banner.blue-winner { color: rgb(134, 209, 255); }
+.round-banner.red-winner { color: rgb(255, 159, 164); }
+.pilot-info { -unity-text-align: middle-center; white-space: normal; font-size: 11px; color: rgb(201, 230, 234); background-color: rgba(6, 17, 24, 0.85); margin-top: 3px; padding: 7px 14px; }

@@ -7,6 +7,10 @@ namespace FleetCommander.Core
     {
         public int id, fleetId, palette;
         public FrameKind frame;
+        public SkinKind skin;
+        public WeaponKind weapon;
+        public int kills;
+        public float destructionAge;
         public Vector3 position, velocity, acceleration, home, target;
         public Quaternion rotation;
         public float battery01, massKg, health, cooldown;
@@ -18,7 +22,7 @@ namespace FleetCommander.Core
         {
             id = id, fleetId = fleetId, palette = id % 9, position = position, home = position, target = position,
             rotation = Quaternion.identity, battery01 = 1, massKg = .65f, health = 100, payloads = 3,
-            frame = (FrameKind)(id % 4), phase = FlightPhase.Grounded
+            frame = (FrameKind)(id % 4), skin = (SkinKind)(id % 6), weapon = WeaponKind.Pulse, phase = FlightPhase.Grounded
         };
     }
 }

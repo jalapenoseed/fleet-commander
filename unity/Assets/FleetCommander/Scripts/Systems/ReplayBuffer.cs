@@ -4,7 +4,18 @@ using FleetCommander.Core;
 using UnityEngine;
 namespace FleetCommander.Systems
 {
-    [Serializable] public sealed class ReplayFrame { public float time; public DroneState[] drones; public string config; public BattleEvent[] events; }
+    [Serializable] public sealed class ReplayBattleState
+    {
+        public int blueAlive,redAlive,blueKills,redKills,blueWins,redWins,draws,winner;
+        public float timeRemaining,blueDamage,redDamage;
+        public static ReplayBattleState Capture(FleetWorld world) => !world.IsBattle ? null : new ReplayBattleState
+        {
+            blueAlive=world.Alive(0),redAlive=world.Alive(1),blueKills=world.BlueKills,redKills=world.RedKills,
+            blueWins=world.Battle.blueWins,redWins=world.Battle.redWins,draws=world.Battle.draws,winner=world.Winner,
+            timeRemaining=world.TimeRemaining,blueDamage=world.BlueDamage,redDamage=world.RedDamage
+        };
+    }
+    [Serializable] public sealed class ReplayFrame { public float time; public DroneState[] drones; public string config; public BattleEvent[] events; public ReplayBattleState battle; }
     [Serializable] public sealed class ReplayArchive { public int version=1; public ReplayFrame[] frames; }
     public sealed class ReplayBuffer
     {
@@ -15,6 +26,7 @@ namespace FleetCommander.Systems
         readonly List<BattleEvent> pending=new List<BattleEvent>(256);
         public DroneState[] Display {get;private set;}=Array.Empty<DroneState>();
         public FleetConfig DisplayConfig {get;private set;}
+        public ReplayBattleState DisplayBattle {get;private set;}
         public bool Playing {get;private set;}
         public bool Paused;
         public float Rate=1;
@@ -32,7 +44,7 @@ namespace FleetCommander.Systems
             ReplayFrame frame;
             if(Frames.Count==Capacity){frame=Frames[0];Frames.RemoveAt(0);}else frame=new ReplayFrame();
             if(frame.drones==null||frame.drones.Length!=world.Count)frame.drones=new DroneState[world.Count];
-            Array.Copy(world.States,frame.drones,world.Count);frame.time=world.Time;frame.config=JsonUtility.ToJson(world.Config);frame.events=pending.ToArray();pending.Clear();Frames.Add(frame);
+            Array.Copy(world.States,frame.drones,world.Count);frame.time=world.Time;frame.config=JsonUtility.ToJson(world.Config);frame.events=pending.ToArray();frame.battle=ReplayBattleState.Capture(world);pending.Clear();Frames.Add(frame);
         }
         public void AddEvent(BattleEvent e){if(pending.Count<256)pending.Add(e);}
         public void Mark(string label,float time)
@@ -57,11 +69,13 @@ namespace FleetCommander.Systems
         {
             int k=0;while(k<Frames.Count-2&&Frames[k+1].time<Cursor)k++;
             var a=Frames[k];var b=Frames[k+1];float t=Mathf.InverseLerp(a.time,b.time,Cursor);
-            for(int i=0;i<Display.Length;i++){Display[i]=a.drones[i];Display[i].position=Vector3.Lerp(a.drones[i].position,b.drones[i].position,t);Display[i].rotation=Quaternion.Slerp(a.drones[i].rotation,b.drones[i].rotation,t);}
-            if(k!=lastConfigFrame){DisplayConfig=JsonUtility.FromJson<FleetConfig>(a.config);lastConfigFrame=k;}
+            var discrete=t>=1?b:a;int configFrame=t>=1?k+1:k;
+            for(int i=0;i<Display.Length;i++){Display[i]=discrete.drones[i];Display[i].position=Vector3.Lerp(a.drones[i].position,b.drones[i].position,t);Display[i].rotation=Quaternion.Slerp(a.drones[i].rotation,b.drones[i].rotation,t);}
+            DisplayBattle=discrete.battle;
+            if(configFrame!=lastConfigFrame){DisplayConfig=JsonUtility.FromJson<FleetConfig>(discrete.config);lastConfigFrame=configFrame;}
         }
         public void Stop(){Playing=false;Paused=false;}
-        public void Clear(){Stop();Frames.Clear();Highlights.Clear();HighlightTimes.Clear();pending.Clear();accumulator=0;lastMark=-99;}
+        public void Clear(){Stop();Frames.Clear();Highlights.Clear();HighlightTimes.Clear();pending.Clear();accumulator=0;lastMark=-99;DisplayBattle=null;}
         public void Export(string path)=>System.IO.File.WriteAllText(path,JsonUtility.ToJson(new ReplayArchive{frames=Frames.ToArray()}));
     }
 }

@@ -1,4 +1,5 @@
 using FleetCommander.Core;
+using FleetCommander.Systems;
 using FleetCommander.UI;
 using UnityEngine;
 namespace FleetCommander.Cameras
@@ -8,17 +9,21 @@ namespace FleetCommander.Cameras
     {
         public SwarmSimulator Simulator;
         public CommanderUI UI;
+        public DronePilot Pilot;
         public CameraMode Mode;
         public float Distance=160,Yaw=25,Pitch=24;
         public Vector3 Focus=new Vector3(0,30,0);
         Vector3 previousMouse;bool initialized;
+        public void ResetView(){if(Pilot!=null)Pilot.LeavePilot();Mode=CameraMode.Orbit;Yaw=25;Pitch=24;Distance=160;Focus=new Vector3(0,30,0);initialized=false;previousMouse=Input.mousePosition;}
         public void SetDrone(int index){if(Simulator)Simulator.Selected=Mathf.Clamp(index,0,Mathf.Max(0,Simulator.Active.Count-1));}
         public void Fit(){Distance=Mathf.Clamp(Mathf.Sqrt(Mathf.Max(1,Simulator.Active.Count))*Simulator.Config.spacing*2.5f,80,650);Mode=CameraMode.Orbit;}
         void LateUpdate()
         {
             if(!Simulator)return;
+            if(Pilot!=null && Pilot.CameraPose(out var pilotPosition,out var pilotRotation))
+            {transform.SetPositionAndRotation(pilotPosition,pilotRotation);previousMouse=Input.mousePosition;initialized=true;return;}
             Vector3 mouse=Input.mousePosition,delta=mouse-previousMouse;previousMouse=mouse;
-            bool blocked=UI!=null&&(UI.PointerBlocked||UI.Typing);
+            bool blocked=RuntimeSmoke.Running||UI!=null&&(UI.PointerBlocked||UI.Typing);
             if(!blocked)
             {
                 if(Input.GetMouseButton(0)||Input.GetMouseButton(1)){Yaw+=delta.x*.18f;Pitch=Mathf.Clamp(Pitch-delta.y*.18f,-75,88);}

@@ -46,6 +46,11 @@ namespace FleetCommander.Systems
             }
         }
         public void StopMusic(){if(music)music.Stop();}
+        public void ResetDefaults()
+        {
+            Muted=true;Volume=.18f;Sequencer=false;Steps=new[]{true,false,false,false,true,false,true,false,true,false,false,false,true,false,true,false};
+            CurrentStep=0;beatClock=0;StopMusic();if(beat)beat.Stop();
+        }
         void OnDestroy(){if(motorClip)Destroy(motorClip);if(beatClip)Destroy(beatClip);if(music&&music.clip)Destroy(music.clip);}
     }
 }

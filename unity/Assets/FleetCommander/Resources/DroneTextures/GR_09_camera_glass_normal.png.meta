@@ -1,0 +1,31 @@
+fileFormatVersion: 2
+guid: daafedad0090c700d8cc9164fb2d78fa
+TextureImporter:
+  internalIDToNameTable: []
+  externalObjects: {}
+  serializedVersion: 13
+  mipmaps:
+    mipMapMode: 0
+    enableMipMap: 1
+    sRGBTexture: 0
+  normalmap:
+    convertToNormalMap: 0
+    externalNormalMap: 1
+    heightScale: 0.25
+    normalMapFilter: 0
+    flipGreenChannel: 0
+  isReadable: 0
+  textureType: 1
+  textureShape: 1
+  maxTextureSize: 1024
+  textureSettings:
+    serializedVersion: 2
+    filterMode: 2
+    aniso: 4
+    mipBias: 0
+    wrapU: 1
+    wrapV: 1
+    wrapW: 0
+  userData: Original GRIDRUNNER source material; separate portable PBR channels.
+  assetBundleName: 
+  assetBundleVariant: 

@@ -1,13 +1,18 @@
 [CmdletBinding()]
 param(
-    [string]$Unity = 'C:\Program Files\Unity\Hub\Editor\6000.2.1f1\Editor\Unity.exe',
+    [string]$Unity = '',
     [switch]$RunSmoke
 )
 $ErrorActionPreference = 'Stop'
 $fleetProject = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $fleetLogs = Join-Path $fleetProject 'Logs'
 New-Item -ItemType Directory -Force $fleetLogs | Out-Null
-if (-not (Test-Path $Unity)) { throw "Unity Editor not found at $Unity. Pass -Unity with its installed path." }
+if (-not $Unity) {
+    $fleetVersion = ((Get-Content (Join-Path $fleetProject 'ProjectSettings\ProjectVersion.txt') | Select-Object -First 1) -split ': ')[1]
+    $fleetCandidates = @($env:UNITY_EDITOR_PATH, ('D:\Unity\Hub\Editor\'+$fleetVersion+'\Editor\Unity.exe'), (Join-Path $env:ProgramFiles ('Unity\Hub\Editor\'+$fleetVersion+'\Editor\Unity.exe')))
+    $Unity = $fleetCandidates | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
+}
+if (-not $Unity -or -not (Test-Path $Unity)) { throw "Unity Editor not found at $Unity. Pass -Unity with its installed path." }
 # Remote process hosts sometimes omit these ordinary Windows path variables.
 # Restore only missing paths for this process and its child; do not change user/machine settings.
 if (-not $env:PROGRAMDATA) { $env:PROGRAMDATA = [Environment]::GetFolderPath('CommonApplicationData') }

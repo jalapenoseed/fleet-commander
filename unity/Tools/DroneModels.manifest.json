@@ -1,0 +1,520 @@
+{
+  "provenance": "Detailed models are direct mesh/UV/normal conversions of the existing repository approved Blender reference pack02. LOD proxies are project-authored geometric approximations, not replacement source models.",
+  "generator": "unity/Tools/Generate-DroneModels.py",
+  "format": "FCM1 gzip binary; documented in unity/Tools/DroneModels.md",
+  "units": "visual meters",
+  "up": "+Y",
+  "forward": "+Z",
+  "sourceMaterialMap": {
+    "GR_01_painted_alum": "Panel",
+    "GR_05_rubber": "Rubber",
+    "GR_Paint_Reference_OffWhite": "OffWhite",
+    "GR_03_black_anodized": "Anodized",
+    "GR_07_galvanized": "Galvanized",
+    "GR_Optical_Interior": "Optical",
+    "GR_Marking_Graphite": "MarkingDark",
+    "GR_02_machined_alum": "Metal",
+    "GR_Marking_WarmWhite": "MarkingLight",
+    "GR_Utility_LED_Cyan": "Emission",
+    "GR_04_weave": "Carbon",
+    "GR_06_aged_copper": "Copper",
+    "GR_Optic_ClearCoated_Lens": "Glass",
+    "GR_trim": "Trim",
+    "GR_Paint_Safety_Ochre": "Accent"
+  },
+  "sourceRotors": "Prop",
+  "models": [
+    {
+      "file": "Scout.fleetmesh",
+      "source": "dist/assets/drones/GR_SCOUT_01.glb.gz",
+      "triangles": 120462,
+      "vertices": 165047,
+      "surfaces": {
+        "Panel": 424,
+        "Rubber": 13292,
+        "OffWhite": 8680,
+        "Anodized": 54040,
+        "Galvanized": 18040,
+        "Optical": 4608,
+        "MarkingDark": 2872,
+        "Metal": 13460,
+        "MarkingLight": 780,
+        "Emission": 648,
+        "Carbon": 432,
+        "Copper": 1736,
+        "Prop": 336,
+        "Glass": 892,
+        "Trim": 6,
+        "Accent": 216
+      },
+      "boundsXYZ": [
+        [
+          -0.8,
+          0.8
+        ],
+        [
+          -0.19022,
+          0.19022
+        ],
+        [
+          -0.64083,
+          0.64083
+        ]
+      ],
+      "sourceBoundsXYZ": [
+        [
+          -0.26048585772514343,
+          0.26048585772514343
+        ],
+        [
+          0.0025913617573678493,
+          0.1264638453722
+        ],
+        [
+          -0.2086586207151413,
+          0.2086586207151413
+        ]
+      ],
+      "scale": 3.0711840058669715,
+      "rotors": [
+        {
+          "name": "SCOUT_PIVOT_Rotor.004",
+          "pivotXYZ": [
+            0.5338860276724724,
+            0.1713658535224997,
+            -0.3747150462990771
+          ],
+          "radius": 0.23026
+        },
+        {
+          "name": "SCOUT_PIVOT_Rotor.005",
+          "pivotXYZ": [
+            0.5338860276724724,
+            0.1713658535224997,
+            0.3747150462990771
+          ],
+          "radius": 0.23026
+        },
+        {
+          "name": "SCOUT_PIVOT_Rotor.006",
+          "pivotXYZ": [
+            -0.5338860276724724,
+            0.1713658535224997,
+            -0.3747150462990771
+          ],
+          "radius": 0.23026
+        },
+        {
+          "name": "SCOUT_PIVOT_Rotor.007",
+          "pivotXYZ": [
+            -0.5338860276724724,
+            0.1713658535224997,
+            0.3747150462990771
+          ],
+          "radius": 0.23026
+        }
+      ],
+      "bytes": 1787976
+    },
+    {
+      "file": "Scout_LOD.fleetmesh",
+      "triangles": 428,
+      "vertices": 1284,
+      "surfaces": {
+        "Panel": 12,
+        "Carbon": 236,
+        "Metal": 48,
+        "Rubber": 24,
+        "Glass": 12,
+        "Prop": 48,
+        "Accent": 12,
+        "Emission": 12,
+        "OffWhite": 24
+      },
+      "boundsXYZ": [
+        [
+          -0.76067,
+          0.79638
+        ],
+        [
+          -0.19402,
+          0.21037
+        ],
+        [
+          -0.62436,
+          0.62436
+        ]
+      ],
+      "bytes": 7883
+    },
+    {
+      "file": "Relay.fleetmesh",
+      "source": "dist/assets/drones/GR_RELAY_01.glb.gz",
+      "triangles": 132852,
+      "vertices": 181607,
+      "surfaces": {
+        "Panel": 424,
+        "Rubber": 16092,
+        "OffWhite": 8680,
+        "Anodized": 56744,
+        "Galvanized": 18696,
+        "Optical": 4688,
+        "MarkingDark": 2520,
+        "Metal": 18444,
+        "MarkingLight": 780,
+        "Emission": 756,
+        "Carbon": 432,
+        "Copper": 3256,
+        "Prop": 224,
+        "Glass": 892,
+        "Trim": 8,
+        "Accent": 216
+      },
+      "boundsXYZ": [
+        [
+          -1.0,
+          1.0
+        ],
+        [
+          -0.54251,
+          0.54251
+        ],
+        [
+          -0.8369,
+          0.8369
+        ]
+      ],
+      "sourceBoundsXYZ": [
+        [
+          -0.3406250476837158,
+          0.3406250476837158
+        ],
+        [
+          0.0033333320170640945,
+          0.37291669845581055
+        ],
+        [
+          -0.28506946563720703,
+          0.28506946563720703
+        ]
+      ],
+      "scale": 2.93577940553726,
+      "rotors": [
+        {
+          "name": "RELAY_PIVOT_Rotor.004",
+          "pivotXYZ": [
+            0.6687053566741444,
+            -0.06462792106465036,
+            -0.5056064667858905
+          ],
+          "radius": 0.28682
+        },
+        {
+          "name": "RELAY_PIVOT_Rotor.005",
+          "pivotXYZ": [
+            0.6687053566741444,
+            -0.06462792106465036,
+            0.5056064667858905
+          ],
+          "radius": 0.28682
+        },
+        {
+          "name": "RELAY_PIVOT_Rotor.006",
+          "pivotXYZ": [
+            -0.6687053566741444,
+            -0.06462792106465036,
+            -0.5056064667858905
+          ],
+          "radius": 0.28682
+        },
+        {
+          "name": "RELAY_PIVOT_Rotor.007",
+          "pivotXYZ": [
+            -0.6687053566741444,
+            -0.06462792106465036,
+            0.5056064667858905
+          ],
+          "radius": 0.28682
+        }
+      ],
+      "bytes": 1954638
+    },
+    {
+      "file": "Relay_LOD.fleetmesh",
+      "triangles": 444,
+      "vertices": 1332,
+      "surfaces": {
+        "Panel": 12,
+        "Carbon": 236,
+        "Metal": 64,
+        "Rubber": 24,
+        "Glass": 12,
+        "Prop": 48,
+        "Accent": 12,
+        "Emission": 12,
+        "OffWhite": 24
+      },
+      "boundsXYZ": [
+        [
+          -0.95119,
+          0.99568
+        ],
+        [
+          -0.55351,
+          0.54251
+        ],
+        [
+          -0.81658,
+          0.81658
+        ]
+      ],
+      "bytes": 8212
+    },
+    {
+      "file": "Cargo.fleetmesh",
+      "source": "dist/assets/drones/GR_CARGO_01.glb.gz",
+      "triangles": 127862,
+      "vertices": 177609,
+      "surfaces": {
+        "Panel": 424,
+        "Rubber": 13508,
+        "OffWhite": 8680,
+        "Anodized": 56088,
+        "Galvanized": 18696,
+        "Optical": 4688,
+        "MarkingDark": 4896,
+        "Metal": 15516,
+        "MarkingLight": 780,
+        "Emission": 648,
+        "Carbon": 432,
+        "Copper": 1736,
+        "Prop": 224,
+        "Glass": 892,
+        "Accent": 648,
+        "Trim": 6
+      },
+      "boundsXYZ": [
+        [
+          -1.5,
+          1.5
+        ],
+        [
+          -0.47635,
+          0.47635
+        ],
+        [
+          -1.19804,
+          1.19804
+        ]
+      ],
+      "sourceBoundsXYZ": [
+        [
+          -0.9515963196754456,
+          0.9515963196754456
+        ],
+        [
+          -0.0017737150192260742,
+          0.6026185750961304
+        ],
+        [
+          -0.7600354552268982,
+          0.7600354552268982
+        ]
+      ],
+      "scale": 1.57629865625331,
+      "rotors": [
+        {
+          "name": "CARGO_PIVOT_Rotor.004",
+          "pivotXYZ": [
+            1.0009319682004607,
+            0.43869066078167696,
+            -0.6989748349794931
+          ],
+          "radius": 0.43391
+        },
+        {
+          "name": "CARGO_PIVOT_Rotor.005",
+          "pivotXYZ": [
+            1.0009319682004607,
+            0.43869066078167696,
+            0.6989748349794931
+          ],
+          "radius": 0.43391
+        },
+        {
+          "name": "CARGO_PIVOT_Rotor.006",
+          "pivotXYZ": [
+            -1.0009319682004607,
+            0.43869066078167696,
+            -0.6989748349794931
+          ],
+          "radius": 0.43391
+        },
+        {
+          "name": "CARGO_PIVOT_Rotor.007",
+          "pivotXYZ": [
+            -1.0009319682004607,
+            0.43869066078167696,
+            0.6989748349794931
+          ],
+          "radius": 0.43391
+        }
+      ],
+      "bytes": 1909809
+    },
+    {
+      "file": "Cargo_LOD.fleetmesh",
+      "triangles": 456,
+      "vertices": 1368,
+      "surfaces": {
+        "Panel": 12,
+        "Carbon": 236,
+        "Metal": 64,
+        "Rubber": 24,
+        "Glass": 12,
+        "Prop": 48,
+        "Accent": 24,
+        "Emission": 12,
+        "OffWhite": 24
+      },
+      "boundsXYZ": [
+        [
+          -1.42828,
+          1.49559
+        ],
+        [
+          -0.50535,
+          0.50419
+        ],
+        [
+          -1.16942,
+          1.16942
+        ]
+      ],
+      "bytes": 8295
+    },
+    {
+      "file": "Utility.fleetmesh",
+      "source": "dist/assets/drones/GR_UTILITY_01.glb.gz",
+      "triangles": 154014,
+      "vertices": 206804,
+      "surfaces": {
+        "Panel": 424,
+        "Rubber": 15972,
+        "OffWhite": 8680,
+        "Anodized": 68980,
+        "Galvanized": 19024,
+        "Optical": 6444,
+        "MarkingDark": 2440,
+        "Metal": 23084,
+        "MarkingLight": 780,
+        "Emission": 1028,
+        "Carbon": 432,
+        "Copper": 1736,
+        "Prop": 224,
+        "Glass": 3568,
+        "Trim": 6,
+        "Accent": 1192
+      },
+      "boundsXYZ": [
+        [
+          -1.0,
+          1.0
+        ],
+        [
+          -0.36264,
+          0.36264
+        ],
+        [
+          -0.82132,
+          0.82132
+        ]
+      ],
+      "sourceBoundsXYZ": [
+        [
+          -0.35064077377319336,
+          0.35064077377319336
+        ],
+        [
+          0.0034174108877778053,
+          0.2577298581600189
+        ],
+        [
+          -0.28798821568489075,
+          0.28798821568489075
+        ]
+      ],
+      "scale": 2.8519216097978233,
+      "rotors": [
+        {
+          "name": "UTILITY_PIVOT_Rotor.004",
+          "pivotXYZ": [
+            0.6700507124527604,
+            0.15691366281624525,
+            -0.4913705706285604
+          ],
+          "radius": 0.28566
+        },
+        {
+          "name": "UTILITY_PIVOT_Rotor.005",
+          "pivotXYZ": [
+            0.6700507124527604,
+            0.15691366281624525,
+            0.4913705706285604
+          ],
+          "radius": 0.28566
+        },
+        {
+          "name": "UTILITY_PIVOT_Rotor.006",
+          "pivotXYZ": [
+            -0.6700507124527604,
+            0.15691366281624525,
+            -0.4913705706285604
+          ],
+          "radius": 0.28566
+        },
+        {
+          "name": "UTILITY_PIVOT_Rotor.007",
+          "pivotXYZ": [
+            -0.6700507124527604,
+            0.15691366281624525,
+            0.4913705706285604
+          ],
+          "radius": 0.28566
+        }
+      ],
+      "bytes": 2278886
+    },
+    {
+      "file": "Utility_LOD.fleetmesh",
+      "triangles": 452,
+      "vertices": 1356,
+      "surfaces": {
+        "Panel": 12,
+        "Carbon": 236,
+        "Metal": 72,
+        "Rubber": 24,
+        "Glass": 12,
+        "Prop": 48,
+        "Accent": 12,
+        "Emission": 12,
+        "OffWhite": 24
+      },
+      "boundsXYZ": [
+        [
+          -0.95139,
+          0.9957
+        ],
+        [
+          -0.37364,
+          0.19591
+        ],
+        [
+          -0.80108,
+          0.80108
+        ]
+      ],
+      "bytes": 8402
+    }
+  ]
+}

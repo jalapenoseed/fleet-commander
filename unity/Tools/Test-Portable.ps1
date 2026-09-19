@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param([string]$EditorData='C:\Program Files\Unity\Hub\Editor\6000.2.1f1\Editor\Data')
+param([string]$EditorData='D:\Unity\Hub\Editor\6000.6.2f1\Editor\Data')
 $ErrorActionPreference='Stop'
 $fleetRoot=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $fleetOut=Join-Path $fleetRoot 'Logs\Portable'
@@ -10,7 +10,7 @@ $fleetRefs=Join-Path $EditorData 'UnityReferenceAssemblies\unity-4.8-api'
 $fleetArgs=@('-noconfig','-nostdlib+','-target:exe','-langversion:9','-define:FLEET_PORTABLE',('-out:"'+(Join-Path $fleetOut 'FleetPortableTests.exe')+'"'))
 foreach($fleetDll in @('mscorlib.dll','System.dll','System.Core.dll','System.Numerics.dll','System.Web.Extensions.dll','Facades\netstandard.dll')){$fleetArgs+=('-r:"'+(Join-Path $fleetRefs $fleetDll)+'"')}
 $fleetArgs+=('-r:"'+$fleetNunit.FullName+'"')
-$fleetSources=@('Core\BehaviorStack.cs','Core\DroneState.cs','Core\SwarmSettings.cs','Core\FormationMath.cs','Core\SpatialHash.cs','Core\FleetWorld.cs','Systems\ArtStudio.cs','Systems\ReplayBuffer.cs','Systems\FleetStorage.cs','Systems\CueProgram.cs')
+$fleetSources=@('Core\BehaviorStack.cs','Core\DroneState.cs','Core\DroneCatalog.cs','Core\FleetDefaults.cs','Core\SwarmSettings.cs','Core\FormationMath.cs','Core\SpatialHash.cs','Core\FleetWorld.cs','Systems\ArtStudio.cs','Systems\ReplayBuffer.cs','Systems\FleetStorage.cs','Systems\CueProgram.cs')
 foreach($fleetSource in $fleetSources){$fleetArgs+='"'+(Join-Path $fleetRoot ('Assets\FleetCommander\Scripts\'+$fleetSource))+'"'}
 $fleetArgs+='"'+(Join-Path $PSScriptRoot 'Portable\MathAdapter.cs')+'"'
 $fleetArgs+='"'+(Join-Path $PSScriptRoot 'Portable\TestMain.cs')+'"'
