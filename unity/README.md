@@ -65,7 +65,7 @@ From PowerShell in the repository:
 
 The script runs the EditMode tests, then builds `unity/Builds/Windows/FleetCommander.exe`. Use `-RunSmoke` to launch the resulting player, exercise all command pages and cameras, capture screenshots, check 2,000 aircraft, and exit automatically. `-Unity` accepts another Editor path. No script activates or changes a license.
 
-Editor menu: **Fleet Commander → Build Windows Player**.
+Editor menu: **Fleet Commander → Build Windows Player**. If local policy blocks PowerShell scripts, use the Editor menu; these tools do not change execution policy.
 
 Equivalent Editor commands:
 

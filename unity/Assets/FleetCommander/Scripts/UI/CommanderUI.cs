@@ -243,9 +243,11 @@ namespace FleetCommander.UI
                 if(challengeClock>=90||challengeStage>=4){challenge=false;Journal.Add("Formation challenge: "+challengeScore+" points in "+challengeClock.ToString("F1")+"s.");}
             }
             clock+=Time.unscaledDeltaTime;if(clock<.15f)return;clock=0;
-            var w=Simulator.Active;stats.text=(Simulator.Replay.Playing?"REPLAY":Simulator.Paused?"PAUSED":"LIVE")+"   /   "+w.Count.ToString("N0")+" DRONES"+(Simulator.Arena!=null?"   BLUE "+w.Alive(0)+" : "+w.Alive(1)+" RED":"   /   "+(w.AverageBattery*100).ToString("F0")+"% ENERGY");
+            var w=Simulator.Active;
             status.text=Simulator.Notice;
             var states=Simulator.Replay.Playing?Simulator.Replay.Display:w.States;int i=Mathf.Clamp(Simulator.Selected,0,Mathf.Max(0,states.Length-1));
+            int blue=0,red=0;float charge=0;foreach(var d in states){charge+=d.battery01;if(!d.disabled&&d.airborne){if(d.fleetId==0)blue++;if(d.fleetId==1)red++;}}
+            stats.text=(Simulator.Replay.Playing?"REPLAY":Simulator.Paused?"PAUSED":"LIVE")+"   /   "+states.Length.ToString("N0")+" DRONES"+(Simulator.Arena!=null?"   BLUE "+blue+" : "+red+" RED":"   /   "+(charge/Mathf.Max(1,states.Length)*100).ToString("F0")+"% ENERGY");
             string details=states.Length==0?"NO AIRCRAFT":$"DRONE {i+1:0000}   {states[i].frame.ToString().ToUpperInvariant()}\nALT {states[i].position.y:F1} m   SPD {states[i].velocity.magnitude:F1} m/s\nBAT {states[i].battery01*100:F0}%   HP {states[i].health:F0}   {states[i].phase}";
             var c=Simulator.Replay.Playing?Simulator.Replay.DisplayConfig:Simulator.Config;
             telemetry.text=Rig.Mode.ToString().ToUpperInvariant()+" / "+c.planet.ToString().ToUpperInvariant()+"\n"+details+$"\nMASS {PlanetModel.Mass(c):F2} kg   HOVER {PlanetModel.Power(c,0):F0} W\nEST. {PlanetModel.EnduranceMinutes(c):F1} min   NEIGHBOR CHECKS {w.Neighbors.LastChecks:N0}";

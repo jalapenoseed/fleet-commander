@@ -6,7 +6,7 @@ namespace FleetCommander.Rendering
     {
         public SwarmSimulator Simulator;
         Material material;
-        void Start(){material=new Material(Shader.Find("Hidden/Internal-Colored"));material.SetInt("_SrcBlend",5);material.SetInt("_DstBlend",10);material.SetInt("_Cull",0);material.SetInt("_ZWrite",0);}
+        void Start(){material=new Material(Resources.Load<Shader>("FleetLines"));material.SetInt("_SrcBlend",5);material.SetInt("_DstBlend",10);}
         void OnRenderObject()
         {
             if(!material||!Simulator||Camera.current!=Camera.main)return;

@@ -8,7 +8,7 @@ namespace FleetCommander.Rendering
         public SwarmSimulator Simulator;
         struct Effect { public Vector3 a,b;public float life;public Color color;public bool burst; }
         readonly List<Effect> effects=new List<Effect>(256);Material material;
-        void Start(){material=new Material(Shader.Find("Hidden/Internal-Colored"));material.SetInt("_SrcBlend",(int)UnityEngine.Rendering.BlendMode.SrcAlpha);material.SetInt("_DstBlend",(int)UnityEngine.Rendering.BlendMode.One);material.SetInt("_Cull",0);material.SetInt("_ZWrite",0);Simulator.OnBattleEvent+=Add;}
+        void Start(){material=new Material(Resources.Load<Shader>("FleetLines"));material.SetInt("_SrcBlend",(int)UnityEngine.Rendering.BlendMode.SrcAlpha);material.SetInt("_DstBlend",(int)UnityEngine.Rendering.BlendMode.One);Simulator.OnBattleEvent+=Add;}
         void Add(BattleEvent e)
         {
             if(effects.Count>=256)effects.RemoveAt(0);
