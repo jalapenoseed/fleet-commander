@@ -2,7 +2,31 @@
 
 A standalone drone swarm game and flight lab, branched from GRIDRUNNER v7.40 at `a9a64002ff4536eee819654cd5e45d4964765255`.
 
-Branch: `fleet-commander-standalone`. Open `dist/index.html` through the Vite server or the hosted Site. `commander.html` redirects to the root.
+## Godot branch
+
+This `godot` branch contains a native Godot 4 port under [`godot/`](godot/README.md). Open
+`godot/project.godot` in Godot 4.3 or newer and press **F6/F5**. The original browser game remains
+under `dist/` as the parity reference; `main` and `eli5` are not modified by this branch.
+
+The playable first native port includes packed 0–10,000-aircraft show simulation, formations,
+four independent influence layers with a true None/reset, Boids, finite batteries, Earth/Moon/Mars
+rules, a separate 2–256-aircraft game-AI combat mode, damage/wrecks/payload effects, all thirteen
+arena cameras, event highlights and isolated 1/8×–2× replay, procedural scenery/weather hooks,
+procedural audio, JSON fleet saves, and the compact twelve-page command center.
+
+The default 100-aircraft roster is the interactive starting point. Ten thousand aircraft is an
+experimental storage/correctness stress ceiling, not a real-time frame-rate promise—especially with
+Boids enabled. See [`godot/README.md`](godot/README.md) for the native port's scale rule and current
+translation boundary.
+
+Run the native verification suite with:
+
+```bash
+godot --headless --path godot --script res://tests/test_runner.gd
+```
+
+The original web edition can still be opened through the Vite server. `commander.html` redirects to
+the web root.
 
 ## Play
 
