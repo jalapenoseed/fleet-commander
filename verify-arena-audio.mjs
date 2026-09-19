@@ -1,11 +1,159 @@
 import assert from 'node:assert/strict';
-import {ArenaAudio} from './dist/arena-audio.js';
-class Param{constructor(value=0){this.value=value;}setValueAtTime(v){this.value=v;}setTargetAtTime(v){this.value=v;}exponentialRampToValueAtTime(v){this.value=v;}}
-class Node{constructor(){for(const key of ['gain','frequency','pan','threshold','knee','ratio','attack','release'])this[key]=new Param();this.connections=[];this.stopped=false;}connect(n){this.connections.push(n);}disconnect(){this.connections=[];}start(){this.started=true;}stop(){this.stopped=true;}getFloatTimeDomainData(a){for(let i=0;i<a.length;i++)a[i]=Math.sin(i*.1)*.03;}}
-class AudioContext{constructor(){this.currentTime=0;this.sampleRate=8000;this.state='suspended';this.destination=new Node();this.nodes=[];this.resumes=0;}node(){const n=new Node();this.nodes.push(n);return n;}createGain(){return this.node();}createDynamicsCompressor(){return this.node();}createAnalyser(){return this.node();}createOscillator(){return this.node();}createBiquadFilter(){return this.node();}createStereoPanner(){return this.node();}createBufferSource(){return this.node();}createBuffer(channels,length){const a=new Float32Array(length);return {getChannelData:()=>a};}resume(){this.resumes++;this.state='running';return Promise.resolve();}suspend(){this.state='suspended';return Promise.resolve();}close(){this.state='closed';return Promise.resolve();}}
-globalThis.AudioContext=AudioContext;
-const a=new ArenaAudio();assert.equal(a.context,undefined);const starting=a.enable();assert.equal(a.context.resumes,1,'resume starts synchronously in the gesture');await starting;assert.equal(a.state,'running');assert.equal(a.motorVoices.length,6);assert.equal(a.meter.connections[0],a.context.destination);const context=a.context,nodeCount=context.nodes.length;await a.enable();assert.equal(a.context,context);assert.equal(context.nodes.length,nodeCount,'no duplicate motor graph on resume');
-const drone={mode:'FLY',pos:[0,30,0],velocity:[12,0,0]},sim={running:true,drones:[drone]},weather={time:0,events:[]};a.update(sim,weather,{x:0,y:30,z:300});assert(a.motorVoices[0].gain.gain.value>.025,'overview rotors have an audible gain floor');assert(a.level>0);const overview=a.motorVoices[0].gain.gain.value;a.mix='spatial';a.update(sim,weather,{x:0,y:30,z:300});assert(a.motorVoices[0].gain.gain.value<overview);a.mix='arena';
-sim.running=false;a.update(sim,weather);assert.equal(a.master.gain.value,0);a.volume=0;await a.test();a.update(sim,weather);assert.equal(a.volume,.55);assert.equal(a.master.gain.value,.55,'test tone stays audible while simulation is paused');assert.equal(a.voices.size,2);context.currentTime=2;a.update(sim,weather);assert.equal(a.master.gain.value,0);
-a.silence();context.state='interrupted';assert.equal(a.state,'interrupted');await a.enable();assert.equal(a.state,'running');assert.equal(a.motorVoices.length,6);sim.running=true;for(let i=0;i<40;i++)a.event({type:'impact',pos:[0,0,0]},{x:0,y:0,z:0});assert.equal(a.voices.size,20);a.mute();assert.equal(a.state,'off');assert.equal(a.master.gain.value,0);assert.equal(a.voices.size,0);assert(a.motorVoices.every(v=>v.gain.gain.value===0));a.dispose();assert.equal(context.state,'closed');assert(a.motorVoices.every(v=>v.oscillator.stopped&&v.harmonic.stopped));
-delete globalThis.AudioContext;console.log('PASS: gesture-time audio resume, one reusable voice graph, overview gain, paused test tones, interrupted recovery, voice limits, mute and disposal.');
+import { ArenaAudio } from './dist/arena-audio.js';
+class Param {
+  constructor(value = 0) {
+    this.value = value;
+  }
+  setValueAtTime(v) {
+    this.value = v;
+  }
+  setTargetAtTime(v) {
+    this.value = v;
+  }
+  exponentialRampToValueAtTime(v) {
+    this.value = v;
+  }
+}
+class Node {
+  constructor() {
+    for (const key of [
+      'gain',
+      'frequency',
+      'pan',
+      'threshold',
+      'knee',
+      'ratio',
+      'attack',
+      'release',
+    ])
+      this[key] = new Param();
+    this.connections = [];
+    this.stopped = false;
+  }
+  connect(n) {
+    this.connections.push(n);
+  }
+  disconnect() {
+    this.connections = [];
+  }
+  start() {
+    this.started = true;
+  }
+  stop() {
+    this.stopped = true;
+  }
+  getFloatTimeDomainData(a) {
+    for (let i = 0; i < a.length; i++) a[i] = Math.sin(i * 0.1) * 0.03;
+  }
+}
+class AudioContext {
+  constructor() {
+    this.currentTime = 0;
+    this.sampleRate = 8000;
+    this.state = 'suspended';
+    this.destination = new Node();
+    this.nodes = [];
+    this.resumes = 0;
+  }
+  node() {
+    const n = new Node();
+    this.nodes.push(n);
+    return n;
+  }
+  createGain() {
+    return this.node();
+  }
+  createDynamicsCompressor() {
+    return this.node();
+  }
+  createAnalyser() {
+    return this.node();
+  }
+  createOscillator() {
+    return this.node();
+  }
+  createBiquadFilter() {
+    return this.node();
+  }
+  createStereoPanner() {
+    return this.node();
+  }
+  createBufferSource() {
+    return this.node();
+  }
+  createBuffer(channels, length) {
+    const a = new Float32Array(length);
+    return { getChannelData: () => a };
+  }
+  resume() {
+    this.resumes++;
+    this.state = 'running';
+    return Promise.resolve();
+  }
+  suspend() {
+    this.state = 'suspended';
+    return Promise.resolve();
+  }
+  close() {
+    this.state = 'closed';
+    return Promise.resolve();
+  }
+}
+globalThis.AudioContext = AudioContext;
+const a = new ArenaAudio();
+assert.equal(a.context, undefined);
+const starting = a.enable();
+assert.equal(a.context.resumes, 1, 'resume starts synchronously in the gesture');
+await starting;
+assert.equal(a.state, 'running');
+assert.equal(a.motorVoices.length, 6);
+assert.equal(a.meter.connections[0], a.context.destination);
+const context = a.context,
+  nodeCount = context.nodes.length;
+await a.enable();
+assert.equal(a.context, context);
+assert.equal(context.nodes.length, nodeCount, 'no duplicate motor graph on resume');
+const drone = { mode: 'FLY', pos: [0, 30, 0], velocity: [12, 0, 0] },
+  sim = { running: true, drones: [drone] },
+  weather = { time: 0, events: [] };
+a.update(sim, weather, { x: 0, y: 30, z: 300 });
+assert(a.motorVoices[0].gain.gain.value > 0.025, 'overview rotors have an audible gain floor');
+assert(a.level > 0);
+const overview = a.motorVoices[0].gain.gain.value;
+a.mix = 'spatial';
+a.update(sim, weather, { x: 0, y: 30, z: 300 });
+assert(a.motorVoices[0].gain.gain.value < overview);
+a.mix = 'arena';
+sim.running = false;
+a.update(sim, weather);
+assert.equal(a.master.gain.value, 0);
+a.volume = 0;
+await a.test();
+a.update(sim, weather);
+assert.equal(a.volume, 0.55);
+assert.equal(a.master.gain.value, 0.55, 'test tone stays audible while simulation is paused');
+assert.equal(a.voices.size, 2);
+context.currentTime = 2;
+a.update(sim, weather);
+assert.equal(a.master.gain.value, 0);
+a.silence();
+context.state = 'interrupted';
+assert.equal(a.state, 'interrupted');
+await a.enable();
+assert.equal(a.state, 'running');
+assert.equal(a.motorVoices.length, 6);
+sim.running = true;
+for (let i = 0; i < 40; i++) a.event({ type: 'impact', pos: [0, 0, 0] }, { x: 0, y: 0, z: 0 });
+assert.equal(a.voices.size, 20);
+a.mute();
+assert.equal(a.state, 'off');
+assert.equal(a.master.gain.value, 0);
+assert.equal(a.voices.size, 0);
+assert(a.motorVoices.every((v) => v.gain.gain.value === 0));
+a.dispose();
+assert.equal(context.state, 'closed');
+assert(a.motorVoices.every((v) => v.oscillator.stopped && v.harmonic.stopped));
+delete globalThis.AudioContext;
+console.log(
+  'PASS: gesture-time audio resume, one reusable voice graph, overview gain, paused test tones, interrupted recovery, voice limits, mute and disposal.',
+);

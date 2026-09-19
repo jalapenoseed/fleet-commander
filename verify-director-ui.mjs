@@ -1,34 +1,191 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {JSDOM} from 'jsdom';
-import {mountDirector} from './dist/director-ui.js';
-import {CommanderSimulation,createCommanderFleet} from './dist/fleet-commander-core.js';
-import {DirectorCamera} from './dist/director-camera.js';
-const dom=new JSDOM(fs.readFileSync('dist/index.html','utf8'),{url:'https://fleet.test'}),w=dom.window,$=id=>w.document.getElementById(id);
-Object.assign(globalThis,{document:w.document,window:w,localStorage:w.localStorage});
-let trackStopped=false,downloads=0,timer;const nativeTimeout=globalThis.setTimeout;
-w.HTMLCanvasElement.prototype.getContext=()=>({drawImage(){}});
-w.HTMLCanvasElement.prototype.captureStream=()=>({getTracks:()=>[{stop:()=>trackStopped=true}]});
-globalThis.setTimeout=(fn,ms)=>{if(ms===60000)return 0;timer=nativeTimeout(fn,ms);return timer;};
-w.HTMLAnchorElement.prototype.click=function(){assert.match(this.download,/fleet-show-.*\.webm$/);downloads++;};
-class Recording{static isTypeSupported(type){return type==='video/webm';}constructor(stream,options){this.mimeType=options.mimeType;this.state='inactive';}start(){this.state='recording';}stop(){this.state='inactive';this.ondataavailable({data:new Blob(['test recorded frame'],{type:this.mimeType})});this.onstop();}}
-globalThis.MediaRecorder=Recording;
-const sim=new CommanderSimulation(createCommanderFleet(6));let selected=sim.drones[0].id,notice='',locked=false;
-const renderer={renderer:{},view:'orbit',canvas:{captureStream:()=>({getTracks:()=>[{stop:()=>trackStopped=true}]})},directorCamera:new DirectorCamera(),setView(view){this.view=view;},setEnvironment(scenery,sky){this.scenery=scenery;this.sky=sky;},resize(){},setGraphics(options){this.graphics=options;}};
-const guard=fn=>(...args)=>{try{return fn(...args);}catch(e){notice=e.message;}};
-const ui=mountDirector({sim,renderer,say:message=>notice=message,guard,populate:()=>ui.refresh(),requireFreeRoster:()=>{if(locked)throw Error('Scored round locked');},getSelected:()=>selected,setSelected:id=>selected=id});ui.refresh();
-const click=id=>$(id).click(),input=(id,value)=>{$(id).value=value;$(id).dispatchEvent(new w.Event('change'));};
-const bodies=[...sim.drones];sim.drones[2].battery=45;w.document.querySelector('[data-show=halftime]').click();assert.equal(renderer.view,'cinematic');assert(sim.program.source.includes('show stadium'));assert.equal(sim.drones[2].battery,45);assert(sim.drones.every((d,i)=>d===bodies[i]));ui.update();assert.match($('showProgress').textContent,/Halftime/);
-$('cameraDrone').value='4';click('useCameraDrone');assert.equal(selected,sim.drones[3].id);click('nextDrone');assert.equal(selected,sim.drones[4].id);click('previousDrone');assert.equal(selected,sim.drones[3].id);input('cameraDrone','999');assert.match(notice,/aircraft number/);assert.equal($('cameraDrone').value,'4');
-w.document.querySelector('[data-camera=fpv]').click();assert.equal(renderer.view,'fpv');w.document.querySelector('[data-camera=ground]').click();assert(!$('groundControls').hidden);w.document.querySelector('[data-walk=w]').dispatchEvent(new w.Event('pointerdown'));assert(renderer.directorCamera.keys.has('w'));w.document.querySelector('[data-walk=w]').dispatchEvent(new w.Event('pointerup'));assert(!renderer.directorCamera.keys.has('w'));
-input('graphicsQuality','cinema');input('surfaceWetness','0.7');input('lightBloom','0.5');click('applyGraphics');assert.equal(renderer.graphics.quality,'cinema');assert.equal(renderer.graphics.wetness,.7);assert.equal(renderer.graphics.bloom,.5);assert.equal(JSON.parse(localStorage.getItem('fleetcommander.director.v1')).quality,'cinema');
-input('lightingPreset','show');assert.equal(renderer.sky,'night');assert.equal(renderer.graphics.stage,.08);assert.equal(renderer.graphics.beaconPower,1.8);assert.equal(renderer.graphics.exposure,-.35);assert.equal(renderer.graphics.bloomRadius,1.25);
-$('beaconPower').value='2.5';$('beaconPower').dispatchEvent(new w.Event('input'));assert.equal(renderer.graphics.beaconPower,2.5);assert.equal($('lightingPreset').value,'custom');assert.equal(JSON.parse(localStorage.getItem('fleetcommander.director.v1')).beaconPower,2.5);assert.equal($('beaconPowerValue').textContent,'2.50×');
-click('resetLighting');assert.equal(renderer.graphics.beaconPower,1);assert.equal(renderer.graphics.stage,1);assert.equal(renderer.graphics.exposure,0);assert.equal(renderer.sky,'golden');
-input('sky','sunset');input('scenery','alpine');assert.equal(renderer.sky,'sunset');assert.equal(renderer.scenery,'alpine');assert.equal(JSON.parse(localStorage.getItem('fleetcommander.director.v1')).sky,'sunset');input('cutSeconds','12');assert.equal(renderer.directorCamera.cutSeconds,12);click('nextShot');assert.equal(renderer.view,'cinematic');
-click('cleanView');assert(w.document.body.classList.contains('clean-view'));assert(renderer.clean);assert(!$('exitClean').hidden);w.document.dispatchEvent(new w.KeyboardEvent('keydown',{key:'Escape'}));assert(!renderer.clean);assert($('exitClean').hidden);
-click('recordVideo');assert.equal($('recordVideo').textContent,'Stop & download');ui.update();assert.match($('recordStatus').textContent,/REC/);click('recordVideo');assert.equal(downloads,1);assert(trackStopped);assert.equal($('recordVideo').textContent,'Record video');assert.match($('recordStatus').textContent,/downloaded/);
-locked=true;const script=sim.program.source;w.document.querySelector('[data-show=fireworks]').click();assert.equal(sim.program.source,script);assert.match(notice,/locked/);locked=false;
-sim.load(createCommanderFleet(0));selected='';ui.refresh();assert($('cameraDrone').disabled);w.document.querySelector('[data-show=fireworks]').click();assert.match(notice,/at least one/);assert.equal(sim.drones.length,0);ui.update();assert.match($('cameraSubject').textContent,/No aircraft/);
-globalThis.setTimeout=nativeTimeout;clearTimeout(timer);dom.window.close();
-console.log('PASS: Director controls launch existing bodies, preserve charge, choose FPV subject, walk, change sky/scenery, persist environment, cut shots, enter/exit clean view, record/download/stop stream lifecycle (mock codec), reject scored/empty show launches.');
+import { JSDOM } from 'jsdom';
+import { mountDirector } from './dist/director-ui.js';
+import { CommanderSimulation, createCommanderFleet } from './dist/fleet-commander-core.js';
+import { DirectorCamera } from './dist/director-camera.js';
+const dom = new JSDOM(fs.readFileSync('dist/index.html', 'utf8'), { url: 'https://fleet.test' }),
+  w = dom.window,
+  $ = (id) => w.document.getElementById(id);
+Object.assign(globalThis, { document: w.document, window: w, localStorage: w.localStorage });
+let trackStopped = false,
+  downloads = 0,
+  timer;
+const nativeTimeout = globalThis.setTimeout;
+w.HTMLCanvasElement.prototype.getContext = () => ({ drawImage() {} });
+w.HTMLCanvasElement.prototype.captureStream = () => ({
+  getTracks: () => [{ stop: () => (trackStopped = true) }],
+});
+globalThis.setTimeout = (fn, ms) => {
+  if (ms === 60000) return 0;
+  timer = nativeTimeout(fn, ms);
+  return timer;
+};
+w.HTMLAnchorElement.prototype.click = function () {
+  assert.match(this.download, /fleet-show-.*\.webm$/);
+  downloads++;
+};
+class Recording {
+  static isTypeSupported(type) {
+    return type === 'video/webm';
+  }
+  constructor(stream, options) {
+    this.mimeType = options.mimeType;
+    this.state = 'inactive';
+  }
+  start() {
+    this.state = 'recording';
+  }
+  stop() {
+    this.state = 'inactive';
+    this.ondataavailable({ data: new Blob(['test recorded frame'], { type: this.mimeType }) });
+    this.onstop();
+  }
+}
+globalThis.MediaRecorder = Recording;
+const sim = new CommanderSimulation(createCommanderFleet(6));
+let selected = sim.drones[0].id,
+  notice = '',
+  locked = false;
+const renderer = {
+  renderer: {},
+  view: 'orbit',
+  canvas: { captureStream: () => ({ getTracks: () => [{ stop: () => (trackStopped = true) }] }) },
+  directorCamera: new DirectorCamera(),
+  setView(view) {
+    this.view = view;
+  },
+  setEnvironment(scenery, sky) {
+    this.scenery = scenery;
+    this.sky = sky;
+  },
+  resize() {},
+  setGraphics(options) {
+    this.graphics = options;
+  },
+};
+const guard =
+  (fn) =>
+  (...args) => {
+    try {
+      return fn(...args);
+    } catch (e) {
+      notice = e.message;
+    }
+  };
+const ui = mountDirector({
+  sim,
+  renderer,
+  say: (message) => (notice = message),
+  guard,
+  populate: () => ui.refresh(),
+  requireFreeRoster: () => {
+    if (locked) throw Error('Scored round locked');
+  },
+  getSelected: () => selected,
+  setSelected: (id) => (selected = id),
+});
+ui.refresh();
+const click = (id) => $(id).click(),
+  input = (id, value) => {
+    $(id).value = value;
+    $(id).dispatchEvent(new w.Event('change'));
+  };
+const bodies = [...sim.drones];
+sim.drones[2].battery = 45;
+w.document.querySelector('[data-show=halftime]').click();
+assert.equal(renderer.view, 'cinematic');
+assert(sim.program.source.includes('show stadium'));
+assert.equal(sim.drones[2].battery, 45);
+assert(sim.drones.every((d, i) => d === bodies[i]));
+ui.update();
+assert.match($('showProgress').textContent, /Halftime/);
+$('cameraDrone').value = '4';
+click('useCameraDrone');
+assert.equal(selected, sim.drones[3].id);
+click('nextDrone');
+assert.equal(selected, sim.drones[4].id);
+click('previousDrone');
+assert.equal(selected, sim.drones[3].id);
+input('cameraDrone', '999');
+assert.match(notice, /aircraft number/);
+assert.equal($('cameraDrone').value, '4');
+w.document.querySelector('[data-camera=fpv]').click();
+assert.equal(renderer.view, 'fpv');
+w.document.querySelector('[data-camera=ground]').click();
+assert(!$('groundControls').hidden);
+w.document.querySelector('[data-walk=w]').dispatchEvent(new w.Event('pointerdown'));
+assert(renderer.directorCamera.keys.has('w'));
+w.document.querySelector('[data-walk=w]').dispatchEvent(new w.Event('pointerup'));
+assert(!renderer.directorCamera.keys.has('w'));
+input('graphicsQuality', 'cinema');
+input('surfaceWetness', '0.7');
+input('lightBloom', '0.5');
+click('applyGraphics');
+assert.equal(renderer.graphics.quality, 'cinema');
+assert.equal(renderer.graphics.wetness, 0.7);
+assert.equal(renderer.graphics.bloom, 0.5);
+assert.equal(JSON.parse(localStorage.getItem('fleetcommander.director.v1')).quality, 'cinema');
+input('lightingPreset', 'show');
+assert.equal(renderer.sky, 'night');
+assert.equal(renderer.graphics.stage, 0.08);
+assert.equal(renderer.graphics.beaconPower, 1.8);
+assert.equal(renderer.graphics.exposure, -0.35);
+assert.equal(renderer.graphics.bloomRadius, 1.25);
+$('beaconPower').value = '2.5';
+$('beaconPower').dispatchEvent(new w.Event('input'));
+assert.equal(renderer.graphics.beaconPower, 2.5);
+assert.equal($('lightingPreset').value, 'custom');
+assert.equal(JSON.parse(localStorage.getItem('fleetcommander.director.v1')).beaconPower, 2.5);
+assert.equal($('beaconPowerValue').textContent, '2.50×');
+click('resetLighting');
+assert.equal(renderer.graphics.beaconPower, 1);
+assert.equal(renderer.graphics.stage, 1);
+assert.equal(renderer.graphics.exposure, 0);
+assert.equal(renderer.sky, 'golden');
+input('sky', 'sunset');
+input('scenery', 'alpine');
+assert.equal(renderer.sky, 'sunset');
+assert.equal(renderer.scenery, 'alpine');
+assert.equal(JSON.parse(localStorage.getItem('fleetcommander.director.v1')).sky, 'sunset');
+input('cutSeconds', '12');
+assert.equal(renderer.directorCamera.cutSeconds, 12);
+click('nextShot');
+assert.equal(renderer.view, 'cinematic');
+click('cleanView');
+assert(w.document.body.classList.contains('clean-view'));
+assert(renderer.clean);
+assert(!$('exitClean').hidden);
+w.document.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape' }));
+assert(!renderer.clean);
+assert($('exitClean').hidden);
+click('recordVideo');
+assert.equal($('recordVideo').textContent, 'Stop & download');
+ui.update();
+assert.match($('recordStatus').textContent, /REC/);
+click('recordVideo');
+assert.equal(downloads, 1);
+assert(trackStopped);
+assert.equal($('recordVideo').textContent, 'Record video');
+assert.match($('recordStatus').textContent, /downloaded/);
+locked = true;
+const script = sim.program.source;
+w.document.querySelector('[data-show=fireworks]').click();
+assert.equal(sim.program.source, script);
+assert.match(notice, /locked/);
+locked = false;
+sim.load(createCommanderFleet(0));
+selected = '';
+ui.refresh();
+assert($('cameraDrone').disabled);
+w.document.querySelector('[data-show=fireworks]').click();
+assert.match(notice, /at least one/);
+assert.equal(sim.drones.length, 0);
+ui.update();
+assert.match($('cameraSubject').textContent, /No aircraft/);
+globalThis.setTimeout = nativeTimeout;
+clearTimeout(timer);
+dom.window.close();
+console.log(
+  'PASS: Director controls launch existing bodies, preserve charge, choose FPV subject, walk, change sky/scenery, persist environment, cut shots, enter/exit clean view, record/download/stop stream lifecycle (mock codec), reject scored/empty show launches.',
+);

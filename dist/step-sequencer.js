@@ -1,11 +1,125 @@
-export const SEQ_TRACKS=['Kick','Snare','Hat','Bass D2','Chord D4','Lead A4'];
-export function defaultMusic(){return {version:1,mode:'composition',bpm:120,tracks:Array.from({length:6},(_,r)=>Array.from({length:16},(_,i)=>r===0?+(i%4===0):r===1?+(i%8===4):r===2?+(i%2===0):r===3?+(i%8===0):r===4?+(i===0||i===10):+(i===6||i===14)))};}
-export function validateMusic(raw){if(raw==null)return defaultMusic();if(raw.version!==1||!['composition','sequence'].includes(raw.mode)||!Number.isFinite(raw.bpm)||raw.bpm<40||raw.bpm>220||!Array.isArray(raw.tracks)||raw.tracks.length!==6||raw.tracks.some(row=>!Array.isArray(row)||row.length!==16||row.some(v=>v!==0&&v!==1)))throw Error('Invalid step sequencer. Use six tracks, 16 steps and 40–220 BPM.');return {version:1,mode:raw.mode,bpm:raw.bpm,tracks:raw.tracks.map(row=>[...row])};}
-export function sequenceStep(time,bpm){return Math.floor(Math.max(0,time)*bpm/60*4);}
-export function playStep(engine,pattern,step){const c=engine.ctx,now=c.currentTime;pattern.tracks.forEach((track,row)=>{if(!track[step%16]||engine.voices.size>64)return;let source=c.createOscillator(),gain=c.createGain(),length=.16;gain.gain.setValueAtTime(.0001,now);
- if(row===0){source.type='sine';source.frequency.setValueAtTime(130,now);source.frequency.exponentialRampToValueAtTime(42,now+.16);length=.22;}
- else if(row===1||row===2){source=c.createBufferSource();engine.drumNoise??=(()=>{const buffer=c.createBuffer(1,c.sampleRate*.25,c.sampleRate),values=buffer.getChannelData(0);for(let i=0;i<values.length;i++)values[i]=Math.random()*2-1;return buffer;})();source.buffer=engine.drumNoise;const filter=c.createBiquadFilter();filter.type='highpass';filter.frequency.value=row===1?900:6500;source.connect(filter);filter.connect(gain);source.extraFilter=filter;length=row===1?.14:.055;}
- else{source.type=row===3?'triangle':'sine';source.frequency.value=[0,0,0,73.416,293.665,440][row];length=row===3?.32:.22;}
- gain.gain.exponentialRampToValueAtTime(row<2?.4:row===2?.12:.18,now+.006);gain.gain.exponentialRampToValueAtTime(.0001,now+length);if(!source.extraFilter)source.connect(gain);gain.connect(engine.bus);source.start(now);source.stop(now+length+.02);engine.voices.add(source);source.onended=()=>{engine.voices.delete(source);source.disconnect();source.extraFilter?.disconnect();gain.disconnect();};});}
-export function sequencerMarkup(){return `<details class="beat-lab" open><summary>Beat lab · 16-step sequencer</summary><label>Beat tempo<input data-seq-bpm type="number" min="40" max="220" value="120"></label><div class="step-scroll"><div data-step-grid class="step-grid">${SEQ_TRACKS.map((name,r)=>`<span>${name}</span>${Array.from({length:16},(_,i)=>`<button type="button" data-step="${r}:${i}" aria-label="${name}, step ${i+1}" aria-pressed="false">${i+1}</button>`).join('')}`).join('')}</div></div><div class="form-row"><button data-seq-play>Play beat preview</button><button data-seq-use>Use beat with fleet</button></div><div class="form-row"><button data-seq-clear>Clear beat</button><button data-seq-preset>Load starter beat</button></div><p class="hint">Tap steps to program kick, snare, hats, bass and melody. Four steps per beat; the highlighted column is the playhead. Beat patterns save with your fleet.</p></details>`;}
-export async function storedTrack(action,file){if(!globalThis.indexedDB)throw Error('Device audio storage is unavailable. You can still attach a file for this session.');const db=await new Promise((resolve,reject)=>{const request=indexedDB.open('fleetcommander.media',1);request.onupgradeneeded=()=>request.result.createObjectStore('tracks');request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(Error('Cannot open device audio storage.'));});try{return await new Promise((resolve,reject)=>{const tx=db.transaction('tracks',action==='save'?'readwrite':'readonly'),store=tx.objectStore('tracks'),request=action==='save'?store.put({name:file.name,type:file.type,blob:file},'last'):store.get('last');let result;request.onsuccess=()=>result=request.result;tx.oncomplete=()=>resolve(result);tx.onerror=()=>reject(Error('Could not save/read audio. Device storage may be full.'));tx.onabort=()=>reject(Error('Audio storage was interrupted.'));});}finally{db.close();}}
+export const SEQ_TRACKS = ['Kick', 'Snare', 'Hat', 'Bass D2', 'Chord D4', 'Lead A4'];
+export function defaultMusic() {
+  return {
+    version: 1,
+    mode: 'composition',
+    bpm: 120,
+    tracks: Array.from({ length: 6 }, (_, r) =>
+      Array.from({ length: 16 }, (_, i) =>
+        r === 0
+          ? +(i % 4 === 0)
+          : r === 1
+            ? +(i % 8 === 4)
+            : r === 2
+              ? +(i % 2 === 0)
+              : r === 3
+                ? +(i % 8 === 0)
+                : r === 4
+                  ? +(i === 0 || i === 10)
+                  : +(i === 6 || i === 14),
+      ),
+    ),
+  };
+}
+export function validateMusic(raw) {
+  if (raw == null) return defaultMusic();
+  if (
+    raw.version !== 1 ||
+    !['composition', 'sequence'].includes(raw.mode) ||
+    !Number.isFinite(raw.bpm) ||
+    raw.bpm < 40 ||
+    raw.bpm > 220 ||
+    !Array.isArray(raw.tracks) ||
+    raw.tracks.length !== 6 ||
+    raw.tracks.some(
+      (row) => !Array.isArray(row) || row.length !== 16 || row.some((v) => v !== 0 && v !== 1),
+    )
+  )
+    throw Error('Invalid step sequencer. Use six tracks, 16 steps and 40–220 BPM.');
+  return { version: 1, mode: raw.mode, bpm: raw.bpm, tracks: raw.tracks.map((row) => [...row]) };
+}
+export function sequenceStep(time, bpm) {
+  return Math.floor(((Math.max(0, time) * bpm) / 60) * 4);
+}
+export function playStep(engine, pattern, step) {
+  const c = engine.ctx,
+    now = c.currentTime;
+  pattern.tracks.forEach((track, row) => {
+    if (!track[step % 16] || engine.voices.size > 64) return;
+    let source = c.createOscillator(),
+      gain = c.createGain(),
+      length = 0.16;
+    gain.gain.setValueAtTime(0.0001, now);
+    if (row === 0) {
+      source.type = 'sine';
+      source.frequency.setValueAtTime(130, now);
+      source.frequency.exponentialRampToValueAtTime(42, now + 0.16);
+      length = 0.22;
+    } else if (row === 1 || row === 2) {
+      source = c.createBufferSource();
+      engine.drumNoise ??= (() => {
+        const buffer = c.createBuffer(1, c.sampleRate * 0.25, c.sampleRate),
+          values = buffer.getChannelData(0);
+        for (let i = 0; i < values.length; i++) values[i] = Math.random() * 2 - 1;
+        return buffer;
+      })();
+      source.buffer = engine.drumNoise;
+      const filter = c.createBiquadFilter();
+      filter.type = 'highpass';
+      filter.frequency.value = row === 1 ? 900 : 6500;
+      source.connect(filter);
+      filter.connect(gain);
+      source.extraFilter = filter;
+      length = row === 1 ? 0.14 : 0.055;
+    } else {
+      source.type = row === 3 ? 'triangle' : 'sine';
+      source.frequency.value = [0, 0, 0, 73.416, 293.665, 440][row];
+      length = row === 3 ? 0.32 : 0.22;
+    }
+    gain.gain.exponentialRampToValueAtTime(row < 2 ? 0.4 : row === 2 ? 0.12 : 0.18, now + 0.006);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + length);
+    if (!source.extraFilter) source.connect(gain);
+    gain.connect(engine.bus);
+    source.start(now);
+    source.stop(now + length + 0.02);
+    engine.voices.add(source);
+    source.onended = () => {
+      engine.voices.delete(source);
+      source.disconnect();
+      source.extraFilter?.disconnect();
+      gain.disconnect();
+    };
+  });
+}
+export function sequencerMarkup() {
+  return `<details class="beat-lab" open><summary>Beat lab · 16-step sequencer</summary><label>Beat tempo<input data-seq-bpm type="number" min="40" max="220" value="120"></label><div class="step-scroll"><div data-step-grid class="step-grid">${SEQ_TRACKS.map((name, r) => `<span>${name}</span>${Array.from({ length: 16 }, (_, i) => `<button type="button" data-step="${r}:${i}" aria-label="${name}, step ${i + 1}" aria-pressed="false">${i + 1}</button>`).join('')}`).join('')}</div></div><div class="form-row"><button data-seq-play>Play beat preview</button><button data-seq-use>Use beat with fleet</button></div><div class="form-row"><button data-seq-clear>Clear beat</button><button data-seq-preset>Load starter beat</button></div><p class="hint">Tap steps to program kick, snare, hats, bass and melody. Four steps per beat; the highlighted column is the playhead. Beat patterns save with your fleet.</p></details>`;
+}
+export async function storedTrack(action, file) {
+  if (!globalThis.indexedDB)
+    throw Error(
+      'Device audio storage is unavailable. You can still attach a file for this session.',
+    );
+  const db = await new Promise((resolve, reject) => {
+    const request = indexedDB.open('fleetcommander.media', 1);
+    request.onupgradeneeded = () => request.result.createObjectStore('tracks');
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(Error('Cannot open device audio storage.'));
+  });
+  try {
+    return await new Promise((resolve, reject) => {
+      const tx = db.transaction('tracks', action === 'save' ? 'readwrite' : 'readonly'),
+        store = tx.objectStore('tracks'),
+        request =
+          action === 'save'
+            ? store.put({ name: file.name, type: file.type, blob: file }, 'last')
+            : store.get('last');
+      let result;
+      request.onsuccess = () => (result = request.result);
+      tx.oncomplete = () => resolve(result);
+      tx.onerror = () => reject(Error('Could not save/read audio. Device storage may be full.'));
+      tx.onabort = () => reject(Error('Audio storage was interrupted.'));
+    });
+  } finally {
+    db.close();
+  }
+}

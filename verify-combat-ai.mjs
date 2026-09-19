@@ -1,16 +1,106 @@
 import assert from 'node:assert/strict';
-import {CommanderSimulation,createCommanderFleet} from './dist/fleet-commander-core.js';
-import {CombatSimulation} from './dist/combat-simulation.js';
-import {COMBAT_PRESETS,combatSettings} from './dist/combat-ai.js';
-import {DirectorCamera,fpvSettings} from './dist/director-camera.js';
+import { CommanderSimulation, createCommanderFleet } from './dist/fleet-commander-core.js';
+import { CombatSimulation } from './dist/combat-simulation.js';
+import { COMBAT_PRESETS, combatSettings } from './dist/combat-ai.js';
+import { DirectorCamera, fpvSettings } from './dist/director-camera.js';
 import * as T from './dist/three.js?v=0.6.0';
-const settings=combatSettings({speed:900,damage:-1,reaction:NaN,retreatHealth:999});assert.equal(settings.speed,1.6);assert.equal(settings.damage,0);assert.equal(settings.reaction,.4);assert.equal(settings.retreatHealth,60);
-for(const [key,preset]of Object.entries(COMBAT_PRESETS)){
- const s=new CommanderSimulation(createCommanderFleet(preset.count,'mixed')),original=JSON.stringify(s.snapshot()),c=new CombatSimulation(s);c.settings=combatSettings(preset.settings);c.tactics={friendly:preset.tactics[0],enemy:preset.tactics[1]};c.formations={friendly:preset.formations[0],enemy:preset.formations[1]};c.autoPayloads=preset.payloads;await c.start();c.engage();const states=new Set();
- for(let i=0;i<1800;i++){s.step(1/60);for(const d of s.drones)states.add(d.ai.state);}assert(s.drones.every(d=>[...d.pos,...d.velocity].every(Number.isFinite)),key);assert(s.drones.some(d=>d.ai.decisions>5));assert(c.impacts>0||c.detonations>0,'battle must produce action: '+key);if(key==='furball'){assert.equal(c.detonations,0);assert(states.has('Intercept'));}if(key==='payload'){assert(c.detonations>0);assert(states.has('Payload run'));assert(states.has('Break away'));}c.exit();assert.equal(JSON.stringify(s.snapshot()),original);
- console.log('PASS AI scenario:',key,[...states].join(', '));
+const settings = combatSettings({ speed: 900, damage: -1, reaction: NaN, retreatHealth: 999 });
+assert.equal(settings.speed, 1.6);
+assert.equal(settings.damage, 0);
+assert.equal(settings.reaction, 0.4);
+assert.equal(settings.retreatHealth, 60);
+for (const [key, preset] of Object.entries(COMBAT_PRESETS)) {
+  const s = new CommanderSimulation(createCommanderFleet(preset.count, 'mixed')),
+    original = JSON.stringify(s.snapshot()),
+    c = new CombatSimulation(s);
+  c.settings = combatSettings(preset.settings);
+  c.tactics = { friendly: preset.tactics[0], enemy: preset.tactics[1] };
+  c.formations = { friendly: preset.formations[0], enemy: preset.formations[1] };
+  c.autoPayloads = preset.payloads;
+  await c.start();
+  c.engage();
+  const states = new Set();
+  for (let i = 0; i < 1800; i++) {
+    s.step(1 / 60);
+    for (const d of s.drones) states.add(d.ai.state);
+  }
+  assert(
+    s.drones.every((d) => [...d.pos, ...d.velocity].every(Number.isFinite)),
+    key,
+  );
+  assert(s.drones.some((d) => d.ai.decisions > 5));
+  assert(c.impacts > 0 || c.detonations > 0, 'battle must produce action: ' + key);
+  if (key === 'furball') {
+    assert.equal(c.detonations, 0);
+    assert(states.has('Intercept'));
+  }
+  if (key === 'payload') {
+    assert(c.detonations > 0);
+    assert(states.has('Payload run'));
+    assert(states.has('Break away'));
+  }
+  c.exit();
+  assert.equal(JSON.stringify(s.snapshot()), original);
+  console.log('PASS AI scenario:', key, [...states].join(', '));
 }
-const s=new CommanderSimulation(createCommanderFleet(4,'mixed')),c=new CombatSimulation(s);await c.start();c.configure({damage:0,payloadCooldown:7,retreatHealth:50});const d=s.drones[0];d.cooldown=0;assert(c.drop(d.id));assert.equal(d.cooldown,7);c.damage(d,60);c.engage();s.step(1/60);assert(d.combatRetreat,'damaged aircraft withdraw at configured hull threshold');c.configure({roundSeconds:.1});for(let i=0;i<10;i++)s.step(1/60);assert(c.winner.includes('time limit'));assert(!c.engaged);c.exit();
-await c.start();c.configure({damage:0});const p=s.drones[0];p.cooldown=0;c.drop(p.id);const bomb=c.payloads[0],enemy=s.drones[2];enemy.pos=[...bomb.pos];c.explode(bomb);assert.equal(enemy.health,100,'zero damage leaves hull intact');c.exit();
-const rig=new DirectorCamera(),camera=new T.PerspectiveCamera(),craft={id:'test',mode:'FLY',pos:[0,30,0],yaw:.6,attitude:{pitch:.3,roll:.5},velocity:[0,0,5]},scene={drones:[craft],running:true,fleet:{options:{reducedMotion:false}}};rig.configureFPV({fov:110,stabilization:1,smoothing:0});rig.update(camera,scene,'fpv',craft,1/60);assert.equal(camera.fov,110);assert(camera.up.distanceTo(new T.Vector3(0,1,0))<1e-6);rig.configureFPV({stabilization:0});rig.update(camera,scene,'fpv',craft,1/60);assert(camera.up.distanceTo(new T.Vector3(0,1,0))>.2);rig.configureFPV({sensitivity:.5});rig.look(100,0,true);assert.equal(rig.fpvYaw,-.2);rig.recenterFPV();assert.equal(rig.fpvYaw,0);assert.equal(fpvSettings({fov:500,smoothing:-1}).fov,115);rig.configureFPV({smoothing:.4});rig.update(camera,scene,'fpv',craft,1/60);const before=camera.quaternion.clone();craft.yaw+=1;rig.update(camera,scene,'fpv',craft,1/60);assert(camera.quaternion.angleTo(before)<.2,'smoothing limits an abrupt rotation');
-console.log('PASS: combat tuning, cooldown, damage-free blasts, retreats, timed outcomes, FPV FOV/stabilization/sensitivity/smoothing and reset.');
+const s = new CommanderSimulation(createCommanderFleet(4, 'mixed')),
+  c = new CombatSimulation(s);
+await c.start();
+c.configure({ damage: 0, payloadCooldown: 7, retreatHealth: 50 });
+const d = s.drones[0];
+d.cooldown = 0;
+assert(c.drop(d.id));
+assert.equal(d.cooldown, 7);
+c.damage(d, 60);
+c.engage();
+s.step(1 / 60);
+assert(d.combatRetreat, 'damaged aircraft withdraw at configured hull threshold');
+c.configure({ roundSeconds: 0.1 });
+for (let i = 0; i < 10; i++) s.step(1 / 60);
+assert(c.winner.includes('time limit'));
+assert(!c.engaged);
+c.exit();
+await c.start();
+c.configure({ damage: 0 });
+const p = s.drones[0];
+p.cooldown = 0;
+c.drop(p.id);
+const bomb = c.payloads[0],
+  enemy = s.drones[2];
+enemy.pos = [...bomb.pos];
+c.explode(bomb);
+assert.equal(enemy.health, 100, 'zero damage leaves hull intact');
+c.exit();
+const rig = new DirectorCamera(),
+  camera = new T.PerspectiveCamera(),
+  craft = {
+    id: 'test',
+    mode: 'FLY',
+    pos: [0, 30, 0],
+    yaw: 0.6,
+    attitude: { pitch: 0.3, roll: 0.5 },
+    velocity: [0, 0, 5],
+  },
+  scene = { drones: [craft], running: true, fleet: { options: { reducedMotion: false } } };
+rig.configureFPV({ fov: 110, stabilization: 1, smoothing: 0 });
+rig.update(camera, scene, 'fpv', craft, 1 / 60);
+assert.equal(camera.fov, 110);
+assert(camera.up.distanceTo(new T.Vector3(0, 1, 0)) < 1e-6);
+rig.configureFPV({ stabilization: 0 });
+rig.update(camera, scene, 'fpv', craft, 1 / 60);
+assert(camera.up.distanceTo(new T.Vector3(0, 1, 0)) > 0.2);
+rig.configureFPV({ sensitivity: 0.5 });
+rig.look(100, 0, true);
+assert.equal(rig.fpvYaw, -0.2);
+rig.recenterFPV();
+assert.equal(rig.fpvYaw, 0);
+assert.equal(fpvSettings({ fov: 500, smoothing: -1 }).fov, 115);
+rig.configureFPV({ smoothing: 0.4 });
+rig.update(camera, scene, 'fpv', craft, 1 / 60);
+const before = camera.quaternion.clone();
+craft.yaw += 1;
+rig.update(camera, scene, 'fpv', craft, 1 / 60);
+assert(camera.quaternion.angleTo(before) < 0.2, 'smoothing limits an abrupt rotation');
+console.log(
+  'PASS: combat tuning, cooldown, damage-free blasts, retreats, timed outcomes, FPV FOV/stabilization/sensitivity/smoothing and reset.',
+);

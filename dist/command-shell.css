@@ -1,17 +1,695 @@
-.command-shell{--bg:#080e16;--panel:#111a26;--edge:#283647;--text:#e8edf4;--muted:#9caec2;--accent:#79c6ff;background:var(--bg);color:var(--text)}
-.command-shell .commander-header{height:68px;padding:0 24px;gap:24px;border-bottom:1px solid var(--edge);background:#0c1420}.command-shell .wordmark{font-size:18px}.command-shell .wordmark span{color:#79c6ff}.command-shell .wordmark small{font-size:10px;letter-spacing:1.6px}.command-shell .module-title{margin-right:auto}.command-shell .module-title h1{font-size:16px}.command-shell .module-title p{font-size:12px}.command-shell .module-title i{background:#79c6ff}
-.shell-tools{display:flex;gap:8px}.shell-tools button{font-size:14px;min-height:40px;padding:8px 12px}.shell-tools kbd{margin-left:18px;color:var(--muted)}
-.command-shell .workspace{display:grid;grid-template-columns:94px minmax(0,1fr) 370px;min-height:calc(100dvh - 68px)}.command-rail{background:#0c1420;border-right:1px solid var(--edge);padding:12px 7px;display:flex;flex-direction:column;gap:4px}.command-rail button{background:transparent;border:1px solid transparent;border-radius:7px;min-height:60px;padding:7px 2px;text-align:center;display:flex;flex-direction:column;justify-content:center;gap:3px;align-items:center}.command-rail button span{font:12px var(--mono);color:#697f98}.command-rail button b{font-size:12px;font-weight:500}.command-rail button[aria-pressed=true]{background:#163047;border-color:#31607f;color:#b8e3ff}.command-rail button[aria-pressed=true] span{color:#79c6ff}
-.command-shell .flight-workspace{padding:16px 18px 0;min-width:0}.command-shell .control-panel{height:calc(100dvh - 68px);position:sticky;top:0;border-left:1px solid var(--edge);background:var(--panel);display:flex;flex-direction:column;min-width:0}.panel-title{display:flex;justify-content:space-between;align-items:center;padding:10px 18px;border-bottom:1px solid var(--edge);font-weight:600;letter-spacing:.3px}.panel-title button{min-height:32px;width:32px;padding:0;font-size:23px;border:0;background:transparent}.command-shell .panel-scroll{padding:18px;overflow:auto;flex:1}.command-shell .section-heading h2{font-size:23px;letter-spacing:-.5px;margin:7px 0}.command-shell .section-heading p{font-size:14px;line-height:1.5}.command-shell .section-heading .eyebrow{font-size:11px;color:#79c6ff}.command-shell label,.command-shell summary,.command-shell .hint{font-size:14px}.command-shell summary{padding:14px 0}.command-shell details{border-color:var(--edge)}.command-shell button{border-radius:6px}.command-shell button.primary{background:#a9d8f4;color:#08131c;border-color:#a9d8f4}.command-shell input,.command-shell select,.command-shell textarea{background:#080f1b;color:var(--text);border-color:#344355;font-size:14px}.command-shell button:hover{border-color:#6b9fbe}.command-shell .field-wrap{border-radius:8px;min-height:330px;height:calc(100dvh - 382px);background:#0b1522;border:1px solid #344355}.command-shell .field-label .eyebrow{color:#c5e2f6}.command-shell .field-label b{font-size:18px}.command-shell .notice{color:#bcd8ed;font-size:13px}.command-shell .telemetry{padding:11px 0}.command-shell .telemetry strong{font-size:20px}.command-shell .telemetry span{font-size:11px}.command-shell .color-groups{gap:4px}.command-shell .color-groups button{min-height:32px;padding:4px 6px}.command-shell .group-actions{gap:5px}.command-shell .group-actions button{min-height:36px;font-size:12px;padding:5px 8px}.command-shell .battery-status{font-size:12px;line-height:1.4}.command-shell .command-deck{padding:9px 0}.command-shell .command-heading select{min-height:34px}.command-shell .flight-toolbar{gap:8px}.command-shell .flight-toolbar button{min-height:38px;font-size:13px;padding:6px 10px}.command-shell .view-label select{max-width:210px;font-size:13px}
-.command-shell.inspector-closed .workspace{grid-template-columns:94px minmax(0,1fr)}.inspector-closed .control-panel{display:none}.command-search{width:min(560px,calc(100vw - 24px));max-height:80dvh;padding:20px;border:1px solid #3c5872;border-radius:12px;background:#101b2a;color:#e8edf4;box-shadow:0 24px 90px #000b}.command-search::backdrop{background:#020812bb;backdrop-filter:blur(5px)}.command-search form{display:flex;justify-content:space-between;align-items:center}.command-search form button{font-size:22px;border:0}.command-search input{width:100%;min-height:48px;margin:8px 0 14px}.command-search #controlResults{display:grid;gap:5px}.command-search #controlResults button{text-align:left;display:flex;align-items:center;justify-content:space-between;gap:15px;min-height:43px;background:#152438;padding:10px;border:1px solid #283c51}.command-search small{font-size:12px;color:#8fb8d6;white-space:nowrap}.found-control{outline:3px solid #79c6ff!important;outline-offset:3px}
-.lab-facts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:14px 0}.lab-facts div{padding:12px;background:#0a1422;border:1px solid #28394c;border-radius:6px;min-width:0}.lab-facts strong{display:block;font:21px var(--mono);color:#c0e6ff;word-break:break-word}.lab-facts small{font-size:12px;color:var(--muted)}.lab-note{border-left:2px solid #79c6ff;padding:10px 12px;background:#11263a;font-size:13px;line-height:1.5}.lab-note.warning{border-color:#e4b56d;background:#2c241a;color:#f1d8b2}.material-table{width:100%;border-collapse:collapse;font-size:13px}.material-table th,.material-table td{padding:10px 5px;border-bottom:1px solid #28394c;text-align:left}.material-table th:last-child,.material-table td:last-child{text-align:right}.material-table small{font-size:11px;color:var(--muted);display:block}.replay-list{display:grid;gap:8px}.replay-card{display:grid;grid-template-columns:1fr auto;gap:6px;padding:12px;background:#0a1422;border:1px solid #28394c;border-radius:6px}.replay-card small{grid-column:1/-1;font-size:12px;color:var(--muted)}.replay-card button{font-size:13px;min-height:35px}.replay-overlay{position:absolute;left:50%;transform:translateX(-50%);bottom:16px;display:flex;align-items:center;gap:8px;padding:8px 12px;background:#091322e8;border:1px solid #749dbb;border-radius:7px;z-index:8;max-width:95%}.replay-overlay b{font:12px var(--mono);color:#bbdef6}.replay-overlay button{min-height:34px;padding:5px 10px;font-size:12px}.journal-row{padding:12px 0;border-bottom:1px solid var(--edge);font-size:14px}.journal-row small{display:block;color:var(--muted);font-size:12px;margin-top:5px}.lab-fieldset{padding:0;border:0;min-width:0}.planet-badge{position:absolute;right:14px;top:14px;font:12px var(--mono);background:#07101bd9;border:1px solid #486276;padding:7px 10px;border-radius:5px;z-index:3;color:#c8e6fa}
-@media(max-width:1100px){.command-shell .workspace{grid-template-columns:80px minmax(0,1fr) 325px}.command-shell.inspector-closed .workspace{grid-template-columns:80px minmax(0,1fr)}.command-shell .flight-workspace{padding:12px}.command-shell .module-title{display:none}.command-shell .commander-header{justify-content:space-between}.command-shell .flight-toolbar{flex-wrap:wrap}.command-shell .view-label{margin-left:auto}.command-shell .field-wrap{height:50dvh}.command-shell .telemetry strong{font-size:17px}}
-@media(max-width:720px){.command-shell .commander-header{height:62px;min-height:62px;flex-wrap:nowrap;padding:8px 12px;gap:8px}.command-shell .wordmark{font-size:14px}.command-shell .wordmark small{font-size:9px}.shell-tools button{padding:6px 9px;font-size:12px}.shell-tools kbd{display:none}.command-shell .workspace,.command-shell.inspector-closed .workspace{display:block;min-height:calc(100dvh - 62px);padding-bottom:76px}.command-rail{position:fixed;bottom:0;left:0;right:0;z-index:30;flex-direction:row;overflow-x:auto;padding:5px 6px calc(5px + env(safe-area-inset-bottom));border-top:1px solid #344355;border-right:0;gap:4px}.command-rail button{flex:0 0 68px;min-height:50px}.command-rail button b{font-size:11px}.command-rail button span{font-size:10px}.command-shell .control-panel{position:fixed;z-index:25;right:0;top:62px;bottom:70px;width:min(380px,100vw);height:auto;margin:0;border:1px solid #3b556e;box-shadow:-10px 0 40px #0007}.command-shell .panel-scroll{overflow:auto;padding:16px}.command-shell .field-wrap{height:52dvh;min-height:300px}.command-shell .flight-workspace{padding:9px 10px}.command-shell .flight-toolbar button{min-height:40px}.command-shell .view-label select{min-height:40px}.command-shell .telemetry strong{font-size:16px}.command-shell .group-actions button{font-size:12px}.command-shell .field-label .eyebrow{font-size:9px}.command-shell .field-label small{font-size:10px}.planet-badge{font-size:10px;top:10px;right:8px}.command-shell .command-heading{flex-wrap:wrap}.replay-overlay{bottom:9px;flex-wrap:wrap;justify-content:center;width:90%}}
-@media(prefers-reduced-motion:reduce){.command-search::backdrop{backdrop-filter:none}}
+.command-shell {
+  --bg: #080e16;
+  --panel: #111a26;
+  --edge: #283647;
+  --text: #e8edf4;
+  --muted: #9caec2;
+  --accent: #79c6ff;
+  background: var(--bg);
+  color: var(--text);
+}
+.command-shell .commander-header {
+  height: 68px;
+  padding: 0 24px;
+  gap: 24px;
+  border-bottom: 1px solid var(--edge);
+  background: #0c1420;
+}
+.command-shell .wordmark {
+  font-size: 18px;
+}
+.command-shell .wordmark span {
+  color: #79c6ff;
+}
+.command-shell .wordmark small {
+  font-size: 10px;
+  letter-spacing: 1.6px;
+}
+.command-shell .module-title {
+  margin-right: auto;
+}
+.command-shell .module-title h1 {
+  font-size: 16px;
+}
+.command-shell .module-title p {
+  font-size: 12px;
+}
+.command-shell .module-title i {
+  background: #79c6ff;
+}
+.shell-tools {
+  display: flex;
+  gap: 8px;
+}
+.shell-tools button {
+  font-size: 14px;
+  min-height: 40px;
+  padding: 8px 12px;
+}
+.shell-tools kbd {
+  margin-left: 18px;
+  color: var(--muted);
+}
+.command-shell .workspace {
+  display: grid;
+  grid-template-columns: 94px minmax(0, 1fr) 370px;
+  min-height: calc(100dvh - 68px);
+}
+.command-rail {
+  background: #0c1420;
+  border-right: 1px solid var(--edge);
+  padding: 12px 7px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.command-rail button {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  min-height: 60px;
+  padding: 7px 2px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  align-items: center;
+}
+.command-rail button span {
+  font: 12px var(--mono);
+  color: #697f98;
+}
+.command-rail button b {
+  font-size: 12px;
+  font-weight: 500;
+}
+.command-rail button[aria-pressed='true'] {
+  background: #163047;
+  border-color: #31607f;
+  color: #b8e3ff;
+}
+.command-rail button[aria-pressed='true'] span {
+  color: #79c6ff;
+}
+.command-shell .flight-workspace {
+  padding: 16px 18px 0;
+  min-width: 0;
+}
+.command-shell .control-panel {
+  height: calc(100dvh - 68px);
+  position: sticky;
+  top: 0;
+  border-left: 1px solid var(--edge);
+  background: var(--panel);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.panel-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 18px;
+  border-bottom: 1px solid var(--edge);
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+.panel-title button {
+  min-height: 32px;
+  width: 32px;
+  padding: 0;
+  font-size: 23px;
+  border: 0;
+  background: transparent;
+}
+.command-shell .panel-scroll {
+  padding: 18px;
+  overflow: auto;
+  flex: 1;
+}
+.command-shell .section-heading h2 {
+  font-size: 23px;
+  letter-spacing: -0.5px;
+  margin: 7px 0;
+}
+.command-shell .section-heading p {
+  font-size: 14px;
+  line-height: 1.5;
+}
+.command-shell .section-heading .eyebrow {
+  font-size: 11px;
+  color: #79c6ff;
+}
+.command-shell label,
+.command-shell summary,
+.command-shell .hint {
+  font-size: 14px;
+}
+.command-shell summary {
+  padding: 14px 0;
+}
+.command-shell details {
+  border-color: var(--edge);
+}
+.command-shell button {
+  border-radius: 6px;
+}
+.command-shell button.primary {
+  background: #a9d8f4;
+  color: #08131c;
+  border-color: #a9d8f4;
+}
+.command-shell input,
+.command-shell select,
+.command-shell textarea {
+  background: #080f1b;
+  color: var(--text);
+  border-color: #344355;
+  font-size: 14px;
+}
+.command-shell button:hover {
+  border-color: #6b9fbe;
+}
+.command-shell .field-wrap {
+  border-radius: 8px;
+  min-height: 330px;
+  height: calc(100dvh - 382px);
+  background: #0b1522;
+  border: 1px solid #344355;
+}
+.command-shell .field-label .eyebrow {
+  color: #c5e2f6;
+}
+.command-shell .field-label b {
+  font-size: 18px;
+}
+.command-shell .notice {
+  color: #bcd8ed;
+  font-size: 13px;
+}
+.command-shell .telemetry {
+  padding: 11px 0;
+}
+.command-shell .telemetry strong {
+  font-size: 20px;
+}
+.command-shell .telemetry span {
+  font-size: 11px;
+}
+.command-shell .color-groups {
+  gap: 4px;
+}
+.command-shell .color-groups button {
+  min-height: 32px;
+  padding: 4px 6px;
+}
+.command-shell .group-actions {
+  gap: 5px;
+}
+.command-shell .group-actions button {
+  min-height: 36px;
+  font-size: 12px;
+  padding: 5px 8px;
+}
+.command-shell .battery-status {
+  font-size: 12px;
+  line-height: 1.4;
+}
+.command-shell .command-deck {
+  padding: 9px 0;
+}
+.command-shell .command-heading select {
+  min-height: 34px;
+}
+.command-shell .flight-toolbar {
+  gap: 8px;
+}
+.command-shell .flight-toolbar button {
+  min-height: 38px;
+  font-size: 13px;
+  padding: 6px 10px;
+}
+.command-shell .view-label select {
+  max-width: 210px;
+  font-size: 13px;
+}
+.command-shell.inspector-closed .workspace {
+  grid-template-columns: 94px minmax(0, 1fr);
+}
+.inspector-closed .control-panel {
+  display: none;
+}
+.command-search {
+  width: min(560px, calc(100vw - 24px));
+  max-height: 80dvh;
+  padding: 20px;
+  border: 1px solid #3c5872;
+  border-radius: 12px;
+  background: #101b2a;
+  color: #e8edf4;
+  box-shadow: 0 24px 90px #000b;
+}
+.command-search::backdrop {
+  background: #020812bb;
+  backdrop-filter: blur(5px);
+}
+.command-search form {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.command-search form button {
+  font-size: 22px;
+  border: 0;
+}
+.command-search input {
+  width: 100%;
+  min-height: 48px;
+  margin: 8px 0 14px;
+}
+.command-search #controlResults {
+  display: grid;
+  gap: 5px;
+}
+.command-search #controlResults button {
+  text-align: left;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  min-height: 43px;
+  background: #152438;
+  padding: 10px;
+  border: 1px solid #283c51;
+}
+.command-search small {
+  font-size: 12px;
+  color: #8fb8d6;
+  white-space: nowrap;
+}
+.found-control {
+  outline: 3px solid #79c6ff !important;
+  outline-offset: 3px;
+}
+.lab-facts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 14px 0;
+}
+.lab-facts div {
+  padding: 12px;
+  background: #0a1422;
+  border: 1px solid #28394c;
+  border-radius: 6px;
+  min-width: 0;
+}
+.lab-facts strong {
+  display: block;
+  font: 21px var(--mono);
+  color: #c0e6ff;
+  word-break: break-word;
+}
+.lab-facts small {
+  font-size: 12px;
+  color: var(--muted);
+}
+.lab-note {
+  border-left: 2px solid #79c6ff;
+  padding: 10px 12px;
+  background: #11263a;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.lab-note.warning {
+  border-color: #e4b56d;
+  background: #2c241a;
+  color: #f1d8b2;
+}
+.material-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.material-table th,
+.material-table td {
+  padding: 10px 5px;
+  border-bottom: 1px solid #28394c;
+  text-align: left;
+}
+.material-table th:last-child,
+.material-table td:last-child {
+  text-align: right;
+}
+.material-table small {
+  font-size: 11px;
+  color: var(--muted);
+  display: block;
+}
+.replay-list {
+  display: grid;
+  gap: 8px;
+}
+.replay-card {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px;
+  padding: 12px;
+  background: #0a1422;
+  border: 1px solid #28394c;
+  border-radius: 6px;
+}
+.replay-card small {
+  grid-column: 1/-1;
+  font-size: 12px;
+  color: var(--muted);
+}
+.replay-card button {
+  font-size: 13px;
+  min-height: 35px;
+}
+.replay-overlay {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #091322e8;
+  border: 1px solid #749dbb;
+  border-radius: 7px;
+  z-index: 8;
+  max-width: 95%;
+}
+.replay-overlay b {
+  font: 12px var(--mono);
+  color: #bbdef6;
+}
+.replay-overlay button {
+  min-height: 34px;
+  padding: 5px 10px;
+  font-size: 12px;
+}
+.journal-row {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--edge);
+  font-size: 14px;
+}
+.journal-row small {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 5px;
+}
+.lab-fieldset {
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.planet-badge {
+  position: absolute;
+  right: 14px;
+  top: 14px;
+  font: 12px var(--mono);
+  background: #07101bd9;
+  border: 1px solid #486276;
+  padding: 7px 10px;
+  border-radius: 5px;
+  z-index: 3;
+  color: #c8e6fa;
+}
+@media (max-width: 1100px) {
+  .command-shell .workspace {
+    grid-template-columns: 80px minmax(0, 1fr) 325px;
+  }
+  .command-shell.inspector-closed .workspace {
+    grid-template-columns: 80px minmax(0, 1fr);
+  }
+  .command-shell .flight-workspace {
+    padding: 12px;
+  }
+  .command-shell .module-title {
+    display: none;
+  }
+  .command-shell .commander-header {
+    justify-content: space-between;
+  }
+  .command-shell .flight-toolbar {
+    flex-wrap: wrap;
+  }
+  .command-shell .view-label {
+    margin-left: auto;
+  }
+  .command-shell .field-wrap {
+    height: 50dvh;
+  }
+  .command-shell .telemetry strong {
+    font-size: 17px;
+  }
+}
+@media (max-width: 720px) {
+  .command-shell .commander-header {
+    height: 62px;
+    min-height: 62px;
+    flex-wrap: nowrap;
+    padding: 8px 12px;
+    gap: 8px;
+  }
+  .command-shell .wordmark {
+    font-size: 14px;
+  }
+  .command-shell .wordmark small {
+    font-size: 9px;
+  }
+  .shell-tools button {
+    padding: 6px 9px;
+    font-size: 12px;
+  }
+  .shell-tools kbd {
+    display: none;
+  }
+  .command-shell .workspace,
+  .command-shell.inspector-closed .workspace {
+    display: block;
+    min-height: calc(100dvh - 62px);
+    padding-bottom: 76px;
+  }
+  .command-rail {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 30;
+    flex-direction: row;
+    overflow-x: auto;
+    padding: 5px 6px calc(5px + env(safe-area-inset-bottom));
+    border-top: 1px solid #344355;
+    border-right: 0;
+    gap: 4px;
+  }
+  .command-rail button {
+    flex: 0 0 68px;
+    min-height: 50px;
+  }
+  .command-rail button b {
+    font-size: 11px;
+  }
+  .command-rail button span {
+    font-size: 10px;
+  }
+  .command-shell .control-panel {
+    position: fixed;
+    z-index: 25;
+    right: 0;
+    top: 62px;
+    bottom: 70px;
+    width: min(380px, 100vw);
+    height: auto;
+    margin: 0;
+    border: 1px solid #3b556e;
+    box-shadow: -10px 0 40px #0007;
+  }
+  .command-shell .panel-scroll {
+    overflow: auto;
+    padding: 16px;
+  }
+  .command-shell .field-wrap {
+    height: 52dvh;
+    min-height: 300px;
+  }
+  .command-shell .flight-workspace {
+    padding: 9px 10px;
+  }
+  .command-shell .flight-toolbar button {
+    min-height: 40px;
+  }
+  .command-shell .view-label select {
+    min-height: 40px;
+  }
+  .command-shell .telemetry strong {
+    font-size: 16px;
+  }
+  .command-shell .group-actions button {
+    font-size: 12px;
+  }
+  .command-shell .field-label .eyebrow {
+    font-size: 9px;
+  }
+  .command-shell .field-label small {
+    font-size: 10px;
+  }
+  .planet-badge {
+    font-size: 10px;
+    top: 10px;
+    right: 8px;
+  }
+  .command-shell .command-heading {
+    flex-wrap: wrap;
+  }
+  .replay-overlay {
+    bottom: 9px;
+    flex-wrap: wrap;
+    justify-content: center;
+    width: 90%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .command-search::backdrop {
+    backdrop-filter: none;
+  }
+}
 
 /* Keep frequent controls shallow and the field prominent. */
-.command-shell .commander-header{position:sticky;top:0;z-index:35}
-.command-shell .command-rail{position:sticky;top:68px;height:calc(100dvh - 68px);overflow-y:auto;box-sizing:border-box}.command-shell .command-rail button{min-height:52px;flex-shrink:0}
-.command-shell .control-panel{top:68px}.command-shell .camera-tools{gap:5px;margin:5px 0;flex-wrap:wrap}.command-shell .camera-tools button{min-height:32px;padding:5px 9px;font-size:12px}.command-shell .camera-tools>span{font-size:11px;flex-basis:auto;margin-left:auto}
-.command-shell .sound-bar{grid-template-columns:auto auto 70px minmax(0,1fr);gap:7px;margin:7px 0;padding:5px 8px;background:#0c1a29;border-color:#2d4359}.command-shell .sound-bar button{min-height:32px;font-size:12px;padding:5px 8px}.command-shell .sound-bar>span{grid-column:auto;font-size:12px}.command-shell .ai-launch{background:#14283b;border-color:#35546d}.command-shell .team-survival{padding:7px 10px;margin-bottom:7px;background:#0d1b2b;border-color:#30485e}.command-shell .team-survival b{font-size:13px}.command-shell .team-survival small{font-size:11px}.command-shell .field-wrap{height:calc(100dvh - 378px);min-height:340px}
-@media(max-width:720px){.command-shell .command-rail{position:fixed;top:auto;height:auto;overflow-y:hidden}.command-shell .control-panel{top:62px}.command-shell .camera-tools{overflow-x:auto;flex-wrap:nowrap;padding-bottom:3px}.command-shell .camera-tools button{flex-shrink:0;min-height:38px}.command-shell .camera-tools>span{display:none}.command-shell .sound-bar{grid-template-columns:auto auto 1fr}.command-shell .sound-bar>span{grid-column:1/-1;font-size:12px}.command-shell .field-wrap{height:51dvh;min-height:310px}}
+.command-shell .commander-header {
+  position: sticky;
+  top: 0;
+  z-index: 35;
+}
+.command-shell .command-rail {
+  position: sticky;
+  top: 68px;
+  height: calc(100dvh - 68px);
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+.command-shell .command-rail button {
+  min-height: 52px;
+  flex-shrink: 0;
+}
+.command-shell .control-panel {
+  top: 68px;
+}
+.command-shell .camera-tools {
+  gap: 5px;
+  margin: 5px 0;
+  flex-wrap: wrap;
+}
+.command-shell .camera-tools button {
+  min-height: 32px;
+  padding: 5px 9px;
+  font-size: 12px;
+}
+.command-shell .camera-tools > span {
+  font-size: 11px;
+  flex-basis: auto;
+  margin-left: auto;
+}
+.command-shell .sound-bar {
+  grid-template-columns: auto auto 70px minmax(0, 1fr);
+  gap: 7px;
+  margin: 7px 0;
+  padding: 5px 8px;
+  background: #0c1a29;
+  border-color: #2d4359;
+}
+.command-shell .sound-bar button {
+  min-height: 32px;
+  font-size: 12px;
+  padding: 5px 8px;
+}
+.command-shell .sound-bar > span {
+  grid-column: auto;
+  font-size: 12px;
+}
+.command-shell .ai-launch {
+  background: #14283b;
+  border-color: #35546d;
+}
+.command-shell .team-survival {
+  padding: 7px 10px;
+  margin-bottom: 7px;
+  background: #0d1b2b;
+  border-color: #30485e;
+}
+.command-shell .team-survival b {
+  font-size: 13px;
+}
+.command-shell .team-survival small {
+  font-size: 11px;
+}
+.command-shell .field-wrap {
+  height: calc(100dvh - 378px);
+  min-height: 340px;
+}
+@media (max-width: 720px) {
+  .command-shell .command-rail {
+    position: fixed;
+    top: auto;
+    height: auto;
+    overflow-y: hidden;
+  }
+  .command-shell .control-panel {
+    top: 62px;
+  }
+  .command-shell .camera-tools {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    padding-bottom: 3px;
+  }
+  .command-shell .camera-tools button {
+    flex-shrink: 0;
+    min-height: 38px;
+  }
+  .command-shell .camera-tools > span {
+    display: none;
+  }
+  .command-shell .sound-bar {
+    grid-template-columns: auto auto 1fr;
+  }
+  .command-shell .sound-bar > span {
+    grid-column: 1/-1;
+    font-size: 12px;
+  }
+  .command-shell .field-wrap {
+    height: 51dvh;
+    min-height: 310px;
+  }
+}
+
+.command-rail .sports-nav-link {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 54px;
+  padding: 8px 4px;
+  color: #bfe9d4;
+  text-decoration: none;
+  background: #17362f;
+  border: 1px solid #325c4e;
+  border-radius: 7px;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+.command-rail .sports-nav-link:focus-visible {
+  outline: 3px solid #79c6ff;
+}
+@media (max-width: 720px) {
+  .command-rail .sports-nav-link {
+    flex: 0 0 78px;
+  }
+}

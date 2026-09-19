@@ -2,7 +2,7 @@
 
 A standalone drone swarm game and flight lab, branched from GRIDRUNNER v7.40 at `a9a64002ff4536eee819654cd5e45d4964765255`.
 
-Default branch: `main`. Open `dist/index.html` through the Vite server or the hosted Site. `commander.html` redirects to the root.
+Branch: `fleet-commander-standalone`. Open `dist/index.html` through the Vite server or the hosted Site. `commander.html` redirects to the root.
 
 ## Play
 
@@ -26,9 +26,22 @@ The original GRIDRUNNER checkout and published game are unchanged. The new Site 
 
 `npm ci` installs the pinned dependencies. `npm run dev` opens the Vite development server. `npm test` runs the Commander, UI, and standalone validation gates. Static assets under `dist` are the authored source and deployment output; no build step is required.
 
+`npm run format` formats the authored HTML, CSS, JavaScript, JSON, and Markdown with the pinned Prettier version. `npm run format:check` verifies that formatting in CI or before a commit. Third-party Three.js, Rapier, GLTF utilities, and binary art assets are deliberately excluded.
+
 Tests cover zero/5,000/10,000 aircraft, unique simulation identities and launch pads, independent energy/velocity, large formation targets, Boids, JSON migration/roundtrips, battery reserve/depletion/recharge/relaunch, scored controls, and absence of campaign dependencies. Four detailed airframe files are checked as valid embedded-buffer GLBs.
 
 Cloud-browser inspection covered the real controls, empty fleet, launch, charge injection, emergency landing and relaunch in tactical fallback. This browser lacks WebGL; detailed GPU appearance remains device QA. In this environment 10,000 drones with Boids took roughly 375 ms per CPU simulation step. This is an experimental capacity limit, not a smooth-frame-rate promise. Every drone continues to be simulated at high counts; rendering changes only its level of detail.
+
+## Arena cameras, weather and Nerd Lab / 0.9
+
+- **Camera direction:** Cinematic Action follows active attacks and recent crashes, Best Fight frames the strongest opposing pair, and Longest Survivor stays with its aircraft until that subject is lost. All three are available from the field toolbar, Arena controls, starting-camera menu and replay camera menu.
+- **Slow-motion replay:** highlight cards have Watch and Slow-mo actions. Playback supports 1/8, 1/4, 1/2, normal and 2× speeds; Smart slow-mo ramps to 1/8 around the captured impact, loss, last stand or close call. Replay remains pose playback isolated from the live physics world.
+- **Weather:** clear, heavy-rain, thunderstorm and extreme-squall presets expose rain, wind, direction, gusts, clouds, fog, lightning and flash brightness. Independent screen, visual, physics and audio strengths affect FPV interference, visibility/wet surfaces, drift/stabilization/battery load, rain/wind/thunder sound and simulated RF link. Moon disables terrestrial rain/lightning and atmospheric wind; Mars uses reduced game wind.
+- **Fluid Lab:** optional wind uses a small 2D incompressible field with advection, viscosity and pressure projection. The live vector view and equations are educational visualization, not validated engineering CFD.
+- **Sound:** six bounded nearby motor voices change pitch, harmonic character and level by scout/relay/cargo/engineer airframe, motor count, speed/load, distance and damage. Drone, weather and impact buses have separate mix controls. Audio still begins only after a user gesture and never requests microphone input.
+- **Creative and logic tools:** Art Studio rasterizes emoji locally before the existing RGB/outline/silhouette and depth-layer pipeline. Math & Science / Nerd Lab labels model fidelity, shows live motion/wind/battery/RF values, provides Boolean gates, truth tables, a full adder, decimal/binary/hex registers with 1337 and 80085 presets, and opt-in low-battery/weather fleet rules.
+
+The new regression gate exercises all three cameras, smart replay rates, fluid stability, weather coupling, logic/register results and per-airframe audio profiles. The portable suite also retains the full fleet, arena, UI, replay, graphics and standalone checks.
 
 ## Swarm Director / 0.2
 
@@ -84,15 +97,39 @@ Validation includes actual Rapier dogfights and high-speed impacts, contact expl
 
 Validation: all four AI presets produced actual collisions/payload action; live tuning, retreat, round expiry/repeat, original fleet restoration and FPV transforms passed. Audio tests verify synchronous gesture resume, graph reuse, overview gain, paused test tones, interrupted recovery, mute and disposal. In the real browser the analyser meter showed nonzero battle/test output, then zero when muted/paused. Cloud QA cannot verify the user's phone speakers, silent/output settings, or full-scene WebGL rendering; those remain device checks. Recordings still exclude audio.
 
+### Combat cameras, coaching and creative tools (0.7, refined in 0.8.1)
+
+- **Live team counts:** the cyan Friendly and orange Hostile strips show flying/total, returning, landed and downed aircraft. Falling wrecks stop counting as flying immediately. The optional recorded HUD includes the flying counters.
+- **Cameras:** Shoulder keeps the drone visible from a raised rear-quarter angle; Top mount looks over its airframe. True FPV hides the camera drone and adds altitude, speed, hull, battery, current AI activity and target boxes. Boxes are simulation telemetry, not computer vision or YOLO. Combat camera follows close engagements and switches to aircraft losses; pause freezes it.
+- **Squads / coach board:** choose a preset or start blank, draw routes for six squads, and set each squad's airframe, tactic, altitude, delay and route-end action. Set each team's size independently. Run applies the plan; save on-device or import/export JSON.
+- **Art:** pixel/freehand paint, erase and undo on a 16–64-cell grid, or import an image as RGB, contrast outline or dark silhouette. Apply to the existing fleet or explicitly replace it with one drone per lit pixel (up to 4,096). Outline previews are black on white; aircraft use a visible chosen light color. Fleet files retain applied art, music patterns and notes.
+- **Music:** a six-track, sixteen-step beat maker and immediate preview work before launch. Upload and preview a track, optionally save/restore it on this device, or sync it to a fleet or battle. Uploaded audio is not embedded in fleet JSON. Large shows remain CPU-heavy and can affect sound timing.
+- **Recording:** this supersedes the earlier silent-capture behavior. Capture can include enabled game audio, music, metronome and the digital HUD, with no microphone access. Stop downloads the browser-supported MP4/WebM; Save again and supported system sharing remain available for the latest clip until the page closes. Canvas capture also supports tactical fallback where the browser provides MediaRecorder.
+
+Automated tests cover real rigid-body team losses, landed/returning counts, camera transforms and pause, coach orders, 4,096 unique art targets, music preservation, save/load, and mocked audio/recording lifecycle. Browser checks verified the live counters falling during a battle and custom team sizes. Full-scene GPU appearance, real mobile audio output and encoded-video playback still need on-device verification.
+
 ### Command center and simulation lab (0.8)
 
 - **Menus:** a compact command rail, a separate **Squads** board, collapsible groups, a mobile inspector drawer, and **Find a control** (`/`). Existing show, fleet, art, music, camera, combat and save tools remain available.
 - **Physics:** Earth, Moon and Mars environments with reference gravity and representative atmospheric density. Falling arena objects and cosmetic fragments use the selected gravity. **Constrained Earth-style rotors** cannot sustain flight on Moon/Mars; **Arcade lift** is a clearly labeled fictional option. Constrained worlds do not allow an arena launch until arcade lift is selected.
 - **Components:** an illustrative per-quad material/mass ledger, total kg and weight in N, battery Wh, baseline flight/electronics W, and a constant-draw energy budget. Optional Wh-based consumption and mass-dependent arcade acceleration apply to non-combat free flight. Component settings export as JSON. They are not verified hardware specifications or predicted aircraft performance.
-- **Replays:** an 18-second, 10 Hz rolling pose buffer for arenas of up to 256 drones. Impacts, aircraft losses and near misses create up to six seven-second highlights; manual capture keeps eight seconds. Scrub, use quarter/half/normal speed, choose overview/side/shoulder/FPV cameras, and export/import JSON. Watching pauses the live world and resumes it unchanged. Clips are session-local unless exported. Debris visuals are recreated; audio is not stored in pose replays.
+- **Replays:** an 18-second, 10 Hz rolling pose buffer for arenas of up to 256 drones. Impacts, aircraft losses and near misses create up to six seven-second highlights; manual capture keeps eight seconds. Scrub, use 1/8 through 2× speed, choose action/best-fight/survivor/overview/side/shoulder/FPV cameras, and export/import JSON. Watching pauses the live world and resumes it unchanged. Clips are session-local unless exported. Debris visuals are recreated; audio is not stored in pose replays.
 - **Journal:** the last 100 completed game rounds save on this browser. Ratings and variety recommend the next existing arena scenario; optional automatic recommendation runs when Start AI battle is pressed. Export/import merges records. This is a preference recommender, not learned targeting or new aircraft tactics.
 - **Graphics:** lunar vacuum lighting without fog/clouds, dusty Martian lighting, cratered distant terrain, instanced rocks, bounded physical-material debris, impact lights, smoke and shock rings. No atmospheric smoke/rings on the Moon. Fragments are cosmetic; detailed breakable airframe topology and colliding terrain are future work.
 
 The new source includes the preceding 0.7 camera mounts, digital HUD, squad coach board, RGB/outline art studio, step sequencer and recording-with-audio work. See [simulation scope](docs/SIMULATION_SCOPE.md) for model boundaries and references.
 
 `npm test` covers legacy capabilities plus the new lab and replay isolation. `npm run test:shaders` compiles the 12 shader programs with Mesa EGL on supported Linux systems. The cloud browser provides a tactical fallback only; WebGL appearance and mobile GPU performance need device verification.
+
+## Sports Lab
+
+Open **Sports Lab** in the command rail, or `sports.html`. It is a separate five-a-side arcade simulation: capture the flag, soccer, and American flag football. It uses pitch-space players and seeded sports rules, independent of the aircraft/arena controllers.
+
+- Start, pause, accelerate, replay, and scrub matches; scores and sports statistics are visible.
+- Three fixed named plays per sport; custom five-player starting lineups, saved per sport/team.
+- An automatic league runs 30/90/180 matches in a worker. The 18-game comparison runs all nine play pairings on the same seed with both starting teams (CTF uses two adjacent seeds).
+- Learning selects among fixed sports plays using saved win/draw results, with exploration. It does not generate new movement algorithms. Custom lineups are manually controlled and excluded from catalog learning.
+- The last 300 results persist in this browser. JSON export/import preserves configurations, seeds, and statistics; replays reconstruct the same match under rules version 1. Learning is local, not cloud-synchronized.
+- CTF uses tags on the home half, temporary sit-outs, timed flag returns and captures. Soccer uses seeded passes/shots/saves without offsides. Flag football uses four downs to score, one forward pass per down, flag pulls and six-point touchdowns. These are arcade rules, not regulation models.
+
+Run `npm run test:sports` for deterministic results, scoring transitions, replay isolation, archive validation and UI lifecycle tests.
