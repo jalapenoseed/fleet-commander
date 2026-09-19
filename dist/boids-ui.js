@@ -1,8 +1,33 @@
-import {BOID_DEFAULTS,BOID_RANGES,BOID_LABELS} from './boids.js?v=0.8.0';
-export function boidsMarkup(settings,mode='standalone'){
- const s={...BOID_DEFAULTS,...settings},admin=mode==='admin',program=mode==='program',selectAttr=admin?'data-admin-setting':program?'data-program-setting':'id',numberAttr=admin?'data-admin-number':program?'data-program-number':'id';
- return `<fieldset class="boidsControls"><legend>Boids / swarm steering</legend><label>Behavior<select ${selectAttr}="boids"><option value="none" ${s.boids==='none'?'selected':''}>None / off</option><option value="on" ${s.boids==='on'?'selected':''}>Boids on</option></select></label><p>Local flocking adds to your formation and mission. Alignment matches headings; velocity matching matches speed. Zero mutes one force. None stops this layer; collision protection stays active.</p><div class="${admin?'adminFleetGrid':program?'programInputs':'form-row'}">${Object.entries(BOID_RANGES).map(([key,range])=>`<label>${BOID_LABELS[key]}<input ${numberAttr}="${key}" type="number" min="${range[0]}" max="${range[1]}" step="${['boidRadius','boidDistance','boidForce'].includes(key)?1:.05}" value="${s[key]}"></label>`).join('')}</div><button type="button" data-boids-reset>Reset Boids / off</button><p>Changes take effect when you Apply. Reset only clears Boids; formations and fields stay as set.</p></fieldset>`;
+import { BOID_DEFAULTS, BOID_RANGES, BOID_LABELS } from './boids.js?v=0.9.0';
+export function boidsMarkup(settings, mode = 'standalone') {
+  const s = { ...BOID_DEFAULTS, ...settings },
+    admin = mode === 'admin',
+    program = mode === 'program',
+    selectAttr = admin ? 'data-admin-setting' : program ? 'data-program-setting' : 'id',
+    numberAttr = admin ? 'data-admin-number' : program ? 'data-program-number' : 'id';
+  return `<fieldset class="boidsControls"><legend>Boids / swarm steering</legend><label>Behavior<select ${selectAttr}="boids"><option value="none" ${s.boids === 'none' ? 'selected' : ''}>None / off</option><option value="on" ${s.boids === 'on' ? 'selected' : ''}>Boids on</option></select></label><p>Local flocking adds to your formation and mission. Alignment matches headings; velocity matching matches speed. Zero mutes one force. None stops this layer; collision protection stays active.</p><div class="${admin ? 'adminFleetGrid' : program ? 'programInputs' : 'form-row'}">${Object.entries(
+    BOID_RANGES,
+  )
+    .map(
+      ([key, range]) =>
+        `<label>${BOID_LABELS[key]}<input ${numberAttr}="${key}" type="number" min="${range[0]}" max="${range[1]}" step="${['boidRadius', 'boidDistance', 'boidForce'].includes(key) ? 1 : 0.05}" value="${s[key]}"></label>`,
+    )
+    .join(
+      '',
+    )}</div><button type="button" data-boids-reset>Reset Boids / off</button><p>Changes take effect when you Apply. Reset only clears Boids; formations and fields stay as set.</p></fieldset>`;
 }
-export function resetBoidsControls(root){
- for(const [key,value]of Object.entries(BOID_DEFAULTS)){const el=root.querySelector(`[id="${key}"], [data-admin-setting="${key}"], [data-admin-number="${key}"], [data-program-setting="${key}"], [data-program-number="${key}"]`);if(el){el.value=value;el.dispatchEvent(new el.ownerDocument.defaultView.Event(el.tagName==='SELECT'?'change':'input',{bubbles:true}));}}
+export function resetBoidsControls(root) {
+  for (const [key, value] of Object.entries(BOID_DEFAULTS)) {
+    const el = root.querySelector(
+      `[id="${key}"], [data-admin-setting="${key}"], [data-admin-number="${key}"], [data-program-setting="${key}"], [data-program-number="${key}"]`,
+    );
+    if (el) {
+      el.value = value;
+      el.dispatchEvent(
+        new el.ownerDocument.defaultView.Event(el.tagName === 'SELECT' ? 'change' : 'input', {
+          bubbles: true,
+        }),
+      );
+    }
+  }
 }

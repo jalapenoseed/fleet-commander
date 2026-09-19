@@ -1,51 +1,383 @@
-import {LIGHTING_PRESETS} from './swarm-lighting.js?v=0.8.0';
-import {DIRECTOR_SHOWS,directorShow,showAct} from './director-shows.js?v=0.8.0';
-import {VideoCapture} from './video-capture.js?v=0.8.0';
-import {DIRECTED_VIEWS} from './director-camera.js?v=0.8.0';
-export function mountDirector({sim,renderer,say,guard,populate,requireFreeRoster,getSelected,setSelected,getAudioStreams=()=>[]}){
- const $=id=>document.getElementById(id);let activeShow='',activeProgram=null;
- const lightFields={exposure:'lightExposure',beaconPower:'beaconPower',spill:'lightSpill',stage:'stageLight',bloomRadius:'bloomRadius'};
- const readLighting=()=>Object.fromEntries(Object.entries(lightFields).map(([key,id])=>[key,Number($(id).value)]));
- function lightingLabels(){for(const [key,id]of Object.entries(lightFields)){const v=Number($(id).value);$(id+'Value').textContent=key==='stage'?Math.round(v*100)+'%':key==='exposure'?v.toFixed(2)+' EV':v.toFixed(2)+'×';}}
- function saveEnvironment(){try{localStorage.setItem('fleetcommander.director.v1',JSON.stringify({...readLighting(),lightingPreset:$('lightingPreset').value,scenery:$('scenery').value,sky:$('sky').value,quality:$('graphicsQuality').value,bloom:Number($('lightBloom').value),clouds:Number($('cloudCover').value),wetness:Number($('surfaceWetness').value),haze:Number($('sceneHaze').value),grid:$('showGrid').checked}));}catch{}}
- function graphics(){lightingLabels();renderer.setGraphics?.({...readLighting(),quality:$('graphicsQuality').value,bloom:Number($('lightBloom').value),clouds:Number($('cloudCover').value),wetness:Number($('surfaceWetness').value),haze:Number($('sceneHaze').value),grid:$('showGrid').checked});saveEnvironment();$('graphicsStatus').textContent=renderer.renderer?($('graphicsQuality').value==='performance'?'Performance · physical materials and 1024 px shadows, 4 nearby lights':renderer.postfx?.available===false?'Physical lighting · HDR bloom unavailable on this GPU':$('graphicsQuality').value==='cinema'?'Cinema · 4096 px shadows, 12 nearby lights and multiscale HDR bloom':'Balanced · 2048 px shadows, 8 nearby lights and multiscale HDR bloom'):'3D graphics require WebGL. Enable graphics acceleration in your browser, then reload.';}
- for(const id of ['graphicsQuality','lightBloom','cloudCover','surfaceWetness','sceneHaze','showGrid'])$(id).addEventListener('change',()=>{if(id==='lightBloom')$('lightingPreset').value='custom';graphics();});$('applyGraphics').addEventListener('click',graphics);
- for(const id of Object.values(lightFields))$(id).addEventListener('input',()=>{$('lightingPreset').value='custom';graphics();});
- function applyLightingPreset(key){const p=LIGHTING_PRESETS[key];if(!p)return;for(const [name,id]of Object.entries(lightFields))$(id).value=p[name];$('lightBloom').value=p.bloom;$('sky').value=p.sky;$('lightingPreset').value=key;environment();graphics();}
- $('lightingPreset').addEventListener('change',()=>applyLightingPreset($('lightingPreset').value));$('resetLighting').addEventListener('click',()=>applyLightingPreset('natural'));
- function environment(){renderer.setEnvironment?.($('scenery').value,$('sky').value);saveEnvironment();}
- function setView(view){if(!renderer.renderer&&[...DIRECTED_VIEWS,'follow'].includes(view)){say('This browser cannot open 3D cameras. Enable WebGL to use FPV and cinematic views.',true);return;}$('view').value=view;renderer.setView(view);$('groundControls').hidden=!['ground','free'].includes(view);document.querySelector('.field-instructions').textContent=['ground','free'].includes(view)?'Drag → look · Pinch / + − → zoom · Movement controls in Director':['fpv','shoulder','mounted'].includes(view)?'Drag → look around · Pinch → zoom · Reset view to recenter':['cinematic','combat'].includes(view)?'Automatic live camera cuts · Pinch to zoom':'Tap → objective · Drag → orbit · Pinch / + − → zoom';}
- $('view').addEventListener('change',()=>setView($('view').value));
- for(const button of document.querySelectorAll('[data-camera]'))button.addEventListener('click',()=>setView(button.dataset.camera));
- for(const [key,show]of Object.entries(DIRECTOR_SHOWS)){const button=document.createElement('button');button.className='show-card';button.dataset.show=key;const title=document.createElement('b'),meta=document.createElement('span');title.textContent=show.name;meta.textContent=show.duration+' s loop';button.append(title,meta);button.title=show.description;button.addEventListener('click',guard(()=>{requireFreeRoster();const fleet=directorShow(sim.snapshot(),key);sim.apply(fleet);sim.launch();activeShow=key;activeProgram=sim.program;populate();$('showDescription').textContent=show.description;if($('showScene').checked){$('scenery').value=show.scenery;$('sky').value=show.sky;environment();}if($('autoCinema').checked&&renderer.renderer)setView('cinematic');say(show.name+' launched. Your battery and aircraft settings remain active.');}));$('showCards').append(button);}
- $('scenery').addEventListener('change',environment);$('sky').addEventListener('change',()=>{$('lightingPreset').value='custom';environment();});
- $('useCameraDrone').addEventListener('click',()=>{const i=Number($('cameraDrone').value);if(Number.isInteger(i)&&sim.drones[i-1]){setSelected(sim.drones[i-1].id);say('Camera aircraft: '+sim.drones[i-1].name+'.');}else say('Choose an aircraft number in the current fleet.',true);refresh();});
- $('cameraDrone').addEventListener('input',()=>{const i=Number($('cameraDrone').value);if(Number.isInteger(i)&&sim.drones[i-1])setSelected(sim.drones[i-1].id);});
- $('cameraDrone').addEventListener('change',()=>{const i=Number($('cameraDrone').value);if(Number.isInteger(i)&&sim.drones[i-1])setSelected(sim.drones[i-1].id);else say('Choose an aircraft number in the current fleet.',true);refresh();});
- for(const [id,direction]of [['previousDrone',-1],['nextDrone',1]])$(id).addEventListener('click',()=>{if(!sim.drones.length)return;const input=Number($('cameraDrone').value)-1,i=Number.isInteger(input)&&sim.drones[input]?input:sim.drones.findIndex(d=>d.id===getSelected());setSelected(sim.drones[(i+direction+sim.drones.length)%sim.drones.length].id);refresh();});
- $('nextShot').addEventListener('click',()=>{renderer.directorCamera?.next();setView(renderer.view==='combat'?'combat':'cinematic');});$('cutSeconds').addEventListener('change',()=>{if(renderer.directorCamera){renderer.directorCamera.cutSeconds=Number($('cutSeconds').value);renderer.directorCamera.shot=-1;}});
- $('resetGround').addEventListener('click',()=>renderer.directorCamera?.resetGround());
- for(const button of document.querySelectorAll('[data-walk]')){button.addEventListener('pointerdown',e=>{button.setPointerCapture?.(e.pointerId);renderer.directorCamera?.keys.add(button.dataset.walk);});for(const type of ['pointerup','pointercancel','lostpointercapture','blur'])button.addEventListener(type,()=>renderer.directorCamera?.keys.delete(button.dataset.walk));}
- function clean(value){document.body.classList.toggle('clean-view',value);renderer.clean=value;$('cleanView').setAttribute('aria-pressed',String(value));$('exitClean').hidden=!value;renderer.resize?.();}
- $('cleanView').addEventListener('click',()=>clean(!document.body.classList.contains('clean-view')));$('exitClean').addEventListener('click',()=>clean(false));document.addEventListener('keydown',e=>{if(e.key==='Escape')clean(false);});
- const available=!!renderer.renderer;for(const option of $('view').options)if(['follow',...DIRECTED_VIEWS].includes(option.value))option.disabled=!available;
- for(const button of document.querySelectorAll('[data-camera],#nextShot,#resetGround'))button.disabled=!available&&button.dataset.camera!=='orbit';for(const key of [...Object.values(lightFields),'lightingPreset','resetLighting','scenery','sky','cutSeconds','graphicsQuality','lightBloom','cloudCover','surfaceWetness','sceneHaze','showGrid','applyGraphics'])$(key).disabled=!available;
- $('cameraAvailability').hidden=available;
- $('recordStatus').insertAdjacentHTML('beforebegin','<label class="check"><input id="recordAudio" type="checkbox" checked>Include enabled game sound & music</label><label class="check"><input id="recordHUD" type="checkbox" checked>Include visible HUD & health</label><div class="form-row"><button id="saveClip" disabled>Save clip again</button><button id="shareClip" disabled>Share clip</button></div>');
- const capture=new VideoCapture({renderer,getAudioStreams,onChange:()=>{const active=capture.state==='recording';$('recordVideo').textContent=active?'Stop & download':'Record video';$('recordVideo').disabled=capture.state==='saving'||!capture.supported;$('recordVideo').setAttribute('aria-pressed',String(active));$('saveClip').disabled=$('shareClip').disabled=!capture.blob;if(capture.blob&&!active)$('recordStatus').textContent='Video downloaded · '+(capture.blob.size/1048576).toFixed(1)+' MB. Tap Save clip again if needed; keep it before leaving this page.';},onError:message=>say(message,true)});
- $('recordVideo').disabled=!capture.supported;if(!capture.supported)$('recordStatus').textContent='This browser cannot record canvas video. Use your device screen recorder.';
- function stopRecording(){capture.stop();}
- $('recordVideo').addEventListener('click',guard(()=>{if(capture.state==='recording'){capture.stop();return;}capture.start({audio:$('recordAudio').checked,hud:$('recordHUD').checked});say('Recording the camera. Enabled game sound and music are mixed when Include sound is checked. No microphone is used.');}));
- $('saveClip').onclick=()=>capture.download();$('shareClip').onclick=guard(()=>capture.share());
- document.addEventListener('visibilitychange',()=>{if(document.hidden)stopRecording();});window.addEventListener('pagehide',stopRecording);
- try{const saved=JSON.parse(localStorage.getItem('fleetcommander.director.v1')||'null');if(saved){if([...$('scenery').options].some(o=>o.value===saved.scenery))$('scenery').value=saved.scenery;if([...$('sky').options].some(o=>o.value===saved.sky))$('sky').value=saved.sky;for(const [key,id]of [['quality','graphicsQuality'],['bloom','lightBloom'],['clouds','cloudCover'],['wetness','surfaceWetness'],['haze','sceneHaze']])if(saved[key]!==undefined)$(id).value=saved[key];for(const [key,id]of Object.entries(lightFields))if(Number.isFinite(saved[key]))$(id).value=saved[key];if([...$('lightingPreset').options].some(o=>o.value===saved.lightingPreset))$('lightingPreset').value=saved.lightingPreset;$('showGrid').checked=!!saved.grid;}}catch{}environment();graphics();
- function refresh(){const i=sim.drones.findIndex(d=>d.id===getSelected());$('cameraDrone').max=sim.drones.length;$('cameraDrone').value=i<0?'':i+1;for(const id of ['cameraDrone','useCameraDrone','previousDrone','nextDrone'])$(id).disabled=i<0;}
- function update(){
-  if(activeProgram!==sim.program)activeShow='';const act=showAct(activeShow,sim.program.time);$('showProgress').textContent=act?DIRECTOR_SHOWS[activeShow].name+' · '+act.name+' · '+Math.floor(act.phase)+' / '+act.duration+' s'+(!sim.running?' · paused':''):'Choose a performance to launch the current fleet.';
-  for(const b of $('showCards').children)b.setAttribute('aria-pressed',String(b.dataset.show===activeShow));
-  $('cameraStatus').textContent=renderer.directorCamera?.label&&DIRECTED_VIEWS.includes(renderer.view)?renderer.directorCamera.label:$('view').selectedOptions[0]?.textContent||'Overview';
-  const d=sim.drones.find(d=>d.id===getSelected());$('cameraSubject').textContent=d?d.name+' · '+d.mode+' · '+Math.round(d.battery)+'% battery':'No aircraft selected';
-  if(capture.state==='recording')$('recordStatus').textContent='REC '+Math.floor((performance.now()-capture.started)/1000)+' s · '+(capture.includeAudio?'sound mix':'silent')+' · auto-stop at 5 min / 256 MB';
- }
- return {refresh,update,captureFrame:()=>capture.frame(),capture};
+import { LIGHTING_PRESETS } from './swarm-lighting.js?v=0.9.0';
+import { DIRECTOR_SHOWS, directorShow, showAct } from './director-shows.js?v=0.9.0';
+import { VideoCapture } from './video-capture.js?v=0.9.0';
+import { DIRECTED_VIEWS } from './director-camera.js?v=0.9.0';
+
+/**
+ * ELI5: This module wires Director buttons and sliders to shows, cameras,
+ * lighting, scenery, graphics quality, and recording. It saves preferences in
+ * this browser. Camera math and rendering remain in their focused modules.
+ */
+
+export function mountDirector({
+  sim,
+  renderer,
+  say,
+  guard,
+  populate,
+  requireFreeRoster,
+  getSelected,
+  setSelected,
+  getAudioStreams = () => [],
+}) {
+  const $ = (id) => document.getElementById(id);
+  let activeShow = '',
+    activeProgram = null;
+  const lightFields = {
+    exposure: 'lightExposure',
+    beaconPower: 'beaconPower',
+    spill: 'lightSpill',
+    stage: 'stageLight',
+    bloomRadius: 'bloomRadius',
+  };
+  const readLighting = () =>
+    Object.fromEntries(Object.entries(lightFields).map(([key, id]) => [key, Number($(id).value)]));
+  function lightingLabels() {
+    for (const [key, id] of Object.entries(lightFields)) {
+      const v = Number($(id).value);
+      $(id + 'Value').textContent =
+        key === 'stage'
+          ? Math.round(v * 100) + '%'
+          : key === 'exposure'
+            ? v.toFixed(2) + ' EV'
+            : v.toFixed(2) + '×';
+    }
+  }
+  function saveEnvironment() {
+    try {
+      localStorage.setItem(
+        'fleetcommander.director.v1',
+        JSON.stringify({
+          ...readLighting(),
+          lightingPreset: $('lightingPreset').value,
+          scenery: $('scenery').value,
+          sky: $('sky').value,
+          quality: $('graphicsQuality').value,
+          bloom: Number($('lightBloom').value),
+          clouds: Number($('cloudCover').value),
+          wetness: Number($('surfaceWetness').value),
+          haze: Number($('sceneHaze').value),
+          grid: $('showGrid').checked,
+        }),
+      );
+    } catch {}
+  }
+  function graphics() {
+    lightingLabels();
+    renderer.setGraphics?.({
+      ...readLighting(),
+      quality: $('graphicsQuality').value,
+      bloom: Number($('lightBloom').value),
+      clouds: Number($('cloudCover').value),
+      wetness: Number($('surfaceWetness').value),
+      haze: Number($('sceneHaze').value),
+      grid: $('showGrid').checked,
+    });
+    saveEnvironment();
+    $('graphicsStatus').textContent = renderer.renderer
+      ? $('graphicsQuality').value === 'performance'
+        ? 'Performance · physical materials and 1024 px shadows, 4 nearby lights'
+        : renderer.postfx?.available === false
+          ? 'Physical lighting · HDR bloom unavailable on this GPU'
+          : $('graphicsQuality').value === 'cinema'
+            ? 'Cinema · 4096 px shadows, 12 nearby lights and multiscale HDR bloom'
+            : 'Balanced · 2048 px shadows, 8 nearby lights and multiscale HDR bloom'
+      : '3D graphics require WebGL. Enable graphics acceleration in your browser, then reload.';
+  }
+  for (const id of [
+    'graphicsQuality',
+    'lightBloom',
+    'cloudCover',
+    'surfaceWetness',
+    'sceneHaze',
+    'showGrid',
+  ])
+    $(id).addEventListener('change', () => {
+      if (id === 'lightBloom') $('lightingPreset').value = 'custom';
+      graphics();
+    });
+  $('applyGraphics').addEventListener('click', graphics);
+  for (const id of Object.values(lightFields))
+    $(id).addEventListener('input', () => {
+      $('lightingPreset').value = 'custom';
+      graphics();
+    });
+  function applyLightingPreset(key) {
+    const p = LIGHTING_PRESETS[key];
+    if (!p) return;
+    for (const [name, id] of Object.entries(lightFields)) $(id).value = p[name];
+    $('lightBloom').value = p.bloom;
+    $('sky').value = p.sky;
+    $('lightingPreset').value = key;
+    environment();
+    graphics();
+  }
+  $('lightingPreset').addEventListener('change', () =>
+    applyLightingPreset($('lightingPreset').value),
+  );
+  $('resetLighting').addEventListener('click', () => applyLightingPreset('natural'));
+  function environment() {
+    renderer.setEnvironment?.($('scenery').value, $('sky').value);
+    saveEnvironment();
+  }
+  function setView(view) {
+    if (!renderer.renderer && [...DIRECTED_VIEWS, 'follow'].includes(view)) {
+      say(
+        'This browser cannot open 3D cameras. Enable WebGL to use FPV and cinematic views.',
+        true,
+      );
+      return;
+    }
+    $('view').value = view;
+    renderer.setView(view);
+    $('groundControls').hidden = !['ground', 'free'].includes(view);
+    document.querySelector('.field-instructions').textContent = ['ground', 'free'].includes(view)
+      ? 'Drag → look · Pinch / + − → zoom · Movement controls in Director'
+      : ['fpv', 'shoulder', 'mounted'].includes(view)
+        ? 'Drag → look around · Pinch → zoom · Reset view to recenter'
+        : ['cinematic', 'combat', 'bestfight', 'survivor'].includes(view)
+          ? 'Automatic live camera direction · Pinch to zoom'
+          : 'Tap → objective · Drag → orbit · Pinch / + − → zoom';
+  }
+  $('view').addEventListener('change', () => setView($('view').value));
+  for (const button of document.querySelectorAll('[data-camera]'))
+    button.addEventListener('click', () => setView(button.dataset.camera));
+  for (const [key, show] of Object.entries(DIRECTOR_SHOWS)) {
+    const button = document.createElement('button');
+    button.className = 'show-card';
+    button.dataset.show = key;
+    const title = document.createElement('b'),
+      meta = document.createElement('span');
+    title.textContent = show.name;
+    meta.textContent = show.duration + ' s loop';
+    button.append(title, meta);
+    button.title = show.description;
+    button.addEventListener(
+      'click',
+      guard(() => {
+        requireFreeRoster();
+        const fleet = directorShow(sim.snapshot(), key);
+        sim.apply(fleet);
+        sim.launch();
+        activeShow = key;
+        activeProgram = sim.program;
+        populate();
+        $('showDescription').textContent = show.description;
+        if ($('showScene').checked) {
+          $('scenery').value = show.scenery;
+          $('sky').value = show.sky;
+          environment();
+        }
+        if ($('autoCinema').checked && renderer.renderer) setView('cinematic');
+        say(show.name + ' launched. Your battery and aircraft settings remain active.');
+      }),
+    );
+    $('showCards').append(button);
+  }
+  $('scenery').addEventListener('change', environment);
+  $('sky').addEventListener('change', () => {
+    $('lightingPreset').value = 'custom';
+    environment();
+  });
+  $('useCameraDrone').addEventListener('click', () => {
+    const i = Number($('cameraDrone').value);
+    if (Number.isInteger(i) && sim.drones[i - 1]) {
+      setSelected(sim.drones[i - 1].id);
+      say('Camera aircraft: ' + sim.drones[i - 1].name + '.');
+    } else say('Choose an aircraft number in the current fleet.', true);
+    refresh();
+  });
+  $('cameraDrone').addEventListener('input', () => {
+    const i = Number($('cameraDrone').value);
+    if (Number.isInteger(i) && sim.drones[i - 1]) setSelected(sim.drones[i - 1].id);
+  });
+  $('cameraDrone').addEventListener('change', () => {
+    const i = Number($('cameraDrone').value);
+    if (Number.isInteger(i) && sim.drones[i - 1]) setSelected(sim.drones[i - 1].id);
+    else say('Choose an aircraft number in the current fleet.', true);
+    refresh();
+  });
+  for (const [id, direction] of [
+    ['previousDrone', -1],
+    ['nextDrone', 1],
+  ])
+    $(id).addEventListener('click', () => {
+      if (!sim.drones.length) return;
+      const input = Number($('cameraDrone').value) - 1,
+        i =
+          Number.isInteger(input) && sim.drones[input]
+            ? input
+            : sim.drones.findIndex((d) => d.id === getSelected());
+      setSelected(sim.drones[(i + direction + sim.drones.length) % sim.drones.length].id);
+      refresh();
+    });
+  $('nextShot').addEventListener('click', () => {
+    renderer.directorCamera?.next();
+    setView(
+      ['combat', 'bestfight', 'survivor'].includes(renderer.view) ? renderer.view : 'cinematic',
+    );
+  });
+  $('cutSeconds').addEventListener('change', () => {
+    if (renderer.directorCamera) {
+      renderer.directorCamera.cutSeconds = Number($('cutSeconds').value);
+      renderer.directorCamera.shot = -1;
+    }
+  });
+  $('resetGround').addEventListener('click', () => renderer.directorCamera?.resetGround());
+  for (const button of document.querySelectorAll('[data-walk]')) {
+    button.addEventListener('pointerdown', (e) => {
+      button.setPointerCapture?.(e.pointerId);
+      renderer.directorCamera?.keys.add(button.dataset.walk);
+    });
+    for (const type of ['pointerup', 'pointercancel', 'lostpointercapture', 'blur'])
+      button.addEventListener(type, () =>
+        renderer.directorCamera?.keys.delete(button.dataset.walk),
+      );
+  }
+  function clean(value) {
+    document.body.classList.toggle('clean-view', value);
+    renderer.clean = value;
+    $('cleanView').setAttribute('aria-pressed', String(value));
+    $('exitClean').hidden = !value;
+    renderer.resize?.();
+  }
+  $('cleanView').addEventListener('click', () =>
+    clean(!document.body.classList.contains('clean-view')),
+  );
+  $('exitClean').addEventListener('click', () => clean(false));
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') clean(false);
+  });
+  const available = !!renderer.renderer;
+  for (const option of $('view').options)
+    if (['follow', ...DIRECTED_VIEWS].includes(option.value)) option.disabled = !available;
+  for (const button of document.querySelectorAll('[data-camera],#nextShot,#resetGround'))
+    button.disabled = !available && button.dataset.camera !== 'orbit';
+  for (const key of [
+    ...Object.values(lightFields),
+    'lightingPreset',
+    'resetLighting',
+    'scenery',
+    'sky',
+    'cutSeconds',
+    'graphicsQuality',
+    'lightBloom',
+    'cloudCover',
+    'surfaceWetness',
+    'sceneHaze',
+    'showGrid',
+    'applyGraphics',
+  ])
+    $(key).disabled = !available;
+  $('cameraAvailability').hidden = available;
+  $('recordStatus').insertAdjacentHTML(
+    'beforebegin',
+    '<label class="check"><input id="recordAudio" type="checkbox" checked>Include enabled game sound & music</label><label class="check"><input id="recordHUD" type="checkbox" checked>Include visible HUD & health</label><div class="form-row"><button id="saveClip" disabled>Save clip again</button><button id="shareClip" disabled>Share clip</button></div>',
+  );
+  const capture = new VideoCapture({
+    renderer,
+    getAudioStreams,
+    onChange: () => {
+      const active = capture.state === 'recording';
+      $('recordVideo').textContent = active ? 'Stop & download' : 'Record video';
+      $('recordVideo').disabled = capture.state === 'saving' || !capture.supported;
+      $('recordVideo').setAttribute('aria-pressed', String(active));
+      $('saveClip').disabled = $('shareClip').disabled = !capture.blob;
+      if (capture.blob && !active)
+        $('recordStatus').textContent =
+          'Video downloaded · ' +
+          (capture.blob.size / 1048576).toFixed(1) +
+          ' MB. Tap Save clip again if needed; keep it before leaving this page.';
+    },
+    onError: (message) => say(message, true),
+  });
+  $('recordVideo').disabled = !capture.supported;
+  if (!capture.supported)
+    $('recordStatus').textContent =
+      'This browser cannot record canvas video. Use your device screen recorder.';
+  function stopRecording() {
+    capture.stop();
+  }
+  $('recordVideo').addEventListener(
+    'click',
+    guard(() => {
+      if (capture.state === 'recording') {
+        capture.stop();
+        return;
+      }
+      capture.start({ audio: $('recordAudio').checked, hud: $('recordHUD').checked });
+      say(
+        'Recording the camera. Enabled game sound and music are mixed when Include sound is checked. No microphone is used.',
+      );
+    }),
+  );
+  $('saveClip').onclick = () => capture.download();
+  $('shareClip').onclick = guard(() => capture.share());
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) stopRecording();
+  });
+  window.addEventListener('pagehide', stopRecording);
+  try {
+    const saved = JSON.parse(localStorage.getItem('fleetcommander.director.v1') || 'null');
+    if (saved) {
+      if ([...$('scenery').options].some((o) => o.value === saved.scenery))
+        $('scenery').value = saved.scenery;
+      if ([...$('sky').options].some((o) => o.value === saved.sky)) $('sky').value = saved.sky;
+      for (const [key, id] of [
+        ['quality', 'graphicsQuality'],
+        ['bloom', 'lightBloom'],
+        ['clouds', 'cloudCover'],
+        ['wetness', 'surfaceWetness'],
+        ['haze', 'sceneHaze'],
+      ])
+        if (saved[key] !== undefined) $(id).value = saved[key];
+      for (const [key, id] of Object.entries(lightFields))
+        if (Number.isFinite(saved[key])) $(id).value = saved[key];
+      if ([...$('lightingPreset').options].some((o) => o.value === saved.lightingPreset))
+        $('lightingPreset').value = saved.lightingPreset;
+      $('showGrid').checked = !!saved.grid;
+    }
+  } catch {}
+  environment();
+  graphics();
+  function refresh() {
+    const i = sim.drones.findIndex((d) => d.id === getSelected());
+    $('cameraDrone').max = sim.drones.length;
+    $('cameraDrone').value = i < 0 ? '' : i + 1;
+    for (const id of ['cameraDrone', 'useCameraDrone', 'previousDrone', 'nextDrone'])
+      $(id).disabled = i < 0;
+  }
+  function update() {
+    if (activeProgram !== sim.program) activeShow = '';
+    const act = showAct(activeShow, sim.program.time);
+    $('showProgress').textContent = act
+      ? DIRECTOR_SHOWS[activeShow].name +
+        ' · ' +
+        act.name +
+        ' · ' +
+        Math.floor(act.phase) +
+        ' / ' +
+        act.duration +
+        ' s' +
+        (!sim.running ? ' · paused' : '')
+      : 'Choose a performance to launch the current fleet.';
+    for (const b of $('showCards').children)
+      b.setAttribute('aria-pressed', String(b.dataset.show === activeShow));
+    $('cameraStatus').textContent =
+      renderer.directorCamera?.label && DIRECTED_VIEWS.includes(renderer.view)
+        ? renderer.directorCamera.label
+        : $('view').selectedOptions[0]?.textContent || 'Overview';
+    const d = sim.drones.find((d) => d.id === getSelected());
+    $('cameraSubject').textContent = d
+      ? d.name + ' · ' + d.mode + ' · ' + Math.round(d.battery) + '% battery'
+      : 'No aircraft selected';
+    if (capture.state === 'recording')
+      $('recordStatus').textContent =
+        'REC ' +
+        Math.floor((performance.now() - capture.started) / 1000) +
+        ' s · ' +
+        (capture.includeAudio ? 'sound mix' : 'silent') +
+        ' · auto-stop at 5 min / 256 MB';
+  }
+  return { refresh, update, captureFrame: () => capture.frame(), capture };
 }

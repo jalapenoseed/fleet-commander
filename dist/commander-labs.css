@@ -1,19 +1,274 @@
 /* The arena stays the primary surface; editors are compact, touch-safe tools. */
-.tabs{grid-template-columns:repeat(4,minmax(0,1fr))}.tabs button{font-size:14px;min-height:44px}
-#field .combat-overlay{position:absolute;inset:0;pointer-events:none;width:100%;height:100%;z-index:2}
-.has-hud .field-label,.has-hud .field-instructions,.has-hud .combat-hud{display:none}
-.team-survival{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:12px;background:#0c2029;border:1px solid #41626a;border-radius:6px;padding:12px 14px;margin-bottom:10px}
-.team-survival>div{display:flex;flex-direction:column;gap:4px;color:#7befe0}.team-survival>div:last-child{text-align:right;color:#ffb179}
-.team-survival b{font:600 14px/1.4 var(--mono)}.team-survival small{font-size:12px;color:#b6c9cc}.team-survival>span{font:12px var(--mono);color:#8aa5af}
-#coachBoard,#artCanvas,#artPreview{display:block;width:100%;height:auto;border:1px solid #47707b;border-radius:6px;touch-action:none;background:#0a1e26;margin:12px 0}
-#artCanvas,#artPreview{image-rendering:pixelated;aspect-ratio:1}#artPreview{max-width:200px;margin:12px auto}
-#tab-art label,#tab-art summary,#battlePlaybook label,.fleetScore label{font-size:14px}
-#tab-art p,.fleetScore p{font-size:14px;line-height:1.65}#tab-art>p{font-size:16px}#tab-art button{min-height:44px}
-#tab-art input[type=color]{height:44px;padding:3px}.panel-scroll{min-width:0}.form-row button{min-width:0;overflow-wrap:anywhere}
-.step-scroll{overflow-x:auto;padding-bottom:10px;max-width:100%;overscroll-behavior-x:contain}
-.step-grid{display:grid;grid-template-columns:72px repeat(16,34px);gap:5px;align-items:center;width:max-content}
-.step-grid>span{font:12px/1.3 var(--mono);white-space:normal}.step-grid button{padding:0;min-width:34px;min-height:44px;margin:0;background:#24343e;color:#93afb9;border-color:#375565;font:12px var(--mono)}
-.step-grid button[aria-pressed=true]{background:#7ee4c8;border-color:#b0ffe8;color:#082321}.step-grid button:nth-child(4n+2){border-left:2px solid #aac4cc}
-.step-grid button.playing-step{box-shadow:inset 0 0 0 2px #fff7a4;background:#66784d;color:white}.beat-lab{margin-top:0}
-.fleetScore{padding:12px;min-width:0}.fleetScore .form-row button{margin:0;font-size:14px}
-@media(max-width:720px){.team-survival{padding:10px;gap:6px}.team-survival b{font-size:12px}.team-survival small{font-size:12px}.camera-tools span{display:none}.camera-tools button{font-size:13px;flex-grow:1}.field-wrap{min-height:360px}.tabs{grid-template-columns:repeat(4,minmax(0,1fr))}.view-label select{max-width:100%;width:210px}.step-grid button{min-width:40px;min-height:44px}.step-grid{grid-template-columns:72px repeat(16,40px)}}
+.tabs {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.tabs button {
+  font-size: 14px;
+  min-height: 44px;
+}
+#field .combat-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  width: 100%;
+  height: 100%;
+  z-index: 2;
+}
+#field .drone-screen-fx {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  width: 100%;
+  height: 100%;
+  z-index: 4;
+  mix-blend-mode: screen;
+}
+.has-hud .field-label,
+.has-hud .field-instructions {
+  display: none;
+}
+.combat-hud {
+  z-index: 6;
+}
+.team-survival {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 12px;
+  background: #0c2029;
+  border: 1px solid #41626a;
+  border-radius: 6px;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+}
+.team-survival > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: #7befe0;
+}
+.team-survival > div:last-child {
+  text-align: right;
+  color: #ffb179;
+}
+.team-survival b {
+  font: 600 14px/1.4 var(--mono);
+}
+.team-survival small {
+  font-size: 12px;
+  color: #b6c9cc;
+}
+.team-survival > span {
+  font: 12px var(--mono);
+  color: #8aa5af;
+}
+#coachBoard,
+#artCanvas,
+#artPreview {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid #47707b;
+  border-radius: 6px;
+  touch-action: none;
+  background: #0a1e26;
+  margin: 12px 0;
+}
+#artCanvas,
+#artPreview {
+  image-rendering: pixelated;
+  aspect-ratio: 1;
+}
+#artPreview {
+  max-width: 200px;
+  margin: 12px auto;
+}
+#tab-art label,
+#tab-art summary,
+#battlePlaybook label,
+.fleetScore label {
+  font-size: 14px;
+}
+#tab-art p,
+.fleetScore p {
+  font-size: 14px;
+  line-height: 1.65;
+}
+#tab-art > p {
+  font-size: 16px;
+}
+#tab-art button {
+  min-height: 44px;
+}
+#tab-art input[type='color'] {
+  height: 44px;
+  padding: 3px;
+}
+.panel-scroll {
+  min-width: 0;
+}
+.form-row button {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.emoji-picks {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+  margin: 8px 0 14px;
+}
+.emoji-picks button {
+  font-size: 22px;
+  padding: 5px;
+  min-width: 0;
+}
+#fluidCanvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 5/3;
+  background: #07171e;
+  border: 1px solid #355a65;
+  border-radius: 6px;
+  margin: 10px 0;
+}
+.fidelity-badge {
+  display: inline-block;
+  padding: 5px 8px;
+  border: 1px solid #47707b;
+  border-radius: 999px;
+  background: #102832;
+  color: #a7ebdc;
+  font: 12px var(--mono);
+}
+.logic-switches {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+.logic-signal {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 12px 0;
+  padding: 12px;
+  border: 1px solid #50636d;
+  border-radius: 6px;
+  background: #101c25;
+  color: #91a2aa;
+}
+.logic-signal b {
+  font: 28px var(--mono);
+}
+.logic-signal span {
+  font: 12px var(--mono);
+}
+.logic-signal[data-on='true'] {
+  border-color: #7ff4cf;
+  background: #15382f;
+  color: #bcffe8;
+  box-shadow: 0 0 20px #50e4b522;
+}
+.replay-actions {
+  display: flex;
+  gap: 6px;
+}
+.replay-actions button {
+  min-width: 68px;
+}
+.step-scroll {
+  overflow-x: auto;
+  padding-bottom: 10px;
+  max-width: 100%;
+  overscroll-behavior-x: contain;
+}
+.step-grid {
+  display: grid;
+  grid-template-columns: 72px repeat(16, 34px);
+  gap: 5px;
+  align-items: center;
+  width: max-content;
+}
+.step-grid > span {
+  font: 12px/1.3 var(--mono);
+  white-space: normal;
+}
+.step-grid button {
+  padding: 0;
+  min-width: 34px;
+  min-height: 44px;
+  margin: 0;
+  background: #24343e;
+  color: #93afb9;
+  border-color: #375565;
+  font: 12px var(--mono);
+}
+.step-grid button[aria-pressed='true'] {
+  background: #7ee4c8;
+  border-color: #b0ffe8;
+  color: #082321;
+}
+.step-grid button:nth-child(4n + 2) {
+  border-left: 2px solid #aac4cc;
+}
+.step-grid button.playing-step {
+  box-shadow: inset 0 0 0 2px #fff7a4;
+  background: #66784d;
+  color: white;
+}
+.beat-lab {
+  margin-top: 0;
+}
+.fleetScore {
+  padding: 12px;
+  min-width: 0;
+}
+.fleetScore .form-row button {
+  margin: 0;
+  font-size: 14px;
+}
+@media (max-width: 720px) {
+  .team-survival {
+    padding: 10px;
+    gap: 6px;
+  }
+  .team-survival b {
+    font-size: 12px;
+  }
+  .team-survival small {
+    font-size: 12px;
+  }
+  .camera-tools span {
+    display: none;
+  }
+  .camera-tools button {
+    font-size: 13px;
+    flex-grow: 1;
+  }
+  .field-wrap {
+    min-height: 360px;
+  }
+  .tabs {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .view-label select {
+    max-width: 100%;
+    width: 210px;
+  }
+  .step-grid button {
+    min-width: 40px;
+    min-height: 44px;
+  }
+  .step-grid {
+    grid-template-columns: 72px repeat(16, 40px);
+  }
+  .emoji-picks {
+    grid-template-columns: repeat(4, 1fr);
+  }
+  .replay-actions {
+    grid-column: 1/-1;
+  }
+  .replay-actions button {
+    flex: 1;
+  }
+}

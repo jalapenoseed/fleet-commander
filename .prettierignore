@@ -1,0 +1,10 @@
+node_modules/
+.sites-runtime/
+qa-output/
+
+# Binary art and third-party runtime code are not authored in this repository.
+dist/assets/
+dist/vendor/
+dist/three.js
+dist/GLTFLoader.js
+dist/BufferGeometryUtils.js

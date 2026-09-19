@@ -1,11 +1,13 @@
 {
   "name": "fleet-commander",
   "private": true,
-  "version": "0.8.0",
+  "version": "0.9.0",
   "type": "module",
   "scripts": {
     "dev": "vite --config vite.config.js",
-    "test": "node verify-simulation-lab.mjs && node verify-labs.mjs && node verify-combat-ai.mjs && node verify-arena-audio.mjs && node verify-combat.mjs && node verify-camera-input.mjs && node verify-swarm-lighting.mjs && node verify-graphics.mjs && node verify-director.mjs && node verify-director-ui.mjs && node verify-fleet-commander.mjs && node verify-fleet-commander-ui.mjs && node verify-standalone.mjs",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "node verify-next-update.mjs && node verify-simulation-lab.mjs && node verify-labs.mjs && node verify-combat-ai.mjs && node verify-arena-audio.mjs && node verify-combat.mjs && node verify-camera-input.mjs && node verify-swarm-lighting.mjs && node verify-graphics.mjs && node verify-director.mjs && node verify-director-ui.mjs && node verify-fleet-commander.mjs && node verify-fleet-commander-ui.mjs && node verify-standalone.mjs",
     "test:shaders": "node scripts/export-graphics-shaders.mjs && python scripts/check-graphics-shaders.py"
   },
   "devDependencies": {
@@ -13,6 +15,7 @@
     "esbuild": "0.25.12",
     "jsdom": "^30.0.1",
     "onnxruntime-web": "1.22.0",
+    "prettier": "^3.6.2",
     "recast-navigation": "0.43.1",
     "vite": "6.1.0"
   }

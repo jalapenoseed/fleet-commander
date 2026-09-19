@@ -1,52 +1,363 @@
 import assert from 'node:assert/strict';
-import {CommanderSimulation,createCommanderFleet} from './dist/fleet-commander-core.js';
-import {CombatSimulation} from './dist/combat-simulation.js';
-import {blankPlaybook,validatePlaybook,playbookPreset,playbookOrder} from './dist/battle-playbook.js';
-import {rasterToArt,validateArt,artSlot} from './dist/art-formation.js';
-import {defaultMusic,validateMusic,sequenceStep} from './dist/step-sequencer.js';
-import {FleetScore} from './dist/fleet-score.js';
-import {sampleSwarmProgram} from './dist/swarm-program.js';
-import {compactFleet,parseFleetFile} from './dist/fleet-commander-storage.js';
-import {DirectorCamera} from './dist/director-camera.js';
-import {screenPoint,occluded} from './dist/combat-hud.js';
-import {VideoCapture} from './dist/video-capture.js';
-import * as T from './dist/three.js?v=0.7.0';
+import { CommanderSimulation, createCommanderFleet } from './dist/fleet-commander-core.js';
+import { CombatSimulation } from './dist/combat-simulation.js';
+import {
+  blankPlaybook,
+  validatePlaybook,
+  playbookPreset,
+  playbookOrder,
+} from './dist/battle-playbook.js';
+import { rasterToArt, validateArt, artSlot } from './dist/art-formation.js';
+import { defaultMusic, validateMusic, sequenceStep } from './dist/step-sequencer.js';
+import { FleetScore } from './dist/fleet-score.js';
+import { sampleSwarmProgram } from './dist/swarm-program.js';
+import { compactFleet, parseFleetFile } from './dist/fleet-commander-storage.js';
+import { DirectorCamera } from './dist/director-camera.js';
+import { screenPoint, occluded } from './dist/combat-hud.js';
+import { VideoCapture } from './dist/video-capture.js';
+import * as T from './dist/three.js?v=0.8.1';
 import fs from 'node:fs';
-import {JSDOM} from 'jsdom';
-import {mountArtStudio} from './dist/art-studio.js';
-import {mountPlaybook} from './dist/battle-playbook.js';
+import { JSDOM } from 'jsdom';
+import { mountArtStudio } from './dist/art-studio.js';
+import { mountPlaybook } from './dist/battle-playbook.js';
 
-const rgba=new Uint8ClampedArray(4*4*4);rgba.set([255,0,0,255],0);rgba.set([0,255,0,255],4);rgba.set([0,0,255,255],8);rgba.set([0,0,0,255],12);
-const art=rasterToArt({data:rgba,width:4,height:4},'rgb',1);assert.equal(art.points.length,3);assert.deepEqual(art.points.map(p=>p[2]),['#ff0000','#00ff00','#0000ff']);
-assert(rasterToArt({data:rgba,width:4,height:4},'outline',64).points.length>0);assert.equal(rasterToArt({data:rgba,width:4,height:4},'silhouette',1).points.length,1);
-assert.throws(()=>validateArt({...art,points:[art.points[0],art.points[0]]}),/duplicate/);assert.throws(()=>validateArt({...art,points:[[NaN,0,'#ffffff']]}));
-assert.equal(new Set(Array.from({length:9},(_,i)=>artSlot(art,i,9).position.join(','))).size,9,'repeated pixels use distinct depth slots');
-const fleet=createCommanderFleet(3);fleet.program.art=art;fleet.program.music={...defaultMusic(),mode:'sequence',bpm:96};Object.assign(fleet.program.settings,{shape:'pixels',height:35,countIn:0});
-const sim=new CommanderSimulation(fleet);sim.launch();for(let i=0;i<120;i++)sim.step(1/60);assert.deepEqual(sim.drones.map(d=>d.beaconHex),['#ff0000','#00ff00','#0000ff']);
-const roundtrip=parseFleetFile(JSON.stringify(compactFleet(sim.snapshot())));assert.deepEqual(roundtrip.program.art,art);assert.equal(roundtrip.program.music.bpm,96);
-const big=createCommanderFleet(4096);big.program.art={version:1,columns:64,rows:64,points:Array.from({length:4096},(_,i)=>[i%64,Math.floor(i/64),'#ffaa00'])};big.program.settings.shape='pixels';big.program.settings.height=70;const bigSim=new CommanderSimulation(big),positions=bigSim.program.ids.map(id=>sampleSwarmProgram(bigSim.program,id).target);assert.equal(new Set(positions.map(p=>p.join(','))).size,4096);assert(positions.every(p=>p.every(Number.isFinite)&&p[1]>=6&&p[1]<=320));
-assert.throws(()=>validateMusic({...defaultMusic(),bpm:NaN}));assert.equal(sequenceStep(.125,120),1);
-const battleSim=new CommanderSimulation(createCommanderFleet(16)),combat=new CombatSimulation(battleSim),plan=playbookPreset('pincer');plan.counts={friendly:10,enemy:6};plan.squads[0].delay=8;plan.squads[1].finish='hold';combat.playbook=plan;await combat.start();assert.equal(combat.summary().friendly,10);assert.equal(combat.summary().enemy,6);assert.equal(battleSim.drones[1].type,'cargo');combat.engage();battleSim.step(1/60);assert.match(battleSim.drones[0].ai.state,/Waiting/);
-const d=battleSim.drones[0],brain=d.ai;brain.routeIndex=plan.squads[0].route.length;assert.equal(playbookOrder(plan,d,20),null);plan.squads[0].finish='hold';assert(playbookOrder(plan,d,20).target);plan.squads[0].finish='retreat';playbookOrder(plan,d,20);assert(d.combatRetreat);
-combat.damage(battleSim.drones[2],100);battleSim.drones[3].mode='LANDED';const stats=combat.summary();assert.equal(stats.teams.friendly.flying,8);assert.equal(stats.teams.friendly.landed,1);assert.equal(stats.teams.friendly.destroyed,1);assert.equal(stats.teams.friendly.returning,1);assert.equal(stats.teams.friendly.total,10);
-const rig=new DirectorCamera(),camera=new T.PerspectiveCamera();for(const view of ['shoulder','mounted']){rig.setView();const hidden=rig.update(camera,battleSim,view,battleSim.drones[0],1/60);assert.equal(hidden,'','airframe stays visible');assert(camera.position.distanceTo(new T.Vector3().fromArray(d.pos))>1);assert(camera.position.toArray().every(Number.isFinite));}
-combat.time=5;rig.setView();rig.update(camera,battleSim,'combat',d,1/60);combat.time=7;combat.damage(battleSim.drones[4],100);rig.update(camera,battleSim,'combat',d,1/60);assert.match(rig.label,/Crash tracking/);assert.equal(rig.subject,battleSim.drones[4].id);combat.exit();
-camera.position.set(0,5,20);camera.lookAt(0,5,0);assert(screenPoint([0,5,0],camera,600,400));assert.equal(screenPoint([0,5,40],camera,600,400),null);assert(occluded([0,5,0],camera,[{x:0,z:10,w:2,d:2,h:10}]));assert(!occluded([0,5,0],camera,[]));
-assert.throws(()=>validatePlaybook({...blankPlaybook(),counts:{friendly:256,enemy:1}}));
-console.log('PASS: RGB/outline/threshold art, unique 4,096 targets, art/music fleet roundtrip, squad routes/delays/roles, per-team airborne/landed/loss counts, visible-airframe cameras, crash selection and occlusion.');
+const rgba = new Uint8ClampedArray(4 * 4 * 4);
+rgba.set([255, 0, 0, 255], 0);
+rgba.set([0, 255, 0, 255], 4);
+rgba.set([0, 0, 255, 255], 8);
+rgba.set([0, 0, 0, 255], 12);
+const art = rasterToArt({ data: rgba, width: 4, height: 4 }, 'rgb', 1);
+assert.equal(art.points.length, 3);
+assert.deepEqual(
+  art.points.map((p) => p[2]),
+  ['#ff0000', '#00ff00', '#0000ff'],
+);
+assert(rasterToArt({ data: rgba, width: 4, height: 4 }, 'outline', 64).points.length > 0);
+assert.equal(rasterToArt({ data: rgba, width: 4, height: 4 }, 'silhouette', 1).points.length, 1);
+assert.throws(() => validateArt({ ...art, points: [art.points[0], art.points[0]] }), /duplicate/);
+assert.throws(() => validateArt({ ...art, points: [[NaN, 0, '#ffffff']] }));
+assert.equal(
+  new Set(Array.from({ length: 9 }, (_, i) => artSlot(art, i, 9).position.join(','))).size,
+  9,
+  'repeated pixels use distinct depth slots',
+);
+const fleet = createCommanderFleet(3);
+fleet.program.art = art;
+fleet.program.music = { ...defaultMusic(), mode: 'sequence', bpm: 96 };
+Object.assign(fleet.program.settings, { shape: 'pixels', height: 35, countIn: 0 });
+const sim = new CommanderSimulation(fleet);
+sim.launch();
+for (let i = 0; i < 120; i++) sim.step(1 / 60);
+assert.deepEqual(
+  sim.drones.map((d) => d.beaconHex),
+  ['#ff0000', '#00ff00', '#0000ff'],
+);
+const roundtrip = parseFleetFile(JSON.stringify(compactFleet(sim.snapshot())));
+assert.deepEqual(roundtrip.program.art, art);
+assert.equal(roundtrip.program.music.bpm, 96);
+const big = createCommanderFleet(4096);
+big.program.art = {
+  version: 1,
+  columns: 64,
+  rows: 64,
+  points: Array.from({ length: 4096 }, (_, i) => [i % 64, Math.floor(i / 64), '#ffaa00']),
+};
+big.program.settings.shape = 'pixels';
+big.program.settings.height = 70;
+const bigSim = new CommanderSimulation(big),
+  positions = bigSim.program.ids.map((id) => sampleSwarmProgram(bigSim.program, id).target);
+assert.equal(new Set(positions.map((p) => p.join(','))).size, 4096);
+assert(positions.every((p) => p.every(Number.isFinite) && p[1] >= 6 && p[1] <= 320));
+assert.throws(() => validateMusic({ ...defaultMusic(), bpm: NaN }));
+assert.equal(sequenceStep(0.125, 120), 1);
+const battleSim = new CommanderSimulation(createCommanderFleet(16)),
+  combat = new CombatSimulation(battleSim),
+  plan = playbookPreset('pincer');
+plan.counts = { friendly: 10, enemy: 6 };
+plan.squads[0].delay = 8;
+plan.squads[1].finish = 'hold';
+combat.playbook = plan;
+await combat.start();
+assert.equal(combat.summary().friendly, 10);
+assert.equal(combat.summary().enemy, 6);
+assert.equal(battleSim.drones[1].type, 'cargo');
+combat.engage();
+battleSim.step(1 / 60);
+assert.match(battleSim.drones[0].ai.state, /Waiting/);
+const d = battleSim.drones[0],
+  brain = d.ai;
+brain.routeIndex = plan.squads[0].route.length;
+assert.equal(playbookOrder(plan, d, 20), null);
+plan.squads[0].finish = 'hold';
+assert(playbookOrder(plan, d, 20).target);
+plan.squads[0].finish = 'retreat';
+playbookOrder(plan, d, 20);
+assert(d.combatRetreat);
+combat.damage(battleSim.drones[2], 100);
+battleSim.drones[3].mode = 'LANDED';
+const stats = combat.summary();
+assert.equal(stats.teams.friendly.flying, 8);
+assert.equal(stats.teams.friendly.landed, 1);
+assert.equal(stats.teams.friendly.destroyed, 1);
+assert.equal(stats.teams.friendly.returning, 1);
+assert.equal(stats.teams.friendly.total, 10);
+const rig = new DirectorCamera(),
+  camera = new T.PerspectiveCamera();
+for (const view of ['shoulder', 'mounted']) {
+  rig.setView();
+  const hidden = rig.update(camera, battleSim, view, battleSim.drones[0], 1 / 60);
+  assert.equal(hidden, '', 'airframe stays visible');
+  assert(camera.position.distanceTo(new T.Vector3().fromArray(d.pos)) > 1);
+  assert(camera.position.toArray().every(Number.isFinite));
+}
+combat.time = 5;
+rig.setView();
+rig.update(camera, battleSim, 'combat', d, 1 / 60);
+combat.time = 7;
+combat.damage(battleSim.drones[4], 100);
+rig.update(camera, battleSim, 'combat', d, 1 / 60);
+assert.match(rig.label, /Crash tracking/);
+assert.equal(rig.subject, battleSim.drones[4].id);
+battleSim.running = false;
+const pausedPosition = camera.position.toArray(),
+  pausedRotation = camera.quaternion.toArray();
+for (let i = 0; i < 30; i++) rig.update(camera, battleSim, 'combat', d, 1 / 60);
+assert.deepEqual(camera.position.toArray(), pausedPosition);
+assert.deepEqual(camera.quaternion.toArray(), pausedRotation);
+combat.exit();
+camera.position.set(0, 5, 20);
+camera.lookAt(0, 5, 0);
+assert(screenPoint([0, 5, 0], camera, 600, 400));
+assert.equal(screenPoint([0, 5, 40], camera, 600, 400), null);
+assert(occluded([0, 5, 0], camera, [{ x: 0, z: 10, w: 2, d: 2, h: 10 }]));
+assert(!occluded([0, 5, 0], camera, []));
+assert.throws(() => validatePlaybook({ ...blankPlaybook(), counts: { friendly: 256, enemy: 1 } }));
+console.log(
+  'PASS: RGB/outline/threshold art, unique 4,096 targets, art/music fleet roundtrip, squad routes/delays/roles, per-team airborne/landed/loss counts, visible-airframe cameras, crash selection and occlusion.',
+);
 
-class Param{setValueAtTime(v){this.value=v;}setTargetAtTime(v){this.value=v;}exponentialRampToValueAtTime(v){this.value=v;}}
-class AudioNode{constructor(){this.gain=new Param();this.frequency=new Param();this.connections=[];}connect(n){this.connections.push(n);}disconnect(){}start(){this.started=true;}stop(){this.stopped=true;}}
-class AudioContext{constructor(){this.currentTime=0;this.sampleRate=8000;this.state='suspended';this.destination=new AudioNode();}resume(){this.state='running';return Promise.resolve();}close(){this.state='closed';return Promise.resolve();}createGain(){return new AudioNode();}createOscillator(){return new AudioNode();}createBiquadFilter(){return new AudioNode();}createBufferSource(){return new AudioNode();}createBuffer(channels,n){return {getChannelData:()=>new Float32Array(n)};}decodeAudioData(){return Promise.resolve({duration:4});}createMediaStreamDestination(){const n=new AudioNode();n.stream={getAudioTracks:()=>[{stop(){}}]};return n;}createMediaStreamSource(){return new AudioNode();}}
-globalThis.AudioContext=AudioContext;const audio=new FleetScore();await audio.audition('sequence');const program={enabled:false,running:false,time:0,settings:{countIn:0,bpm:120,song:'C4:1'},music:{...defaultMusic(),mode:'sequence'}};audio.update(program,false);assert(audio.voices.size>0,'preview sounds before fleet launch');assert.equal(audio.lastStep,0);audio.ctx.currentTime=.13;audio.update(program,false);assert.equal(audio.lastStep,1);audio.stop();assert.equal(audio.voices.size,0);assert(!audio.preview);
-const file={name:'sample.wav',type:'audio/wav',size:10,arrayBuffer:async()=>new ArrayBuffer(4)};await audio.upload(file);await audio.audition('upload');audio.update(program,false);assert(audio.uploadSource?.started);assert(audio.captureStream().getAudioTracks().length);audio.preview=false;audio.update(program,false);assert.equal(audio.voices.size,0);await assert.rejects(()=>audio.upload({...file,size:33*1024*1024}),/32 MB/);audio.dispose();delete globalThis.AudioContext;
+class Param {
+  setValueAtTime(v) {
+    this.value = v;
+  }
+  setTargetAtTime(v) {
+    this.value = v;
+  }
+  exponentialRampToValueAtTime(v) {
+    this.value = v;
+  }
+}
+class AudioNode {
+  constructor() {
+    this.gain = new Param();
+    this.frequency = new Param();
+    this.connections = [];
+  }
+  connect(n) {
+    this.connections.push(n);
+  }
+  disconnect() {}
+  start() {
+    this.started = true;
+  }
+  stop() {
+    this.stopped = true;
+  }
+}
+class AudioContext {
+  constructor() {
+    this.currentTime = 0;
+    this.sampleRate = 8000;
+    this.state = 'suspended';
+    this.destination = new AudioNode();
+  }
+  resume() {
+    this.state = 'running';
+    return Promise.resolve();
+  }
+  close() {
+    this.state = 'closed';
+    return Promise.resolve();
+  }
+  createGain() {
+    return new AudioNode();
+  }
+  createOscillator() {
+    return new AudioNode();
+  }
+  createBiquadFilter() {
+    return new AudioNode();
+  }
+  createBufferSource() {
+    return new AudioNode();
+  }
+  createBuffer(channels, n) {
+    return { getChannelData: () => new Float32Array(n) };
+  }
+  decodeAudioData() {
+    return Promise.resolve({ duration: 4 });
+  }
+  createMediaStreamDestination() {
+    const n = new AudioNode();
+    n.stream = { getAudioTracks: () => [{ stop() {} }] };
+    return n;
+  }
+  createMediaStreamSource() {
+    return new AudioNode();
+  }
+}
+globalThis.AudioContext = AudioContext;
+const audio = new FleetScore();
+await audio.audition('sequence');
+const program = {
+  enabled: false,
+  running: false,
+  time: 0,
+  settings: { countIn: 0, bpm: 120, song: 'C4:1' },
+  music: { ...defaultMusic(), mode: 'sequence' },
+};
+audio.update(program, false);
+assert(audio.voices.size > 0, 'preview sounds before fleet launch');
+assert.equal(audio.lastStep, 0);
+audio.ctx.currentTime = 0.13;
+audio.update(program, false);
+assert.equal(audio.lastStep, 1);
+audio.stop();
+assert.equal(audio.voices.size, 0);
+assert(!audio.preview);
+const file = {
+  name: 'sample.wav',
+  type: 'audio/wav',
+  size: 10,
+  arrayBuffer: async () => new ArrayBuffer(4),
+};
+await audio.upload(file);
+await audio.audition('upload');
+audio.update(program, false);
+assert(audio.uploadSource?.started);
+assert(audio.captureStream().getAudioTracks().length);
+audio.preview = false;
+audio.update(program, false);
+assert.equal(audio.voices.size, 0);
+await assert.rejects(() => audio.upload({ ...file, size: 33 * 1024 * 1024 }), /32 MB/);
+audio.dispose();
+delete globalThis.AudioContext;
 
-const dom=new JSDOM(fs.readFileSync('dist/index.html','utf8'),{url:'https://fleet.test'}),w=dom.window;Object.assign(globalThis,{document:w.document,window:w,localStorage:w.localStorage});let downloads=0,trackStops=0;
-w.HTMLCanvasElement.prototype.getContext=()=>new Proxy({},{get:()=>()=>{}});w.HTMLCanvasElement.prototype.captureStream=()=>({getTracks:()=>[{stop:()=>trackStops++}]});w.HTMLCanvasElement.prototype.setPointerCapture=()=>{};w.HTMLAnchorElement.prototype.click=()=>downloads++;
-class Recorder{static isTypeSupported(t){return t==='video/webm';}constructor(s,o){this.state='inactive';this.mimeType=o.mimeType;}start(){this.state='recording';}stop(){this.state='inactive';this.ondataavailable({data:new Blob(['clip'])});this.onstop();}}
-globalThis.MediaRecorder=Recorder;const capture=new VideoCapture({renderer:{canvas:w.document.createElement('canvas')},onError:e=>{throw Error(e);}});capture.start({audio:false});assert.equal(capture.state,'recording');capture.frame();capture.stop();assert(capture.blob.size>0);assert.equal(downloads,1);capture.download();assert.equal(downloads,2);assert.equal(trackStops,1);capture.dispose();
-const uiSim=new CommanderSimulation(createCommanderFleet(5)),errors=[],guard=fn=>(...args)=>Promise.resolve().then(()=>fn(...args)).catch(e=>errors.push(e.message));let populated=0;
-mountArtStudio({sim:uiSim,renderer:{setView(){}},populate:()=>populated++,requireFreeRoster(){},guard,say(){}});
-const by=id=>w.document.getElementById(id),canvas=by('artCanvas');canvas.dispatchEvent(new w.KeyboardEvent('keydown',{key:' '}));assert.match(by('artStatus').textContent,/1 lit pixels/);canvas.dispatchEvent(new w.KeyboardEvent('keydown',{key:'ArrowRight'}));canvas.dispatchEvent(new w.KeyboardEvent('keydown',{key:' '}));assert.match(by('artStatus').textContent,/2 lit pixels/);by('saveArt').click();await new Promise(r=>setImmediate(r));by('clearArt').click();assert(by('launchArt').disabled);by('loadArt').click();await new Promise(r=>setImmediate(r));assert.match(by('artStatus').textContent,/2 lit pixels/);by('artExact').checked=true;by('launchArt').click();await new Promise(r=>setImmediate(r));assert.equal(uiSim.drones.length,2);assert.equal(uiSim.program.settings.shape,'pixels');assert.equal(populated,1);assert.deepEqual(errors,[]);
-const combatPanel=w.document.createElement('div');combatPanel.id='tab-combat';w.document.body.append(combatPanel);let launched=null;const uiCombat={enabled:false,playbook:null};mountPlaybook({sim:uiSim,combat:uiCombat,launch:async opts=>launched=opts,say(){},guard});by('playPreset').value='pincer';by('loadPlayPreset').click();by('playFriendly').value=10;by('playEnemy').value=6;by('runPlaybook').click();await new Promise(r=>setImmediate(r));assert.equal(launched.count,16);assert.equal(uiCombat.playbook.squads[0].route.length,3);by('savePlaybook').click();await new Promise(r=>setImmediate(r));assert.equal(JSON.parse(localStorage.getItem('fleetcommander.playbook.v1')).counts.friendly,10);assert.deepEqual(errors,[]);
-dom.window.close();console.log('PASS: pre-launch beat/audio preview, decoded uploads, soundtrack capture, recording stop/re-download cleanup, actual art drawing/save/load/launch and coach preset/run/save controls.');
+const dom = new JSDOM(fs.readFileSync('dist/index.html', 'utf8'), { url: 'https://fleet.test' }),
+  w = dom.window;
+Object.assign(globalThis, { document: w.document, window: w, localStorage: w.localStorage });
+let downloads = 0,
+  trackStops = 0;
+w.HTMLCanvasElement.prototype.getContext = () => new Proxy({}, { get: () => () => {} });
+w.HTMLCanvasElement.prototype.captureStream = () => ({
+  getTracks: () => [{ stop: () => trackStops++ }],
+});
+w.HTMLCanvasElement.prototype.setPointerCapture = () => {};
+w.HTMLAnchorElement.prototype.click = () => downloads++;
+class Recorder {
+  static isTypeSupported(t) {
+    return t === 'video/webm';
+  }
+  constructor(s, o) {
+    this.state = 'inactive';
+    this.mimeType = o.mimeType;
+  }
+  start() {
+    this.state = 'recording';
+  }
+  stop() {
+    this.state = 'inactive';
+    this.ondataavailable({ data: new Blob(['clip']) });
+    this.onstop();
+  }
+}
+globalThis.MediaRecorder = Recorder;
+const capture = new VideoCapture({
+  renderer: { canvas: w.document.createElement('canvas') },
+  onError: (e) => {
+    throw Error(e);
+  },
+});
+capture.start({ audio: false });
+assert.equal(capture.state, 'recording');
+capture.frame();
+capture.stop();
+assert(capture.blob.size > 0);
+assert.equal(downloads, 1);
+capture.download();
+assert.equal(downloads, 2);
+assert.equal(trackStops, 1);
+capture.dispose();
+const uiSim = new CommanderSimulation(createCommanderFleet(5)),
+  errors = [],
+  guard =
+    (fn) =>
+    (...args) =>
+      Promise.resolve()
+        .then(() => fn(...args))
+        .catch((e) => errors.push(e.message));
+let populated = 0;
+uiSim.program.music = { ...defaultMusic(), mode: 'sequence', bpm: 96 };
+uiSim.program.settings.bpm = 96;
+uiSim.program.settings.song = 'A4:2';
+mountArtStudio({
+  sim: uiSim,
+  renderer: { setView() {} },
+  populate: () => populated++,
+  requireFreeRoster() {},
+  guard,
+  say() {},
+});
+const by = (id) => w.document.getElementById(id),
+  canvas = by('artCanvas');
+canvas.dispatchEvent(new w.KeyboardEvent('keydown', { key: ' ' }));
+assert.match(by('artStatus').textContent, /1 lit pixels/);
+canvas.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'ArrowRight' }));
+canvas.dispatchEvent(new w.KeyboardEvent('keydown', { key: ' ' }));
+assert.match(by('artStatus').textContent, /2 lit pixels/);
+by('saveArt').click();
+await new Promise((r) => setImmediate(r));
+by('clearArt').click();
+assert(by('launchArt').disabled);
+by('loadArt').click();
+await new Promise((r) => setImmediate(r));
+assert.match(by('artStatus').textContent, /2 lit pixels/);
+by('artExact').checked = true;
+by('launchArt').click();
+await new Promise((r) => setImmediate(r));
+assert.equal(uiSim.drones.length, 2);
+assert.equal(uiSim.program.settings.shape, 'pixels');
+assert.equal(populated, 1);
+assert.deepEqual(errors, []);
+assert.equal(uiSim.program.settings.song, 'A4:2');
+assert.equal(uiSim.program.settings.bpm, 96);
+assert.equal(uiSim.program.music.bpm, 96);
+assert.equal(uiSim.program.music.mode, 'sequence');
+const combatPanel = w.document.createElement('div');
+combatPanel.id = 'tab-combat';
+w.document.body.append(combatPanel);
+let launched = null;
+const uiCombat = { enabled: false, playbook: null };
+mountPlaybook({
+  sim: uiSim,
+  combat: uiCombat,
+  launch: async (opts) => (launched = opts),
+  say() {},
+  guard,
+});
+by('playPreset').value = 'pincer';
+by('loadPlayPreset').click();
+by('playFriendly').value = 10;
+by('playEnemy').value = 6;
+by('runPlaybook').click();
+await new Promise((r) => setImmediate(r));
+assert.equal(launched.count, 16);
+assert.equal(uiCombat.playbook.squads[0].route.length, 3);
+by('savePlaybook').click();
+await new Promise((r) => setImmediate(r));
+assert.equal(JSON.parse(localStorage.getItem('fleetcommander.playbook.v1')).counts.friendly, 10);
+assert.deepEqual(errors, []);
+dom.window.close();
+console.log(
+  'PASS: pre-launch beat/audio preview, decoded uploads, soundtrack capture, recording stop/re-download cleanup, actual art drawing/save/load/launch and coach preset/run/save controls.',
+);

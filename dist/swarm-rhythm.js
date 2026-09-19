@@ -1,11 +1,94 @@
-import {programOptions} from './swarm-program.js?v=0.8.0';
+import { programOptions } from './swarm-program.js?v=0.9.0';
 // The simulation clock owns choreography and sound. No independent music timer.
-export function beatState(program){const settings=programOptions(program,program.ids[0]),bpm=settings.bpm??120,t=Math.max(0,program.time-(settings.countIn??0)),beats=t*bpm/60;return {beatSync:settings.beatSync,bpm,beats,index:Math.floor(beats),pulse:(1+Math.cos(beats*Math.PI*2))/2,started:program.time>=(settings.countIn??0)};}
-export function tapTempo(history,now){const taps=history.filter(t=>now-t<6000);if(taps.length&&now-taps.at(-1)>2000)taps.length=0;taps.push(now);while(taps.length>6)taps.shift();const gaps=taps.slice(1).map((t,i)=>t-taps[i]).filter(d=>d>=200&&d<=2000).sort((a,b)=>a-b);return {taps,bpm:gaps.length?Math.max(40,Math.min(220,Math.round(60000/gaps[Math.floor(gaps.length/2)]))):null};}
-export class SwarmMetronome{
- constructor(){this.enabled=false;this.last=-1;this.voices=new Set();}
- async enable(){const Audio=globalThis.AudioContext||globalThis.webkitAudioContext;if(!Audio)throw Error('Audio is unavailable in this browser. Beat animation still works.');this.context??=new Audio();await this.context.resume();this.enabled=true;this.last=-1;}
- stop(){this.enabled=false;this.last=-1;for(const voice of this.voices){try{voice.stop();}catch{}}this.voices.clear();this.context?.suspend().catch(()=>{});}
- captureStream(){if(!this.context?.createMediaStreamDestination)return null;this.capture??=this.context.createMediaStreamDestination();return this.capture.stream;}
- update(program,running){if(!this.enabled||!running||!program?.enabled||!program.running){this.last=-1;return;}const beat=beatState(program);if(!beat.beatSync||!beat.started||beat.index===this.last)return;this.last=beat.index;const ctx=this.context;if(!ctx||ctx.state!=='running')return;const voice=ctx.createOscillator(),gain=ctx.createGain(),at=ctx.currentTime;voice.type='sine';voice.frequency.value=beat.index%4===0?880:550;gain.gain.setValueAtTime(0,at);gain.gain.linearRampToValueAtTime(.07,at+.005);gain.gain.exponentialRampToValueAtTime(.001,at+.065);voice.connect(gain);gain.connect(ctx.destination);if(this.capture)gain.connect(this.capture);voice.start(at);voice.stop(at+.08);this.voices.add(voice);voice.onended=()=>{this.voices.delete(voice);voice.disconnect();gain.disconnect();};}
+export function beatState(program) {
+  const settings = programOptions(program, program.ids[0]),
+    bpm = settings.bpm ?? 120,
+    t = Math.max(0, program.time - (settings.countIn ?? 0)),
+    beats = (t * bpm) / 60;
+  return {
+    beatSync: settings.beatSync,
+    bpm,
+    beats,
+    index: Math.floor(beats),
+    pulse: (1 + Math.cos(beats * Math.PI * 2)) / 2,
+    started: program.time >= (settings.countIn ?? 0),
+  };
+}
+export function tapTempo(history, now) {
+  const taps = history.filter((t) => now - t < 6000);
+  if (taps.length && now - taps.at(-1) > 2000) taps.length = 0;
+  taps.push(now);
+  while (taps.length > 6) taps.shift();
+  const gaps = taps
+    .slice(1)
+    .map((t, i) => t - taps[i])
+    .filter((d) => d >= 200 && d <= 2000)
+    .sort((a, b) => a - b);
+  return {
+    taps,
+    bpm: gaps.length
+      ? Math.max(40, Math.min(220, Math.round(60000 / gaps[Math.floor(gaps.length / 2)])))
+      : null,
+  };
+}
+export class SwarmMetronome {
+  constructor() {
+    this.enabled = false;
+    this.last = -1;
+    this.voices = new Set();
+  }
+  async enable() {
+    const Audio = globalThis.AudioContext || globalThis.webkitAudioContext;
+    if (!Audio) throw Error('Audio is unavailable in this browser. Beat animation still works.');
+    this.context ??= new Audio();
+    await this.context.resume();
+    this.enabled = true;
+    this.last = -1;
+  }
+  stop() {
+    this.enabled = false;
+    this.last = -1;
+    for (const voice of this.voices) {
+      try {
+        voice.stop();
+      } catch {}
+    }
+    this.voices.clear();
+    this.context?.suspend().catch(() => {});
+  }
+  captureStream() {
+    if (!this.context?.createMediaStreamDestination) return null;
+    this.capture ??= this.context.createMediaStreamDestination();
+    return this.capture.stream;
+  }
+  update(program, running) {
+    if (!this.enabled || !running || !program?.enabled || !program.running) {
+      this.last = -1;
+      return;
+    }
+    const beat = beatState(program);
+    if (!beat.beatSync || !beat.started || beat.index === this.last) return;
+    this.last = beat.index;
+    const ctx = this.context;
+    if (!ctx || ctx.state !== 'running') return;
+    const voice = ctx.createOscillator(),
+      gain = ctx.createGain(),
+      at = ctx.currentTime;
+    voice.type = 'sine';
+    voice.frequency.value = beat.index % 4 === 0 ? 880 : 550;
+    gain.gain.setValueAtTime(0, at);
+    gain.gain.linearRampToValueAtTime(0.07, at + 0.005);
+    gain.gain.exponentialRampToValueAtTime(0.001, at + 0.065);
+    voice.connect(gain);
+    gain.connect(ctx.destination);
+    if (this.capture) gain.connect(this.capture);
+    voice.start(at);
+    voice.stop(at + 0.08);
+    this.voices.add(voice);
+    voice.onended = () => {
+      this.voices.delete(voice);
+      voice.disconnect();
+      gain.disconnect();
+    };
+  }
 }

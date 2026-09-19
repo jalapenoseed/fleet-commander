@@ -1,3 +1,101 @@
-.fleet-dialog{color:#edf0dc;background:#1a272b;border:1px solid #70877d;border-radius:12px;padding:26px;width:min(520px,calc(100vw - 32px));max-height:88dvh;overflow:auto;box-shadow:0 22px 80px #0009;font:15px/1.6 system-ui,sans-serif}
-.fleet-dialog::backdrop{background:#081217bf;backdrop-filter:blur(4px)}
-.fleet-dialog h2{font-size:24px;line-height:1.2;margin:0 0 14px}.fleet-dialog p{color:#becbc7}.fleet-dialog label{display:block;margin:12px 0;font-size:14px}.fleet-dialog button{min-height:44px;padding:10px 14px;border:1px solid #63736b;border-radius:5px;background:#293a3d;color:#edf0dc;font:inherit;cursor:pointer}.fleet-dialog button.primary{background:#eee5b9;color:#152326;font-weight:700}.fleet-dialog textarea,.fleet-dialog input:not([type=checkbox]){display:block;width:100%;box-sizing:border-box;padding:10px;border:1px solid #63736b;border-radius:5px;background:#0e1e23;color:#edf0dc;font:inherit}.fleet-dialog-actions{display:grid;gap:9px;margin-top:20px}.fleet-task-nav{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:14px 0 20px}.fleet-task-nav button{font-size:14px;min-height:46px;text-align:left;white-space:normal}.fleet-task-nav button[aria-pressed=true]{background:#344a47;border-color:#afcdb6;color:#f2f3dc}.fleet-task-nav button small{display:block;font-size:12px;color:#b7c8c3;font-weight:400}.sequence-status{display:block;margin:12px 0;padding:12px;border-left:2px solid #becdab;background:#14262a;color:#eef0d9;font-size:14px;float:none}.fleet-dialog button:focus-visible,.fleet-task-nav button:focus-visible{outline:2px solid #ffe592;outline-offset:3px}
+.fleet-dialog {
+  color: #edf0dc;
+  background: #1a272b;
+  border: 1px solid #70877d;
+  border-radius: 12px;
+  padding: 26px;
+  width: min(520px, calc(100vw - 32px));
+  max-height: 88dvh;
+  overflow: auto;
+  box-shadow: 0 22px 80px #0009;
+  font:
+    15px/1.6 system-ui,
+    sans-serif;
+}
+.fleet-dialog::backdrop {
+  background: #081217bf;
+  backdrop-filter: blur(4px);
+}
+.fleet-dialog h2 {
+  font-size: 24px;
+  line-height: 1.2;
+  margin: 0 0 14px;
+}
+.fleet-dialog p {
+  color: #becbc7;
+}
+.fleet-dialog label {
+  display: block;
+  margin: 12px 0;
+  font-size: 14px;
+}
+.fleet-dialog button {
+  min-height: 44px;
+  padding: 10px 14px;
+  border: 1px solid #63736b;
+  border-radius: 5px;
+  background: #293a3d;
+  color: #edf0dc;
+  font: inherit;
+  cursor: pointer;
+}
+.fleet-dialog button.primary {
+  background: #eee5b9;
+  color: #152326;
+  font-weight: 700;
+}
+.fleet-dialog textarea,
+.fleet-dialog input:not([type='checkbox']) {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px;
+  border: 1px solid #63736b;
+  border-radius: 5px;
+  background: #0e1e23;
+  color: #edf0dc;
+  font: inherit;
+}
+.fleet-dialog-actions {
+  display: grid;
+  gap: 9px;
+  margin-top: 20px;
+}
+.fleet-task-nav {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 14px 0 20px;
+}
+.fleet-task-nav button {
+  font-size: 14px;
+  min-height: 46px;
+  text-align: left;
+  white-space: normal;
+}
+.fleet-task-nav button[aria-pressed='true'] {
+  background: #344a47;
+  border-color: #afcdb6;
+  color: #f2f3dc;
+}
+.fleet-task-nav button small {
+  display: block;
+  font-size: 12px;
+  color: #b7c8c3;
+  font-weight: 400;
+}
+.sequence-status {
+  display: block;
+  margin: 12px 0;
+  padding: 12px;
+  border-left: 2px solid #becdab;
+  background: #14262a;
+  color: #eef0d9;
+  font-size: 14px;
+  float: none;
+}
+.fleet-dialog button:focus-visible,
+.fleet-task-nav button:focus-visible {
+  outline: 2px solid #ffe592;
+  outline-offset: 3px;
+}
