@@ -12,7 +12,7 @@ namespace FleetCommander.Core
         public int blueWins, redWins;
         public Vector3 blueWaypoint = new Vector3(-20, 25, 0), redWaypoint = new Vector3(20, 25, 0);
     }
-    public struct BattleEvent
+    [Serializable] public struct BattleEvent
     {
         public Vector3 from, to;
         public int team;

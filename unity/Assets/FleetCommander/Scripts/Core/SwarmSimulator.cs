@@ -46,7 +46,7 @@ namespace FleetCommander.Core
         }
         public void EndBattle(){Arena=null;Replay.Clear();Selected=0;}
         public void ExitReplay(){Replay.Stop();}
-        public void Payload(){if(Replay.Playing)return;if(Active.DropPayload(Selected)){foreach(var e in Active.Events)OnBattleEvent?.Invoke(e);Replay.Mark("Payload",Active.Time);}else Notice="Select an airborne arena drone with a payload remaining.";}
+        public void Payload(){if(Replay.Playing)return;if(Active.DropPayload(Selected)){foreach(var e in Active.Events){OnBattleEvent?.Invoke(e);Replay.AddEvent(e);}Replay.Mark("Payload",Active.Time);}else Notice="Select an airborne arena drone with a payload remaining.";}
         public void Load(FleetSave save)
         {
             FleetStorage.Validate(save); ExitReplay();EndBattle();Program.Stop();Show=new FleetWorld(save.config,0);Show.Restore(save.drones,save.elapsed);Paused=true;Selected=0;Notice="Fleet loaded. Resume when ready.";

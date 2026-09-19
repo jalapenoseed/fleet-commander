@@ -4,7 +4,7 @@ using FleetCommander.Core;
 using UnityEngine;
 namespace FleetCommander.Systems
 {
-    [Serializable] public sealed class ReplayFrame { public float time; public DroneState[] drones; public string config; }
+    [Serializable] public sealed class ReplayFrame { public float time; public DroneState[] drones; public string config; public BattleEvent[] events; }
     [Serializable] public sealed class ReplayArchive { public int version=1; public ReplayFrame[] frames; }
     public sealed class ReplayBuffer
     {
@@ -12,6 +12,7 @@ namespace FleetCommander.Systems
         public readonly List<ReplayFrame> Frames=new List<ReplayFrame>(Capacity);
         public readonly List<string> Highlights=new List<string>();
         public readonly List<float> HighlightTimes=new List<float>();
+        readonly List<BattleEvent> pending=new List<BattleEvent>(256);
         public DroneState[] Display {get;private set;}=Array.Empty<DroneState>();
         public FleetConfig DisplayConfig {get;private set;}
         public bool Playing {get;private set;}
@@ -25,13 +26,15 @@ namespace FleetCommander.Systems
         public void Record(FleetWorld world,float dt)
         {
             if(Playing||world.Count>MaxRecordedDrones)return;
+            foreach(var e in world.Events)AddEvent(e);
             accumulator+=dt;if(accumulator<.1f)return;accumulator-=.1f;
             if(Frames.Count>0 && Frames[0].drones.Length!=world.Count)Clear();
             ReplayFrame frame;
             if(Frames.Count==Capacity){frame=Frames[0];Frames.RemoveAt(0);}else frame=new ReplayFrame();
             if(frame.drones==null||frame.drones.Length!=world.Count)frame.drones=new DroneState[world.Count];
-            Array.Copy(world.States,frame.drones,world.Count);frame.time=world.Time;frame.config=JsonUtility.ToJson(world.Config);Frames.Add(frame);
+            Array.Copy(world.States,frame.drones,world.Count);frame.time=world.Time;frame.config=JsonUtility.ToJson(world.Config);frame.events=pending.ToArray();pending.Clear();Frames.Add(frame);
         }
+        public void AddEvent(BattleEvent e){if(pending.Count<256)pending.Add(e);}
         public void Mark(string label,float time)
         {
             if(time-lastMark<2)return;lastMark=time;Highlights.Add(label+" · "+time.ToString("F1")+"s");HighlightTimes.Add(time);
@@ -58,7 +61,7 @@ namespace FleetCommander.Systems
             if(k!=lastConfigFrame){DisplayConfig=JsonUtility.FromJson<FleetConfig>(a.config);lastConfigFrame=k;}
         }
         public void Stop(){Playing=false;Paused=false;}
-        public void Clear(){Stop();Frames.Clear();Highlights.Clear();HighlightTimes.Clear();accumulator=0;lastMark=-99;}
+        public void Clear(){Stop();Frames.Clear();Highlights.Clear();HighlightTimes.Clear();pending.Clear();accumulator=0;lastMark=-99;}
         public void Export(string path)=>System.IO.File.WriteAllText(path,JsonUtility.ToJson(new ReplayArchive{frames=Frames.ToArray()}));
     }
 }

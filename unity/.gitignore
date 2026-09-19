@@ -14,3 +14,7 @@ ExportedObj/
 .consulo/
 .DS_Store
 Thumbs.db
+*.log
+test-results*.xml
+*.csproj
+*.sln

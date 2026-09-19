@@ -44,6 +44,7 @@ namespace FleetCommander.Systems
             }
             return p.ToArray();
         }
+#if !FLEET_PORTABLE
         public static ArtPoint[] Image(string path,string mode,float threshold)
         {
             var info=new FileInfo(path);if(!info.Exists||info.Length>8000000)throw new ArgumentException("Choose a PNG/JPG under 8 MB.");
@@ -65,5 +66,6 @@ namespace FleetCommander.Systems
             }
             finally{UnityEngine.Object.Destroy(texture);}
         }
+#endif
     }
 }
