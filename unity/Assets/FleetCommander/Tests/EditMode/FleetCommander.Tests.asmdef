@@ -2,7 +2,9 @@
   "name": "FleetCommander.Tests",
   "rootNamespace": "FleetCommander.Tests",
   "references": [
-    "FleetCommander"
+    "FleetCommander",
+    "UnityEngine.TestRunner",
+    "UnityEditor.TestRunner"
   ],
   "includePlatforms": [
     "Editor"
@@ -16,5 +18,8 @@
     "UNITY_INCLUDE_TESTS"
   ],
   "versionDefines": [],
-  "noEngineReferences": false
+  "noEngineReferences": false,
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ]
 }

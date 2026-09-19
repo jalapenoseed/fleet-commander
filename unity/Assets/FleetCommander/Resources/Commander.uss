@@ -1,0 +1,32 @@
+:root { color: rgb(217, 232, 238); font-size: 13px; }
+.header { position: absolute; left: 24px; right: 24px; top: 20px; height: 70px; flex-direction: row; align-items: center; padding: 12px 18px; background-color: rgba(7, 16, 22, 0.95); border-top-width: 2px; border-top-color: rgb(74, 213, 212); }
+.brand { width: 270px; }
+.brand-title { font-size: 23px; -unity-font-style: bold; letter-spacing: 1px; }
+.eyebrow { font-size: 10px; letter-spacing: 2px; color: rgb(109, 168, 178); margin-top: 4px; margin-bottom: 5px; white-space: normal; }
+.stats { flex-grow: 1; color: rgb(141, 241, 222); -unity-font-style: bold; font-size: 12px; white-space: normal; }
+.nav { position: absolute; left: 24px; right: 24px; top: 100px; min-height: 36px; flex-direction: row; flex-wrap: wrap; background-color: rgba(7, 16, 22, 0.8); padding: 3px; }
+.nav .unity-button { font-size: 12px; min-width: 62px; height: 30px; margin: 1px 2px; padding: 3px 9px; }
+.sidebar { position: absolute; left: 24px; top: 155px; bottom: 72px; width: 340px; background-color: rgba(8, 18, 25, 0.96); border-left-width: 1px; border-left-color: rgba(120, 216, 223, 0.3); padding: 12px; }
+.page { flex-grow: 1; margin-top: 10px; }
+.page-title { font-size: 29px; margin-bottom: 12px; -unity-font-style: bold; }
+.note { white-space: normal; color: rgb(159, 185, 195); font-size: 12px; margin-top: 5px; margin-bottom: 13px; }
+.section { font-size: 15px; -unity-font-style: bold; margin-top: 20px; margin-bottom: 9px; color: rgb(131, 233, 225); }
+.row { flex-direction: row; flex-shrink: 0; margin-top: 4px; }
+.row .unity-button { flex-grow: 1; }
+.unity-button { height: 33px; min-height: 30px; margin: 4px 2px; padding: 5px 10px; border-radius: 3px; background-color: rgb(23, 43, 54); color: rgb(218, 235, 239); border-width: 1px; border-color: rgb(48, 76, 88); font-size: 11px; -unity-font-style: bold; }
+.unity-button:hover { background-color: rgb(39, 77, 87); border-color: rgb(105, 221, 213); }
+.unity-button.primary, .unity-button.selected { background-color: rgb(59, 194, 182); color: rgb(7, 25, 29); border-color: rgb(118, 251, 232); }
+.unity-base-field { min-height: 27px; margin-top: 5px; margin-bottom: 5px; color: rgb(200, 218, 225); flex-shrink: 0; }
+.unity-base-field__label { min-width: 120px; width: 120px; white-space: normal; font-size: 11px; color: rgb(183, 204, 214); }
+.unity-base-field__input { background-color: rgb(17, 31, 42); color: rgb(222, 238, 241); border-color: rgb(56, 80, 92); }
+.unity-base-text-field__input { color: rgb(224, 240, 246); padding: 5px; }
+.unity-enum-field__text, .unity-popup-field__text { color: rgb(220, 236, 242); }
+.unity-toggle__checkmark { background-color: rgb(43, 61, 72); }
+.code { height: 300px; min-height: 300px; }
+.code .unity-text-field__input { white-space: normal; -unity-text-align: upper-left; }
+.bottom { position: absolute; left: 24px; right: 24px; bottom: 18px; height: 42px; flex-direction: row; align-items: center; background-color: rgba(7, 16, 22, 0.9); padding: 3px 12px; }
+.status { flex-grow: 1; white-space: normal; font-size: 11px; color: rgb(166, 203, 211); }
+.telemetry { position: absolute; right: 28px; top: 161px; width: 280px; padding: 14px; background-color: rgba(5, 14, 20, 0.8); color: rgb(152, 231, 221); font-size: 12px; white-space: normal; }
+.reticle { position: absolute; left: 50%; top: 50%; }
+.crosshair { color: rgb(100, 255, 205); font-size: 30px; }
+.pixel-canvas { margin-top: 8px; margin-bottom: 8px; flex-shrink: 0; }
