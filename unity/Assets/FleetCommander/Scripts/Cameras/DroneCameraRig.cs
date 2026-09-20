@@ -26,9 +26,22 @@ namespace FleetCommander.Cameras
             bool blocked=RuntimeSmoke.Running||UI!=null&&(UI.PointerBlocked||UI.Typing);
             if(!blocked)
             {
-                if(Input.GetMouseButton(0)||Input.GetMouseButton(1)){Yaw+=delta.x*.18f;Pitch=Mathf.Clamp(Pitch-delta.y*.18f,-75,88);}
+                if(Input.touchCount==0 && (Input.GetMouseButton(0)||Input.GetMouseButton(1)))
+                {Yaw+=delta.x*.18f;Pitch=Mathf.Clamp(Pitch-delta.y*.18f,-75,88);}
                 Distance=Mathf.Clamp(Distance*Mathf.Exp(-Input.mouseScrollDelta.y*.1f),2,1200);
-                if(Input.touchCount==2){var a=Input.GetTouch(0);var b=Input.GetTouch(1);float now=(a.position-b.position).magnitude,old=(a.position-a.deltaPosition-b.position+b.deltaPosition).magnitude;Distance=Mathf.Clamp(Distance*Mathf.Exp((old-now)*.003f),2,1200);}
+                if(Input.touchCount==1 && (Pilot==null||!Pilot.IsPiloting))
+                {
+                    var touch=Input.GetTouch(0);
+                    if(touch.phase==TouchPhase.Moved)
+                    {Yaw+=touch.deltaPosition.x*.16f;Pitch=Mathf.Clamp(Pitch-touch.deltaPosition.y*.16f,-75,88);}
+                }
+                if(Input.touchCount==2)
+                {
+                    var a=Input.GetTouch(0);var b=Input.GetTouch(1);
+                    float now=(a.position-b.position).magnitude;
+                    float old=(a.position-a.deltaPosition-b.position+b.deltaPosition).magnitude;
+                    Distance=Mathf.Clamp(Distance*Mathf.Exp((old-now)*.003f),2,1200);
+                }
             }
             var states=Simulator.Replay.Playing?Simulator.Replay.Display:Simulator.Active.States;
             int selected=Mathf.Clamp(Simulator.Selected,0,Mathf.Max(0,states.Length-1));
