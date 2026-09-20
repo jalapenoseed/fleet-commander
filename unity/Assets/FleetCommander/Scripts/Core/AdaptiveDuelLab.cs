@@ -203,7 +203,7 @@ namespace FleetCommander.Core
                 _=>45
             };
             float confidence=1/(1+track.Uncertainty);
-            return d<=range && confidence>=Policy(observer.fleetId).confidenceGate && UnityEngine.Random.value>Policy(observer.fleetId).conservation*.08f;
+            return d<=range && confidence>=Policy(observer.fleetId).confidenceGate && confidence>=Policy(observer.fleetId).conservation*.18f;
         }
 
         public void Log(int agent,int target,int team,Vector3 aimPoint,Vector3 action,bool fired,bool hit,bool lockLost,float reward)
