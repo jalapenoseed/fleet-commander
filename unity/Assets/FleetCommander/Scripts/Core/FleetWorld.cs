@@ -67,6 +67,7 @@ namespace FleetCommander.Core
         public DroneState[] States { get; private set; } = Array.Empty<DroneState>();
         public readonly SpatialHash Neighbors = new SpatialHash();
         public readonly List<BattleEvent> Events = new List<BattleEvent>(256);
+        public readonly AdaptiveDuelLab AdaptiveLab = new AdaptiveDuelLab();
         public readonly BattleSettings Battle;
         public float Time { get; private set; }
         public bool IsBattle => Battle != null;
@@ -88,7 +89,12 @@ namespace FleetCommander.Core
         int[] damageSources=Array.Empty<int>();
         WeaponKind[] damageWeapons=Array.Empty<WeaponKind>();
         int[] groupIndices=Array.Empty<int>();readonly int[] groupCounts=new int[4];
-        public FleetWorld(FleetConfig config, int count, BattleSettings battle = null) { Config = config; Battle = battle; Battle?.Validate(); Resize(count); }
+        float lastStep=1f/60f;
+        public FleetWorld(FleetConfig config, int count, BattleSettings battle = null)
+        {
+            Config = config; Battle = battle; Battle?.Validate(); Resize(count);
+            if(IsBattle)AdaptiveLab.Reset(Battle.lab);
+        }
 
         public void Resize(int count)
         {
@@ -137,7 +143,7 @@ namespace FleetCommander.Core
         public void Step(float dt)
         {
             if (dt <= 0 || float.IsNaN(dt) || float.IsInfinity(dt)) return;
-            dt = Mathf.Min(dt, .05f); Time += dt; Events.Clear(); Array.Clear(damage,0,damage.Length); Array.Clear(strongestHit,0,strongestHit.Length);
+            dt = Mathf.Min(dt, .05f); lastStep=dt; Time += dt; Events.Clear(); Array.Clear(damage,0,damage.Length); Array.Clear(strongestHit,0,strongestHit.Length);
             if(IsBattle && RoundStarted && !RoundEnded && Battle.engage) RoundTime+=dt;
             if(ControlledDrone>=0 && (RoundEnded || States[ControlledDrone].phase!=FlightPhase.Flying || States[ControlledDrone].disabled)) ClearControl();
             if (Config.boids) Neighbors.Build(States, Config.neighborRadius);
@@ -230,6 +236,7 @@ namespace FleetCommander.Core
         {
             if(RoundEnded) return;
             Winner=winner; ClearControl();
+            if(Battle.adaptive&&Battle.lab!=null&&Battle.lab.enabled)AdaptiveLab.LearnRound();
             if(winner==0) Battle.blueWins++; else if(winner==1) Battle.redWins++; else Battle.draws++;
         }
         Vector3 BattleTarget(int i, ref DroneState s)
@@ -241,13 +248,29 @@ namespace FleetCommander.Core
             Vector3 waypoint=s.fleetId==0 ? Battle.blueWaypoint : Battle.redWaypoint;
             if(!Battle.engage || RoundEnded || enemy<0) return waypoint+FormationMath.Ring(i/2,Mathf.Max(1,Count/2),12);
             var other=States[enemy];
+            Vector3 perceived=other.position;
+            bool labActive=Battle.adaptive && Battle.lab!=null && Battle.lab.enabled;
+            SensorObservation observation=default;
+            if(labActive)
+            {
+                observation=AdaptiveLab.Observe(s,other,Time,lastStep);
+                if(observation.detected)perceived=AdaptiveLab.AimPoint(s,other,Time);
+            }
             if(Battle.adaptive && s.health<40) style=BattleStyle.Evasive;
-            Vector3 away=(s.position-other.position).normalized;
-            Vector3 target=other.position + away*(style==BattleStyle.Pursuit ? 3 : 13);
+            Vector3 away=(s.position-perceived).sqrMagnitude>.001f?(s.position-perceived).normalized:Vector3.back;
+            Vector3 target=perceived + away*(style==BattleStyle.Pursuit ? 3 : 13);
             if(style==BattleStyle.Evasive) target+=new Vector3(Mathf.Sin(Time*1.7f+i),Mathf.Sin(Time+i)*.4f,Mathf.Cos(Time*1.7f+i))*12;
             if(style==BattleStyle.Guardian) target=Vector3.Lerp(target,waypoint,.65f);
-            if(s.cooldown<=0 && nearest<=DroneCatalog.Weapon(s.weapon).range*DroneCatalog.Weapon(s.weapon).range)
-                FireWeapon(i,ref s,other.position-s.position,false);
+            bool fired=false,hit=false;
+            Vector3 aim=perceived-s.position;
+            if(s.cooldown<=0 && nearest<=DroneCatalog.Weapon(s.weapon).range*DroneCatalog.Weapon(s.weapon).range &&
+               (!labActive || observation.detected && AdaptiveLab.ShouldEngage(s,other)))
+            {
+                int eventStart=Events.Count;
+                fired=FireWeapon(i,ref s,aim,false);
+                for(int e=eventStart;e<Events.Count;e++)if(Events[e].source==i&&Events[e].victim==enemy&&Events[e].impact){hit=true;break;}
+            }
+            if(labActive)AdaptiveLab.Log(i,enemy,s.fleetId,perceived,target-s.position,fired,hit,!observation.detected,hit?1f:fired?-.08f:0);
             target.y=Mathf.Clamp(target.y,8,90); return target;
         }
         void ResolveDroneCollisions()
