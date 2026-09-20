@@ -5,13 +5,13 @@ using UnityEngine;
 
 namespace FleetCommander.Systems
 {
-    // Poll controls before the fixed simulation consumes them. Mouse capture is always an explicit viewport click.
     [DefaultExecutionOrder(-20)]
     public sealed class DronePilot : MonoBehaviour
     {
         public SwarmSimulator Simulator;
         public DroneCameraRig Rig;
         public CommanderUI UI;
+        public MobileControls Mobile;
         public float MouseSensitivity=2;
         public int DroneIndex {get;private set;}=-1;
         public bool InputCaptured {get;private set;}
@@ -19,16 +19,19 @@ namespace FleetCommander.Systems
             !Simulator.Replay.Playing && !world.RoundEnded && DroneIndex>=0 && DroneIndex<world.Count &&
             !world.States[DroneIndex].disabled && world.States[DroneIndex].phase==FlightPhase.Flying &&
             world.ControlledDrone==DroneIndex;
+        bool MobileActive => Mobile!=null && Mobile.Active;
         public Quaternion AimRotation => Quaternion.Euler(pitch,yaw,0);
         public Vector3 AimDirection => AimRotation*Vector3.forward;
-        public string Status => !IsPiloting ? "Spectating · Join Blue / Red to fly" : InputCaptured ?
-            "PILOT · WASD move · Space / Ctrl altitude · Shift boost · Mouse aim / fire · Q pulse · C view · Esc cursor" :
+        public string Status => !IsPiloting ? "Spectating · Join Blue / Red to fly" :
+            MobileActive ? "PILOT · left stick move · right drag aim · FIRE / BOOST / UP / DOWN · PULSE · CAM" :
+            InputCaptured ? "PILOT · WASD move · Space / Ctrl altitude · Shift boost · Mouse aim / fire · Q pulse · C view · Esc cursor" :
             "PILOT · Click the open viewport to fly · Escape releases cursor · Leave Pilot returns to AI";
 
         FleetWorld world;
         CameraMode previousMode;
         float yaw,pitch;
         int joinedFrame;
+
         static bool GameInputFocused
         {
             get
@@ -44,6 +47,7 @@ namespace FleetCommander.Systems
         public bool JoinBlue()=>JoinTeam(0);
         public bool JoinRed()=>JoinTeam(1);
         public bool JoinSelected()=>Simulator!=null && Join(Simulator.Selected);
+
         public bool JoinTeam(int team)
         {
             if(!ReadyToJoin())return false;
@@ -52,6 +56,7 @@ namespace FleetCommander.Systems
             for(int i=0;i<Simulator.Arena.Count;i++)if(Simulator.Arena.States[i].fleetId==team && Available(i))return Join(i);
             Simulator.Notice="No airborne drone remains on that team. Start a rematch to rejoin.";return false;
         }
+
         bool ReadyToJoin()
         {
             if(Simulator==null)return false;
@@ -60,10 +65,12 @@ namespace FleetCommander.Systems
             if(Simulator.Arena.RoundEnded){Simulator.Notice="The round is over. Rematch to join a fresh fight.";return false;}
             return true;
         }
+
         bool Available(int index)
         {
             var state=Simulator.Arena.States[index];return !state.disabled && state.phase==FlightPhase.Flying;
         }
+
         public bool Join(int index)
         {
             if(!ReadyToJoin())return false;
@@ -83,29 +90,39 @@ namespace FleetCommander.Systems
             pitch=Mathf.Clamp(-Mathf.Asin(Mathf.Clamp(direction.y,-1,1))*Mathf.Rad2Deg,-80,80);
             world.SetPilotInput(Vector3.zero,AimDirection,false);joinedFrame=Time.frameCount;
             if(UI!=null && UI.Document!=null)UI.Root.panel?.focusController?.focusedElement?.Blur();
-            Simulator.Notice="Joined "+(state.fleetId==0?"Blue":"Red")+" drone "+(index+1)+". Click the open viewport to take control; Escape releases the cursor.";
+            if(MobileActive)
+            {
+                InputCaptured=true;
+                Simulator.Notice="Joined "+(state.fleetId==0?"Blue":"Red")+" drone "+(index+1)+". Touch controls are live.";
+            }
+            else Simulator.Notice="Joined "+(state.fleetId==0?"Blue":"Red")+" drone "+(index+1)+". Click the open viewport to take control; Escape releases the cursor.";
             return true;
         }
+
         public void LeavePilot()
         {
             bool wasJoined=world!=null;
             ClearJoin();if(Rig!=null && wasJoined)Rig.Mode=previousMode;
             if(wasJoined && Simulator!=null)Simulator.Notice="Pilot control ended. AI has resumed flying the drone.";
         }
+
         void ClearJoin()
         {
             ReleaseCursor();world?.ClearControl();world=null;DroneIndex=-1;
         }
+
         public void CycleView()
         {
             if(!IsPiloting||Rig==null)return;
             Rig.Mode=Rig.Mode==CameraMode.Shoulder?CameraMode.FPV:Rig.Mode==CameraMode.FPV?CameraMode.Mounted:CameraMode.Shoulder;
         }
+
         public void ReleaseCursor()
         {
-            if(InputCaptured){Cursor.lockState=CursorLockMode.None;Cursor.visible=true;}
+            if(InputCaptured && !MobileActive){Cursor.lockState=CursorLockMode.None;Cursor.visible=true;}
             InputCaptured=false;world?.SetPilotInput(Vector3.zero,AimDirection,false);
         }
+
         void Update()
         {
             if(world==null)return;
@@ -122,9 +139,27 @@ namespace FleetCommander.Systems
                         recalled?"Low battery: your drone is returning to its pad. Choose another drone to rejoin.":"Pilot control ended.";
                 return;
             }
+
             Simulator.Selected=DroneIndex;
             if(RuntimeSmoke.Running||!GameInputFocused||Simulator.Paused||UI!=null&&UI.Typing)
             {ReleaseCursor();return;}
+
+            if(MobileActive)
+            {
+                InputCaptured=true;
+                yaw+=Mobile.LookDelta.x;
+                pitch=Mathf.Clamp(pitch-Mobile.LookDelta.y,-80,80);
+                Vector3 move=new Vector3(Mobile.Move.x,0,Mobile.Move.y);
+                if(Mobile.AscendHeld)move.y++;
+                if(Mobile.DescendHeld)move.y--;
+                move=Quaternion.Euler(0,yaw,0)*Vector3.ClampMagnitude(move,1);
+                if(!Mobile.BoostHeld)move*=.65f;
+                world.SetPilotInput(move,AimDirection,Mobile.FireHeld);
+                if(Mobile.ConsumePayload())Simulator.Payload();
+                if(Mobile.ConsumeView())CycleView();
+                return;
+            }
+
             if(Input.GetKeyDown(KeyCode.Escape)){ReleaseCursor();Simulator.Notice="Cursor released. Click the open viewport to resume flying, or Leave Pilot in Arena.";return;}
             if(InputCaptured && Cursor.lockState!=CursorLockMode.Locked){ReleaseCursor();return;}
             if(!InputCaptured)
@@ -137,21 +172,23 @@ namespace FleetCommander.Systems
                 }
                 return;
             }
+
             yaw+=Input.GetAxisRaw("Mouse X")*MouseSensitivity;
             pitch=Mathf.Clamp(pitch-Input.GetAxisRaw("Mouse Y")*MouseSensitivity,-80,80);
-            Vector3 move=Vector3.zero;
-            if(Input.GetKey(KeyCode.W)||Input.GetKey(KeyCode.UpArrow))move.z++;
-            if(Input.GetKey(KeyCode.S)||Input.GetKey(KeyCode.DownArrow))move.z--;
-            if(Input.GetKey(KeyCode.D)||Input.GetKey(KeyCode.RightArrow))move.x++;
-            if(Input.GetKey(KeyCode.A)||Input.GetKey(KeyCode.LeftArrow))move.x--;
-            if(Input.GetKey(KeyCode.Space))move.y++;
-            if(Input.GetKey(KeyCode.LeftControl)||Input.GetKey(KeyCode.RightControl))move.y--;
-            move=Quaternion.Euler(0,yaw,0)*Vector3.ClampMagnitude(move,1);
-            if(!Input.GetKey(KeyCode.LeftShift)&&!Input.GetKey(KeyCode.RightShift))move*=.65f;
-            world.SetPilotInput(move,AimDirection,Input.GetMouseButton(0));
+            Vector3 desktopMove=Vector3.zero;
+            if(Input.GetKey(KeyCode.W)||Input.GetKey(KeyCode.UpArrow))desktopMove.z++;
+            if(Input.GetKey(KeyCode.S)||Input.GetKey(KeyCode.DownArrow))desktopMove.z--;
+            if(Input.GetKey(KeyCode.D)||Input.GetKey(KeyCode.RightArrow))desktopMove.x++;
+            if(Input.GetKey(KeyCode.A)||Input.GetKey(KeyCode.LeftArrow))desktopMove.x--;
+            if(Input.GetKey(KeyCode.Space))desktopMove.y++;
+            if(Input.GetKey(KeyCode.LeftControl)||Input.GetKey(KeyCode.RightControl))desktopMove.y--;
+            desktopMove=Quaternion.Euler(0,yaw,0)*Vector3.ClampMagnitude(desktopMove,1);
+            if(!Input.GetKey(KeyCode.LeftShift)&&!Input.GetKey(KeyCode.RightShift))desktopMove*=.65f;
+            world.SetPilotInput(desktopMove,AimDirection,Input.GetMouseButton(0));
             if(Input.GetKeyDown(KeyCode.Q))Simulator.Payload();
             if(Input.GetKeyDown(KeyCode.C))CycleView();
         }
+
         public bool CameraPose(out Vector3 position,out Quaternion rotation)
         {
             position=Vector3.zero;rotation=Quaternion.identity;if(!IsPiloting)return false;
@@ -166,11 +203,11 @@ namespace FleetCommander.Systems
                 if(box.IntersectRay(new Ray(state.position,toCamera/distance),out float hit) && hit<distance)
                 {distance=Mathf.Max(.1f,hit-.2f);position=state.position+toCamera.normalized*distance;}
             }
-            // Converge the shoulder / mounted view with the firing direction at a 60-meter aim point.
             Vector3 aimPoint=state.position+AimDirection*60;
             rotation=Quaternion.LookRotation(aimPoint-position);
             return true;
         }
+
         void OnApplicationFocus(bool focused){if(!focused)ReleaseCursor();}
         void OnApplicationPause(bool paused){if(paused)ReleaseCursor();}
         void OnDisable(){ClearJoin();}
