@@ -158,6 +158,16 @@ namespace FleetCommander.UI
             Slider("Round length · s",b.roundSeconds,30,600,v=>b.roundSeconds=v);
             Slider("Game damage",b.gameDamage,1,20,v=>b.gameDamage=v);Slider("Attack interval · s",b.fireInterval,.2f,3,v=>b.fireInterval=v);
             Note("Eliminate the opposing team to win. At the time limit, surviving aircraft decide the result, then remaining health; an equal result is a draw.");
+            Section("Adaptive Multi-Effector Lab");
+            Toggle("Enable adaptive toy lab",b.lab.enabled,v=>b.lab.enabled=v);
+            Toggle("Learn from each match",b.lab.learn,v=>b.lab.learn=v);
+            Toggle("Auto-activate useful FPV sensors",b.lab.autoSensors,v=>b.lab.autoSensors=v);
+            EnumField("Activity / objective brain",b.lab.activity,v=>b.lab.activity=v);
+            Slider("Prediction horizon · s",b.lab.predictionHorizon,.05f,3,v=>b.lab.predictionHorizon=v);
+            Slider("YOLO simulated confidence",b.lab.yoloConfidence,.05f,1,v=>b.lab.yoloConfidence=v);
+            Slider("Filter process noise",b.lab.processNoise,.001f,4,v=>b.lab.processNoise=v);
+            Slider("Learning rate",b.lab.learningRate,.001f,.5f,v=>b.lab.learningRate=v);
+            Note("Toy-only lab: foam darts, nets, laser-tag dwell, bump/ram tags and water streams. Camera/YOLO/range/IMU/optical-flow/thermal/RF/UV observations feed the same predictor. Soccer, football, CTF and king-of-hill share this objective/prediction layer as those rule systems are enabled.");
             ResetButton("ROUND RULES",()=>ResetArenaRules());
             Button(content,"DROP SELECTED PAYLOAD  [B]",()=>Simulator.Payload());
             Button(content,"SAVE BATTLE SETUP",()=>{b.Validate();File.WriteAllText(Path.Combine(Application.persistentDataPath,"battle.json"),JsonUtility.ToJson(b,true));Simulator.Notice="Battle setup and match score saved.";});
@@ -172,10 +182,23 @@ namespace FleetCommander.UI
             EnumField(team+" frame",blue?b.blueFrame:b.redFrame,v=>{if(blue)b.blueFrame=v;else b.redFrame=v;});
             EnumField(team+" skin",blue?b.blueSkin:b.redSkin,v=>{if(blue)b.blueSkin=v;else b.redSkin=v;});
             EnumField(team+" weapon",blue?b.blueWeapon:b.redWeapon,v=>{if(blue)b.blueWeapon=v;else b.redWeapon=v;});
+            EnumField(team+" toy effector",blue?b.lab.blueEffector:b.lab.redEffector,v=>{if(blue)b.lab.blueEffector=v;else b.lab.redEffector=v;});
             EnumField(team+" behavior",blue?b.blue:b.red,v=>{if(blue)b.blue=v;else b.red=v;});
+            SensorToggle(b,blue,SensorKind.Yolo);SensorToggle(b,blue,SensorKind.Range);SensorToggle(b,blue,SensorKind.Imu);
+            SensorToggle(b,blue,SensorKind.OpticalFlow);SensorToggle(b,blue,SensorKind.Thermal);SensorToggle(b,blue,SensorKind.RF);SensorToggle(b,blue,SensorKind.UV);
             Slider(team+" waypoint X",blue?b.blueWaypoint.x:b.redWaypoint.x,-100,100,v=>{if(blue)b.blueWaypoint.x=v;else b.redWaypoint.x=v;});
             Slider(team+" waypoint Z",blue?b.blueWaypoint.z:b.redWaypoint.z,-100,100,v=>{if(blue)b.blueWaypoint.z=v;else b.redWaypoint.z=v;});
             ResetButton(team.ToUpperInvariant()+" LOADOUT",()=>ResetArenaTeam(blue));
+        }
+        void SensorToggle(BattleSettings b,bool blue,SensorKind sensor)
+        {
+            SensorKind current=blue?b.lab.blueSensors:b.lab.redSensors;
+            Toggle((blue?"Blue ":"Red ")+sensor.ToString(),(current&sensor)!=0,v=>
+            {
+                SensorKind value=blue?b.lab.blueSensors:b.lab.redSensors;
+                value=v?value|sensor:value&~sensor;
+                if(blue)b.lab.blueSensors=value;else b.lab.redSensors=value;
+            });
         }
         void StartRound()
         {
@@ -317,12 +340,13 @@ namespace FleetCommander.UI
         void ResetArenaRules()
         {
             var b=Simulator.BattleSession;var d=new BattleSettings();b.engage=d.engage;b.adaptive=d.adaptive;b.roundSeconds=d.roundSeconds;b.gameDamage=d.gameDamage;b.fireInterval=d.fireInterval;
+            b.lab=JsonUtility.FromJson<AdaptiveLabSettings>(JsonUtility.ToJson(d.lab));
         }
         void ResetArenaTeam(bool blue)
         {
             var b=Simulator.BattleSession;var d=new BattleSettings();
-            if(blue){b.blue=d.blue;b.blueFrame=d.blueFrame;b.blueSkin=d.blueSkin;b.blueWeapon=d.blueWeapon;b.blueWaypoint=d.blueWaypoint;}
-            else{b.red=d.red;b.redFrame=d.redFrame;b.redSkin=d.redSkin;b.redWeapon=d.redWeapon;b.redWaypoint=d.redWaypoint;}
+            if(blue){b.blue=d.blue;b.blueFrame=d.blueFrame;b.blueSkin=d.blueSkin;b.blueWeapon=d.blueWeapon;b.blueWaypoint=d.blueWaypoint;b.lab.blueEffector=d.lab.blueEffector;b.lab.blueSensors=d.lab.blueSensors;}
+            else{b.red=d.red;b.redFrame=d.redFrame;b.redSkin=d.redSkin;b.redWeapon=d.redWeapon;b.redWaypoint=d.redWaypoint;b.lab.redEffector=d.lab.redEffector;b.lab.redSensors=d.lab.redSensors;}
         }
         void UpdateArenaScore()
         {
