@@ -39,3 +39,18 @@
 .round-banner.blue-winner { color: rgb(134, 209, 255); }
 .round-banner.red-winner { color: rgb(255, 159, 164); }
 .pilot-info { -unity-text-align: middle-center; white-space: normal; font-size: 11px; color: rgb(201, 230, 234); background-color: rgba(6, 17, 24, 0.85); margin-top: 3px; padding: 7px 14px; }
+.restore-menu { position: absolute; left: 18px; top: 16px; width: 156px; background-color: rgba(7, 20, 28, 0.92); border-color: rgb(91, 214, 200); }
+.chess-panel { position: absolute; padding: 16px; background-color: rgb(11, 26, 33); border-top-width: 2px; border-top-color: rgb(78, 207, 183); }
+.chess-status { font-size: 21px; -unity-font-style: bold; color: rgb(225, 238, 224); margin-bottom: 5px; white-space: normal; }
+.chess-grid { margin-top: 12px; flex-shrink: 0; }
+.chess-row { flex-direction: row; flex-grow: 1; flex-basis: 0; }
+.chess-square { position: relative; margin: 0; padding: 0; border-width: 0; border-radius: 0; height: auto; min-height: 0; flex-grow: 1; flex-basis: 0; background-color: rgb(64, 99, 98); align-items: center; justify-content: center; }
+.chess-square.light-square { background-color: rgb(180, 202, 186); }
+.chess-square.legal-square { border-width: 4px; border-color: rgb(238, 186, 57); }
+.chess-square.chosen-square { background-color: rgb(188, 155, 65); }
+.square-coordinate { position: absolute; left: 4px; top: 2px; color: rgb(21, 46, 48); font-size: 10px; }
+.white-piece, .black-piece { font-size: 26px; -unity-font-style: bold; -unity-text-align: middle-center; width: 38px; height: 38px; border-radius: 19px; }
+.white-piece { background-color: rgb(246, 240, 215); color: rgb(44, 66, 67); border-width: 2px; border-color: rgb(255, 253, 238); }
+.black-piece { background-color: rgb(19, 38, 46); color: rgb(218, 239, 231); border-width: 2px; border-color: rgb(60, 83, 91); }
+
+.chess-backdrop { position: absolute; left: 0; top: 0; right: 0; bottom: 0; background-color: rgb(7, 18, 24); }

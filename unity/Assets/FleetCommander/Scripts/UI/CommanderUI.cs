@@ -9,7 +9,7 @@ using UnityEngine;
 using UnityEngine.UIElements;
 namespace FleetCommander.UI
 {
-    public sealed class CommanderUI : MonoBehaviour
+    public sealed partial class CommanderUI : MonoBehaviour
     {
         public SwarmSimulator Simulator;
         public DroneCameraRig Rig;
@@ -27,12 +27,14 @@ namespace FleetCommander.UI
         string showFrame="Mixed fleet";SkinKind showSkin=SkinKind.Graphite;
         string artText="HELLO",journalDraft="";int logicValue=1337;bool logicA,logicB;Color artInk=Color.cyan;
         readonly Color[] artPixels=new Color[32*24];
-        const string Pages="Fleet,Squads,Fields,Arena,Director,Art Studio,Program,Physics,Nerd Lab,Replays,Journal,Saves,Help";
+        const string Pages="Fleet,Squads,Fields,Arena,Sports,Chess,Director,Art Studio,Program,Physics,Nerd Lab,Replays,Journal,Saves,Help";
         public bool PointerBlocked
         {
             get
             {
-                if(!Document||Root.panel==null||hidden)return false;
+                if(!Document||Root.panel==null)return false;
+                if(Page=="Chess")return true;
+                if(hidden){var pointer=RuntimePanelUtils.ScreenToPanel(Root.panel,new Vector2(Input.mousePosition.x,Screen.height-Input.mousePosition.y));return restoreMenu!=null&&restoreMenu.worldBound.Contains(pointer);}
                 var p=RuntimePanelUtils.ScreenToPanel(Root.panel,new Vector2(Input.mousePosition.x,Screen.height-Input.mousePosition.y));
                 return header.worldBound.Contains(p)||nav.worldBound.Contains(p)||sidebar.worldBound.Contains(p)||bottom.worldBound.Contains(p);
             }
@@ -62,18 +64,18 @@ namespace FleetCommander.UI
             combatHud=Element(Root,"combat-hud");combatHud.pickingMode=PickingMode.Ignore;roundBanner=Label(combatHud,"","round-banner");roundBanner.pickingMode=PickingMode.Ignore;pilotInfo=Label(combatHud,"","pilot-info");pilotInfo.pickingMode=PickingMode.Ignore;combatHud.style.display=DisplayStyle.None;
             Simulator.OnRoundFinished+=RecordRound;
             try{Journal.Load();}catch(Exception e){Simulator.Notice=e.Message;}
-            savePath=Path.Combine(Application.persistentDataPath,"fleet.json");OpenPage("Fleet");
+            InitializeGames();savePath=Path.Combine(Application.persistentDataPath,"fleet.json");OpenPage("Fleet");
         }
         public void OpenPage(string page)
         {
-            Pilot?.ReleaseCursor();Page=page;content.Clear();arenaScore=null;search.SetValueWithoutNotify("");
+            Pilot?.ReleaseCursor();GamePageChanged(page);Page=page;content.Clear();arenaScore=null;search.SetValueWithoutNotify("");
             foreach(var b in nav.Children())b.EnableInClassList("selected",b.name=="nav-"+page);
             Label(content,"COMMAND CENTER / "+page.ToUpperInvariant(),"eyebrow");Label(content,page,"page-title");
             if(page!="Help")Button(content,"↺  RESET SECTION",()=>ResetPage(page),"reset-button");
             switch(page)
             {
                 case "Fleet":FleetPage();break;case "Squads":SquadsPage();break;case "Fields":FieldsPage();break;
-                case "Arena":ArenaPage();break;case "Director":DirectorPage();break;case "Art Studio":ArtPage();break;
+                case "Sports":SportsPage();break;case "Chess":ChessPage();break;case "Arena":ArenaPage();break;case "Director":DirectorPage();break;case "Art Studio":ArtPage();break;
                 case "Program":ProgramPage();break;case "Physics":PhysicsPage();break;case "Nerd Lab":LabPage();break;
                 case "Replays":ReplayPage();break;case "Journal":JournalPage();break;case "Saves":SavesPage();break;default:HelpPage();break;
             }
@@ -152,7 +154,7 @@ namespace FleetCommander.UI
                 Button(content,"PILOT SELECTED DRONE",()=>Pilot.JoinSelected());Button(content,"LEAVE DRONE TO AI",()=>Pilot.LeavePilot());
                 Note("Click the flight view to take control. WASD fly · Space / Ctrl up / down · Mouse aim · Left click fire · Q payload · Shift boost · C view · Escape release mouse.");
             }
-            TeamSetup(b,true);TeamSetup(b,false);
+            CameraControls();TeamSetup(b,true);TeamSetup(b,false);
             Section("Round rules");
             Toggle("Engage",b.engage,v=>b.engage=v);Toggle("Adaptive game behavior",b.adaptive,v=>b.adaptive=v);
             Slider("Round length · s",b.roundSeconds,30,600,v=>b.roundSeconds=v);
@@ -179,14 +181,14 @@ namespace FleetCommander.UI
         }
         void StartRound()
         {
-            ResetChallenge();Pilot?.LeavePilot();Simulator.StartBattle(perTeam);Rig.Mode=CameraMode.Action;OpenPage(Page);Journal.Add("Started "+perTeam+" v "+perTeam+" arcade round.");
+            ResetChallenge();Pilot?.LeavePilot();Simulator.StartBattle(perTeam);Rig.Fit();OpenPage(Page);Journal.Add("Started "+perTeam+" v "+perTeam+" arcade round.");
         }
         void DirectorPage()
         {
             Note("Light-show presets, scenic settings and camera direction.");Section("Show presets");
             foreach(string show in new[]{"fireworks","halftime","aurora","galaxy"}){string s=show;Button(content,s.ToUpperInvariant(),()=>{Simulator.EndBattle();Simulator.Program.Compile("show "+s+"\nwait 24\nshow galaxy\nwait 24\nshow fireworks\nrepeat 72");Simulator.Program.Start();Simulator.LaunchAll();Rig.Mode=CameraMode.Cinematic;});}
             Button(content,"STOP SHOW PRESET",()=>Simulator.Program.Stop());
-            Section("Camera");EnumField("Camera",Rig.Mode,v=>{Pilot?.LeavePilot();Rig.Mode=v;});Slider("Camera distance",Rig.Distance,3,650,v=>Rig.Distance=v);ResetButton("CAMERA",()=>{Pilot?.LeavePilot();Rig.ResetView();});
+            Section("Camera");EnumField("Camera",Rig.Mode,v=>{Pilot?.LeavePilot();Rig.SetMode(v);});Slider("Camera distance",Rig.Distance,3,650,v=>Rig.Distance=v);ResetButton("CAMERA",()=>{Pilot?.LeavePilot();Rig.ResetView();});
             Section("Environment");EnumField("Scenery",Simulator.Config.scenery,v=>Simulator.Config.scenery=v);EnumField("Sky",Simulator.Config.sky,v=>Simulator.Config.sky=v);EnumField("Weather",Simulator.Config.weather,v=>Simulator.Config.weather=v);
             Slider("Wind",Simulator.Config.wind,0,15,v=>Simulator.Config.wind=v);Slider("Beacon size",Simulator.Config.beaconSize,.25f,3,v=>Simulator.Config.beaconSize=v);ResetButton("ENVIRONMENT",()=>FleetDefaults.Environment(Simulator.Config));
             Section("Audio & beat studio");Toggle("Enable sound",!Audio.Muted,v=>Audio.Muted=!v);Slider("Volume",Audio.Volume,0,1,v=>Audio.Volume=v);Slider("Tempo · BPM",Simulator.Config.bpm,40,240,v=>Simulator.Config.bpm=v);Toggle("Play step sequencer",Audio.Sequencer,v=>Audio.Sequencer=v);
@@ -286,6 +288,8 @@ namespace FleetCommander.UI
                 case "Fleet":Simulator.Program.Stop();FleetDefaults.Formation(c);c.boids=new FleetConfig().boids;c.unlimited=new FleetConfig().unlimited;rosterSize=256;ResetShowAppearance();ResetChallenge();break;
                 case "Squads":FleetDefaults.Squads(c);break;
                 case "Fields":FleetDefaults.Layers(c);FleetDefaults.Flocking(c);break;
+                case "Sports":SportsSetup=new SportsSettings();break;
+                case "Chess":Chess.Reset();chessRecorded=false;chessSelected=-1;break;
                 case "Arena":Simulator.ResetBattleDefaults();perTeam=16;break;
                 case "Director":Simulator.Program.Stop();FleetDefaults.Environment(c);Pilot?.LeavePilot();Rig.ResetView();ResetAudio();break;
                 case "Art Studio":artText="HELLO";imagePath="";imageMode="RGB";threshold=.18f;artInk=Color.cyan;Array.Clear(artPixels,0,artPixels.Length);c.art=Array.Empty<ArtPoint>();if(c.formation==FormationKind.Art)c.formation=new FleetConfig().formation;break;
@@ -353,13 +357,15 @@ namespace FleetCommander.UI
         void Update()
         {
             if(!Document||Simulator==null)return;
-            if(!RuntimeSmoke.Running&&!Typing&&!(Pilot&&Pilot.IsPiloting))
+            UpdateGamePages();
+            if(!RuntimeSmoke.Running&&!Typing&&Page!="Chess"&&!(Pilot&&Pilot.IsPiloting))
             {
                 if(Input.GetKeyDown(KeyCode.Space))TogglePause();if(Input.GetKeyDown(KeyCode.Tab))NextDrone();if(Input.GetKeyDown(KeyCode.C))Rig.Mode=(CameraMode)(((int)Rig.Mode+1)%13);
                 if(Input.GetKeyDown(KeyCode.F8))Rig.Mode=CameraMode.Cinematic;if(Input.GetKeyDown(KeyCode.B))Simulator.Payload();if(Input.GetKeyDown(KeyCode.H))ToggleUI();if(Input.GetKeyDown(KeyCode.Escape))Simulator.ExitReplay();if(Input.GetKeyDown(KeyCode.Slash))search.Focus();
             }
             if(!RuntimeSmoke.Running&&!Typing&&Pilot&&Pilot.IsPiloting&&Input.GetKeyDown(KeyCode.H))ToggleUI();
-            if(challenge&&Simulator.Arena!=null)ResetChallenge();
+            if(!RuntimeSmoke.Running&&Page=="Chess"&&Input.GetKeyDown(KeyCode.H))ToggleUI();
+            if(challenge&&(Simulator.Arena!=null||Simulator.Sports!=null))ResetChallenge();
             if(challenge&&!Simulator.Paused&&!Simulator.Replay.Playing)
             {
                 challengeClock+=Time.deltaTime;challengeDwell=Simulator.Show.FormationError<4?challengeDwell+Time.deltaTime:0;
@@ -373,12 +379,14 @@ namespace FleetCommander.UI
             var states=Simulator.Replay.Playing?Simulator.Replay.Display:w.States;int i=Mathf.Clamp(Simulator.Selected,0,Mathf.Max(0,states.Length-1));
             int blue=0,red=0;float charge=0;foreach(var d in states){charge+=d.battery01;if(IsAlive(d)){if(d.fleetId==0)blue++;if(d.fleetId==1)red++;}}
             stats.text=(Simulator.Replay.Playing?"REPLAY":Simulator.Paused?"PAUSED":"LIVE")+"   /   "+states.Length.ToString("N0")+" DRONES"+(Simulator.Arena!=null?"   BLUE "+blue+" : "+red+" RED":"   /   "+(charge/Mathf.Max(1,states.Length)*100).ToString("F0")+"% ENERGY");
+            if(Page=="Chess")stats.text="LOCAL CHESS  /  "+Chess.Status;
             string details=states.Length==0?"NO AIRCRAFT":$"DRONE {i+1:0000}   {states[i].frame.ToString().ToUpperInvariant()}\nALT {states[i].position.y:F1} m   SPD {states[i].velocity.magnitude:F1} m/s\nBAT {states[i].battery01*100:F0}%   HP {states[i].health:F0}   {states[i].phase}";
             var c=Simulator.Replay.Playing?Simulator.Replay.DisplayConfig:Simulator.Config;
             telemetry.text=Rig.Mode.ToString().ToUpperInvariant()+" / "+c.planet.ToString().ToUpperInvariant()+"\n"+details+$"\nMASS {PlanetModel.Mass(c):F2} kg   HOVER {PlanetModel.Power(c,0):F0} W\nEST. {PlanetModel.EnduranceMinutes(c):F1} min   NEIGHBOR CHECKS {w.Neighbors.LastChecks:N0}";
             bool piloting=Pilot&&Pilot.IsPiloting;
             reticle.style.display=piloting||Rig.Mode==CameraMode.FPV||Rig.Mode==CameraMode.Mounted?DisplayStyle.Flex:DisplayStyle.None;
-            UpdateCombatHud(states,piloting);
+            UpdateCombatHud(states,piloting);UpdateSportsHud();
+            if(Page=="Chess"){combatHud.style.display=DisplayStyle.None;reticle.style.display=DisplayStyle.None;}
             // Keep desktop controls reachable on narrower windows through horizontal scrolling/wrapping.
             float sidebarWidth=Root.resolvedStyle.width<900?290:340;sidebar.style.width=sidebarWidth;
             float pageTop=Mathf.Max(155,nav.layout.y+nav.resolvedStyle.height+12);sidebar.style.top=pageTop;telemetry.style.top=pageTop;
@@ -409,7 +417,7 @@ namespace FleetCommander.UI
         void TogglePause(){if(Simulator.Replay.Playing)Simulator.Replay.Paused=!Simulator.Replay.Paused;else Simulator.Paused=!Simulator.Paused;}
         void CycleCamera(){if(Pilot&&Pilot.IsPiloting)Pilot.CycleView();else Rig.Mode=(CameraMode)(((int)Rig.Mode+1)%13);}
         void NextDrone(){if(Pilot&&Pilot.IsPiloting){Simulator.Notice="Leave drone to AI before selecting another aircraft.";return;}Simulator.Selected=(Simulator.Selected+1)%Mathf.Max(1,Simulator.Active.Count);}
-        void ToggleUI(){hidden=!hidden;foreach(var e in new[]{header,nav,sidebar,bottom})e.style.display=hidden?DisplayStyle.None:DisplayStyle.Flex;}
+        public void ToggleUI(){hidden=!hidden;Pilot?.ReleaseCursor();foreach(var e in new[]{header,nav,sidebar,bottom})e.style.display=hidden?DisplayStyle.None:DisplayStyle.Flex;if(restoreMenu!=null)restoreMenu.style.display=hidden?DisplayStyle.Flex:DisplayStyle.None;telemetry.style.display=hidden?DisplayStyle.None:DisplayStyle.Flex;LayoutChess();}
         void Section(string text)=>Label(content,text,"section");void Note(string text)=>Label(content,text,"note");
         VisualElement Row(){var row=Element(content,"row");return row;}
         static VisualElement Element(VisualElement parent,string css){var e=new VisualElement();e.AddToClassList(css);parent.Add(e);return e;}
@@ -423,7 +431,7 @@ namespace FleetCommander.UI
         void Text(string label,string value,Action<string> changed){var f=new TextField(label){value=value,tooltip=label};content.Add(f);f.RegisterValueChangedCallback(e=>changed(e.newValue));}
         void Choice(string label,string[] choices,string value,Action<string> changed){var d=new DropdownField(label,new List<string>(choices),Mathf.Max(0,Array.IndexOf(choices,value))){tooltip=label};content.Add(d);d.RegisterValueChangedCallback(e=>changed(e.newValue));}
         void EnumField<T>(string label,T value,Action<T> changed) where T:struct,Enum {var d=new EnumField(label,(Enum)(object)value){tooltip=label};content.Add(d);d.RegisterValueChangedCallback(e=>changed((T)(object)e.newValue));}
-        void OnDestroy(){if(Simulator)Simulator.OnRoundFinished-=RecordRound;if(panel)Destroy(panel);}
+        void OnDestroy(){if(Simulator){Simulator.OnRoundFinished-=RecordRound;Simulator.OnSportsFinished-=RecordSportsResult;}if(panel)Destroy(panel);}
     }
     public sealed class PixelCanvas : VisualElement
     {

@@ -1,3 +1,29 @@
+# Unity recovery verification — 2026-09-20
+
+Current source builds with Unity **6000.6.2f1**. The clean source baseline was `4346a41` on `unity`; unpublished scenery in the older D: checkout was selectively recovered without overwriting that checkout.
+
+| Gate | Result |
+| --- | --- |
+| Native Unity EditMode suite | **95 passed, 0 failed, 0 skipped** |
+| Windows player build | **Succeeded**, 0 errors; 4 warnings |
+| Windows player runtime harness | **71 passed, 0 failed, 0 runtime errors** |
+| GPU captures | **19** real player screenshots on NVIDIA GTX 1050 Ti / Direct3D 12 |
+| Chess viewport | Board fits at 1600×900 and 1280×720; legal selection/player move/AI response checked |
+| Aircraft resources | All **8** detailed/LOD assets loaded |
+
+Native tests cover the prior 74 checks plus chess legal moves, checkmate, pinned pieces, castling rights and attacked transit squares, en passant including king exposure and expiry, promotion, draw conditions, and an AI mating move. Sports tests cover time limits and frozen end state, goal boundaries, capture requirements, flag tags without damage, touchdown values, downs/turnovers, roster isolation, saved-setting validation, mode switching, and scoring during full-length automatic matches.
+
+Runtime checks exercise all 15 pages, the existing arena/pilot/replay paths, all three sports pitches and their endings, saved game results, chess input through its square-selection API, board layout at two window sizes, hide/restore controls, loaded models and scenery. Screenshots were inspected; inspection caught and corrected a clipped chess rank and an unrelated drone label over the board. A first hidden-window run could not capture rendered frames; the visible-player rerun passed. This is not a manual mouse-capture, piloting-feel or audio-listening sign-off.
+
+Local verified player: `D:\FleetCommander-Recovery20260920\unity\Builds\Windows\FleetCommander.exe`.
+Evidence: `D:\FleetCommander-Recovery20260920\unity\Logs\RecoveryQA` (`tests.xml`, `build.log`, `Player/runtime-smoke.json`, screenshots).
+
+Use `Tools/Build-Windows.ps1 -RunSmoke` or the equivalent documented Unity commands to reproduce. Screenshot QA requires a visible player window. Rendering and CPU timings are recorded separately in the JSON; they do not establish a 10,000-drone frame-rate guarantee.
+
+The user-facing runtime does not require DeepSeek or any API service. Astra performed this recovery after the user requested direct implementation.
+
+## Previous baseline verification
+
 # Unity port verification — 2026-09-19
 
 The current project targets **Unity 6000.6.2f1 (770e33f6875c)**. The previous license/install blocker was resolved, the earlier port opened in the Editor, and the user tested its flying aircraft. This update adds imported aircraft models, skins, visible destruction, scored arena rounds, manual pilot participation and scoped defaults.

@@ -2,6 +2,20 @@
 
 A native C# edition of Fleet Commander for **Unity 6000.6.2f1**. The `unity` branch contains the boot scene, imported aircraft models, command center, simulation, creator tools, persistence, and Windows build entry point. The browser edition is preserved in `../dist`; remaining differences are listed below.
 
+
+## September 20 recovery update
+
+- **Arena camera:** Start Round opens a stable, fitted overview. Arena now includes manual camera mode, follow-center toggle, distance/yaw/pitch, orbit/zoom buttons, frame-all and free camera. Middle drag or Shift + drag pans. WASD/Q/E move the free camera. Automatic action cameras remain optional.
+- **Menus:** H or Hide clears the command panels and telemetry; a visible Show Menus button restores them. The chess board remains playable with menus hidden.
+- **Sports:** the Sports page launches five-a-side capture the flag, arcade soccer, and arcade flag football. Each has its own marked 3D pitch, balls/flags/goals, timer, score target, winner/draw, and rematch. Configure each sports player's model and role, team skin, Balanced/Wide/Diamond/Defensive formations, or five custom depth/lane positions. Setup saves separately as sports.json. Changes apply on rematch; the show fleet is preserved.
+- **Sports rules:** CTF requires the home flag to be present to capture; tagged carriers return home for three seconds. Soccer goals count only between the posts; boundary boards rebound the ball. Flag football has six-point touchdowns, four downs to gain 20 field units, a 20-second play clock, one forward pass before the line of scrimmage, interceptions and turnovers. These are arcade rules with no kicks or extra points. Scores decide the result at full time; ties draw.
+- **Chess:** local two-player or White versus a two-ply Black AI, with selectable promotion, board flip, move list, legal highlights, castling, en passant, checkmate and stalemate. This casual mode automatically ends draws at threefold repetition, the 50-move threshold and insufficient material. It has no chess clock, online multiplayer or in-progress game persistence.
+- **Results:** completed sports/chess results and win/draw totals persist locally in match-results.json (latest 200). Automated QA writes a separate results file.
+- **Scenery:** recovered the unpublished reference-inspired stadium bowl, alpine cabins, mountain town, river, meadow, rocky overlook, coast, foliage atlas, terrain, water and sky shaders. Director exposes seven scenery and seven sky choices. These are native procedural environments and existing authored assets; the reference photographs are not distributed. Terrain outside the central flight field remains decorative; ground/free cameras follow its height.
+- **Aircraft:** retain the existing imported Scout/Relay/Cargo/Utility meshes and PBR textures. All ten sports aircraft use their detailed models. Large show fleets retain distance LODs for performance. Arena weapons, combat controllers and adaptive combat behavior are unchanged by this recovery.
+
+Sports are scripted automatic matches; direct sports-player piloting, sports replay, and sports learning are not implemented. The earlier arena/show replay remains available. See VALIDATION.md for native test and Windows GPU evidence.
+
 ## Open and play
 
 1. In Unity Hub, add **this `unity` folder**, not the repository root.

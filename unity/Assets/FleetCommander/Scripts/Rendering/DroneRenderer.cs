@@ -90,7 +90,7 @@ namespace FleetCommander.Rendering
                 if(rig&&rig.Mode==CameraMode.FPV&&i==Simulator.Selected)continue;
                 float distance=(states[i].position-cam.transform.position).sqrMagnitude;
                 int level=distance<20*20&&LastDetailedDrones<15?0:distance<170*170?1:2;
-                if(i==Simulator.Selected&&distance<80*80)level=0;
+                if(i==Simulator.Selected&&distance<80*80||Simulator.Sports!=null)level=0;
                 if(level==0)LastDetailedDrones++;
                 groups[Mathf.Clamp((int)states[i].frame,0,3)*3+level].Add(i);
             }
@@ -108,7 +108,7 @@ namespace FleetCommander.Rendering
                         rotorActive[j]=s.airborne&&!s.disabled?1:0;
                     }
                     properties.SetFloatArray("_RotorActive",rotorActive);
-                    properties.SetFloat("_RotorClock",Simulator.Replay.Playing?Simulator.Replay.Cursor:Simulator.Active.Time);
+                    properties.SetFloat("_RotorClock",Simulator.Replay.Playing?Simulator.Replay.Cursor:Simulator.Sports!=null?Simulator.Sports.Elapsed:Simulator.Active.Time);
                     properties.SetVector("_RotorLayout",RotorLayout[f]);
                     int surfaces=level==2?1:16;
                     for(int p=0;p<surfaces;p++)
@@ -135,7 +135,7 @@ namespace FleetCommander.Rendering
                     var s=states[start+j];float distance=Vector3.Distance(cam.transform.position,s.position);
                     float size=Mathf.Clamp(distance*.0025f,.10f,1.4f)*config.beaconSize;
                     matrices[j]=Matrix4x4.TRS(s.position+s.rotation*Vector3.up*.25f,cam.transform.rotation,Vector3.one*size);
-                    Color c=Simulator.Arena!=null?(s.fleetId==0?Palette[0]:Palette[4]):Palette[Mathf.Abs(s.palette)%9];
+                    Color c=(Simulator.Arena!=null||Simulator.Sports!=null)?(s.fleetId==0?Palette[0]:Palette[4]):Palette[Mathf.Abs(s.palette)%9];
                     if(config.formation==FormationKind.Art&&config.art.Length>0)c=config.art[Mathf.Min(config.art.Length-1,(start+j)%Mathf.Min(states.Length,config.art.Length)*config.art.Length/Mathf.Max(1,Mathf.Min(states.Length,config.art.Length)))].color;
                     if(s.battery01<.15f)c=Palette[5];if(s.disabled||(rig&&rig.Mode==CameraMode.FPV&&start+j==Simulator.Selected))c=Color.black;colors[j]=c*2.5f;
                 }
@@ -174,7 +174,7 @@ namespace FleetCommander.Rendering
         }
         void OnGUI()
         {
-            if(!ShowHealth||Simulator==null)return;var cam=Camera.main;if(!cam)return;
+            if(!ShowHealth||Simulator==null||Simulator.Sports!=null||rig&&rig.UI&&(rig.UI.Page=="Chess"||rig.UI.MenusHidden))return;var cam=Camera.main;if(!cam)return;
             var states=Simulator.Replay.Playing?Simulator.Replay.Display:Simulator.Active.States;
             for(int i=0;i<states.Length;i++)
             {

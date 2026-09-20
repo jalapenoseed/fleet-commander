@@ -7,8 +7,8 @@ namespace FleetCommander.Core
     public enum InfluenceKind { None, Vortex, Attract, Repel, Wave, Lissajous, Spiral, Braid, Twin, Square, Riemann }
     public enum MotionPattern { None, Orbit, Wave, Pulse, Dance }
     public enum PlanetKind { Earth, Moon, Mars }
-    public enum SceneryKind { Stadium, Coast, Alpine, City }
-    public enum SkyKind { Day, Golden, Dusk, Night }
+    public enum SceneryKind { Stadium, Coast, Alpine, City, Meadow, River, Overlook }
+    public enum SkyKind { Day, Golden, Dusk, Night, MilkyWay, Moonlit, Overcast }
     public enum WeatherKind { Clear, Rain, Storm, Snow }
     public enum FrameKind { Scout, Relay, Cargo, Utility }
 

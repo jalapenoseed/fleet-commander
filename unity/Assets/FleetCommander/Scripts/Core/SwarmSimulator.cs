@@ -7,7 +7,8 @@ namespace FleetCommander.Core
     {
         public FleetWorld Show {get;private set;}
         public FleetWorld Arena {get;private set;}
-        public FleetWorld Active => Arena ?? Show;
+        public SportsMatch Sports {get;private set;}
+        public FleetWorld Active => Sports != null ? Sports.World : Arena ?? Show;
         public FleetConfig Config => Active.Config;
         public FleetConfig DisplayConfig => Replay.Playing ? Replay.DisplayConfig : Active.Config;
         public BattleSettings BattleSession {get;private set;} = new BattleSettings();
@@ -20,6 +21,7 @@ namespace FleetCommander.Core
         public string Notice = "Fleet ready. Launch a show or open the battle arena.";
         public System.Action<BattleEvent> OnBattleEvent;
         public System.Action<FleetWorld> OnRoundFinished;
+        public System.Action<SportsMatch> OnSportsFinished;bool sportsAnnounced;
         float accumulator;
         int battlePerTeam=16;
         bool roundAnnounced;
@@ -36,6 +38,7 @@ namespace FleetCommander.Core
         }
         public void Tick(float dt)
         {
+            if(Sports!=null){Sports.Step(dt);if(Sports.Ended&&!sportsAnnounced){sportsAnnounced=true;OnSportsFinished?.Invoke(Sports);}return;}
             if(Arena==null)Program.Step(dt,Show);
             Active.Step(dt);
             Replay.Record(Active,dt);
@@ -49,12 +52,12 @@ namespace FleetCommander.Core
             }
         }
         public void Resize(int count){ExitReplay();EndBattle();Program.Stop();Show.Resize(count);Replay.Clear();Notice=count+" aircraft ready on the pads.";}
-        public void LaunchAll(){ExitReplay();Active.Launch();Paused=false;Notice="Launch ordered.";}
-        public void LandAll(){ExitReplay();Program.Stop();Active.Recall();Notice="Returning to reserved landing pads.";}
+        public void LaunchAll(){if(Sports!=null){Paused=false;return;}ExitReplay();Active.Launch();Paused=false;Notice="Launch ordered.";}
+        public void LandAll(){if(Sports!=null){Notice="Use Sports → Return to show fleet to leave the match.";return;}ExitReplay();Program.Stop();Active.Recall();Notice="Returning to reserved landing pads.";}
         public void ClearBehaviors(){Behaviors.Clear();Config.ResetInfluences();Config.boids=false;Program.Stop();Notice="Motion patterns, fields, Boids and program stopped.";}
         public void StartBattle(int perTeam)
         {
-            ExitReplay();Program.Stop();Arena?.ClearControl();BattleSession.Validate();
+            ExitReplay();Sports=null;Program.Stop();Arena?.ClearControl();BattleSession.Validate();
             battlePerTeam=Mathf.Clamp(perTeam,1,128);
             var arenaConfig=JsonUtility.FromJson<FleetConfig>(JsonUtility.ToJson(Show.Config));
             Arena=new FleetWorld(arenaConfig,battlePerTeam*2,BattleSession);Arena.Launch();
@@ -74,7 +77,8 @@ namespace FleetCommander.Core
             BattleSession.ResetDefaults();BattleSession.blueWins=blue;BattleSession.redWins=red;BattleSession.draws=draws;
             Notice="Arena rules restored; rematch applies default loadouts. Series score retained.";
         }
-        public void EndBattle(){Arena?.ClearControl();Arena=null;Replay.Clear();Selected=0;accumulator=0;roundAnnounced=false;}
+        public void StartSports(SportsSettings settings){settings.Validate();ExitReplay();EndBattle();Program.Stop();Sports=new SportsMatch(settings);sportsAnnounced=false;Paused=false;Selected=0;Notice="Sports match started.";}
+        public void EndBattle(){Sports=null;Arena?.ClearControl();Arena=null;Replay.Clear();Selected=0;accumulator=0;roundAnnounced=false;}
         public void ExitReplay(){Replay.Stop();}
         public void Payload()
         {

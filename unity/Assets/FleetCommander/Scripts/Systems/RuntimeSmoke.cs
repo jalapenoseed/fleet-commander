@@ -74,7 +74,7 @@ namespace FleetCommander.Systems
             sim.OnBattleEvent+=e=>{report.battleEvents++;if(e.destruction)report.destructionEvents++;};
             report.loadedModelAssets=drones.LoadedModelAssets;
             Check("imported-models-and-lods",drones.LoadedModelAssets==8,"Loaded "+drones.LoadedModelAssets+" of 8 assets");
-            foreach(string page in "Fleet,Squads,Fields,Arena,Director,Art Studio,Program,Physics,Nerd Lab,Replays,Journal,Saves,Help".Split(','))
+            foreach(string page in "Fleet,Squads,Fields,Arena,Sports,Chess,Director,Art Studio,Program,Physics,Nerd Lab,Replays,Journal,Saves,Help".Split(','))
             {ui.OpenPage(page);Check("page-"+page,ui.Page==page);yield return null;}
             sim.Paused=true;sim.Show.Config.speed=42;sim.Show.Config.layers[0].kind=InfluenceKind.Vortex;
             ui.ResetPage("Fields");Check("field-reset-isolated",sim.Show.Config.layers[0].kind==InfluenceKind.None&&sim.Show.Config.speed==42);
@@ -167,6 +167,31 @@ namespace FleetCommander.Systems
             Check("arena-config-isolated",!ReferenceEquals(sim.Arena.Config,sim.Show.Config)&&Mathf.Approximately(sim.Show.Config.speed,showSpeed));
             sim.OnRoundFinished-=finished;
 
+            sim.EndBattle();
+            foreach(SportKind sport in Enum.GetValues(typeof(SportKind)))
+            {
+                ui.SportsSetup=new SportsSettings{sport=sport,seconds=30,targetScore=99};ui.StartSports();sim.Paused=true;
+                for(int tick=0;tick<600;tick++)sim.Tick(SwarmSimulator.FixedStep);
+                yield return new WaitForSecondsRealtime(.6f);yield return Capture("sports-"+sport+".png");
+                Check("sports-"+sport,sim.Sports.World.Count==10&&!sim.Sports.World.IsBattle);
+                for(int tick=0;tick<1300;tick++)sim.Tick(SwarmSimulator.FixedStep);
+                Check("sports-end-"+sport,sim.Sports.Ended&&sim.Sports.Remaining==0);
+            }
+            sim.EndBattle();ui.OpenPage("Chess");yield return null;
+            ui.ClickChess(12);ui.ClickChess(28);yield return new WaitForSecondsRealtime(.8f);
+            Check("chess-board-64-squares",ui.Root.Query<Button>().ToList().FindAll(b=>b.name!=null&&b.name.StartsWith("square-")).Count==64);
+            Check("chess-player-and-ai",ui.Chess.History.Count==2&&ui.Chess.Turn==1);
+            Check("chess-board-inside-window",ui.Root.Q<Button>("square-a1").worldBound.yMax<ui.Root.resolvedStyle.height-72);
+            yield return Capture("chess.png");
+            Screen.SetResolution(1280,720,FullScreenMode.Windowed);yield return new WaitForSecondsRealtime(.6f);
+            Check("chess-board-small-window",ui.Root.Q<Button>("square-a1").worldBound.yMax<ui.Root.resolvedStyle.height-72);
+            yield return Capture("chess-1280.png");Screen.SetResolution(1600,900,FullScreenMode.Windowed);yield return new WaitForSecondsRealtime(.5f);
+            ui.OpenPage("Fleet");ui.ToggleUI();yield return null;
+            Check("menu-restore-button",ui.MenusHidden&&ui.Root.Q<Button>("restore-menus").resolvedStyle.display==DisplayStyle.Flex);
+            ui.ToggleUI();Check("menus-restored",!ui.MenusHidden);
+            foreach(SceneryKind scenery in new[]{SceneryKind.Alpine,SceneryKind.Meadow,SceneryKind.River,SceneryKind.Coast})
+            {sim.Config.scenery=scenery;sim.Config.sky=SkyKind.Day;rig.Fit();rig.Distance=240;rig.Pitch=12;rig.Yaw=scenery==SceneryKind.Coast?90:0;yield return new WaitForSecondsRealtime(.4f);yield return Capture("scenery-"+scenery+".png");}
+            sim.Config.scenery=SceneryKind.Stadium;
             sim.EndBattle();sim.Resize(2000);sim.LaunchAll();sim.Paused=true;
             var watch=System.Diagnostics.Stopwatch.StartNew();for(int i=0;i<60;i++)sim.Tick(SwarmSimulator.FixedStep);watch.Stop();
             report.sixtySimulationStepsMs=watch.ElapsedMilliseconds;report.drones=sim.Active.Count;
@@ -176,7 +201,7 @@ namespace FleetCommander.Systems
             float total=0,maximum=0;for(int i=0;i<60;i++){yield return null;float ms=Time.unscaledDeltaTime*1000;total+=ms;maximum=Mathf.Max(maximum,ms);}
             report.meanRenderFrameMs=total/60;report.maximumRenderFrameMs=maximum;
             yield return Capture("2000-drones.png");
-            Check("all-captures-saved",captures.Count==10,"Captured "+captures.Count+" frames");
+            Check("all-captures-saved",captures.Count==19,"Captured "+captures.Count+" frames");
         }
         void StageArena(float spread,float height)
         {
