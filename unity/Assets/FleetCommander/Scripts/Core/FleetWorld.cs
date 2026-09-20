@@ -12,9 +12,10 @@ namespace FleetCommander.Core
         public FrameKind blueFrame = FrameKind.Scout, redFrame = FrameKind.Utility;
         public SkinKind blueSkin = SkinKind.Cobalt, redSkin = SkinKind.Crimson;
         public WeaponKind blueWeapon = WeaponKind.Pulse, redWeapon = WeaponKind.RapidFire;
+        public AdaptiveLabSettings lab = new AdaptiveLabSettings();
         public int blueWins, redWins, draws;
         public Vector3 blueWaypoint = new Vector3(-20, 25, 0), redWaypoint = new Vector3(20, 25, 0);
-        public BattleSettings Clone() => (BattleSettings)MemberwiseClone();
+        public BattleSettings Clone() => JsonUtility.FromJson<BattleSettings>(JsonUtility.ToJson(this));
         public void ResetDefaults()
         {
             blue=BattleStyle.Balanced; red=BattleStyle.Evasive; engage=adaptive=true;
@@ -22,6 +23,7 @@ namespace FleetCommander.Core
             blueFrame=FrameKind.Scout; redFrame=FrameKind.Utility;
             blueSkin=SkinKind.Cobalt; redSkin=SkinKind.Crimson;
             blueWeapon=WeaponKind.Pulse; redWeapon=WeaponKind.RapidFire;
+            lab??=new AdaptiveLabSettings();lab.ResetDefaults();
             blueWaypoint=new Vector3(-20,25,0); redWaypoint=new Vector3(20,25,0);
         }
         public void ResetScores() { blueWins=redWins=draws=0; }
@@ -34,6 +36,7 @@ namespace FleetCommander.Core
                 !FleetConfig.Finite(blueWaypoint)||!FleetConfig.Finite(redWaypoint)||blueWaypoint.magnitude>800||redWaypoint.magnitude>800||
                 !FleetConfig.Finite(new Vector3(gameDamage,fireInterval,roundSeconds))||gameDamage<0||fireInterval<=0||roundSeconds<0||
                 blueWins<0||redWins<0||draws<0) throw new ArgumentException("Invalid arena settings.");
+            lab??=new AdaptiveLabSettings();lab.Validate();
             gameDamage=Mathf.Clamp(gameDamage,0,100); fireInterval=Mathf.Clamp(fireInterval,.08f,5);
             // A zero limit is the missing-field value in saves made before timed rounds existed.
             roundSeconds=roundSeconds==0?180:Mathf.Clamp(roundSeconds,5,1800);
