@@ -24,6 +24,7 @@ namespace FleetCommander
             var sound=gameObject.AddComponent<FleetAudio>();sound.Simulator=sim;
             var ui=gameObject.AddComponent<CommanderUI>();ui.Simulator=sim;ui.Rig=rig;ui.Audio=sound;rig.UI=ui;
             var pilot=gameObject.AddComponent<DronePilot>();pilot.Simulator=sim;pilot.Rig=rig;pilot.UI=ui;rig.Pilot=pilot;ui.Pilot=pilot;
+            var sensorHud=gameObject.AddComponent<SensorHud>();sensorHud.Simulator=sim;sensorHud.Rig=rig;sensorHud.Pilot=pilot;
             cameraObject.AddComponent<FleetBloom>();
             if(System.Array.IndexOf(System.Environment.GetCommandLineArgs(),"-fleetSmoke")>=0)gameObject.AddComponent<RuntimeSmoke>();
         }
