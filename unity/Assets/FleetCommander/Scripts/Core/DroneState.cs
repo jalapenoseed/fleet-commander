@@ -15,6 +15,12 @@ namespace FleetCommander.Core
         public Quaternion rotation;
         public float battery01, massKg, health, cooldown;
         public int payloads;
+        public int ammoCapacity;public float reloadSeconds;
+        public int ammo, reserveAmmo, combo, shotsFired, hitsLanded;
+        public bool resourcesInitialized, guarding;
+        public float stamina, heat, reloadTime, abilityCooldown, guardAge, stunTime, hitAge, comboWindow;
+        public Vector3 hitDirection;
+        public string aiState;
         public FlightPhase phase;
         public bool airborne => phase == FlightPhase.Flying || phase == FlightPhase.Returning || phase == FlightPhase.Falling;
         public bool disabled => phase == FlightPhase.Wreck || health <= 0;

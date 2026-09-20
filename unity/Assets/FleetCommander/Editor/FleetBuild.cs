@@ -24,7 +24,7 @@ namespace FleetCommander.Editor
         [MenuItem("Fleet Commander/Configure Project")]
         public static void Configure()
         {
-            PlayerSettings.companyName="Coin Crazy";PlayerSettings.productName="Fleet Commander";PlayerSettings.bundleVersion="1.0.0";
+            PlayerSettings.companyName="Coin Crazy";PlayerSettings.productName="Fleet Commander";PlayerSettings.bundleVersion="1.3.0";
             PlayerSettings.colorSpace=ColorSpace.Linear;PlayerSettings.defaultScreenWidth=1600;PlayerSettings.defaultScreenHeight=900;PlayerSettings.fullScreenMode=FullScreenMode.Windowed;PlayerSettings.resizableWindow=true;PlayerSettings.runInBackground=true;
             PlayerSettings.SetScriptingBackend(UnityEditor.Build.NamedBuildTarget.Standalone,ScriptingImplementation.Mono2x);
             EditorBuildSettings.scenes=new[]{new EditorBuildSettingsScene(Scene,true)};

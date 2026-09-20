@@ -1,0 +1,659 @@
+[
+  {
+    "name": "GR_Workbench_02",
+    "pack": "camp",
+    "source": "C:\\Users\\ty\\Desktop\\FleetCommanderAssets\\GRIDRUNNER-Field-Camp-Pack-02.blend",
+    "triangles": 6416,
+    "materials": 7,
+    "bytes": 131333,
+    "sha256": "0e9a087d56f1e1c438b9feed9aa1647d2dff0188a4764b5832ca03ff8d8f0d32"
+  },
+  {
+    "name": "GR_Toolboard_02",
+    "pack": "camp",
+    "source": "C:\\Users\\ty\\Desktop\\FleetCommanderAssets\\GRIDRUNNER-Field-Camp-Pack-02.blend",
+    "triangles": 64776,
+    "materials": 6,
+    "bytes": 1246780,
+    "sha256": "4ed9abc2694b3f737335406dee08242eef1ee2c7d5561699eaea7e7f342729bb"
+  },
+  {
+    "name": "GR_TarpShelter_02",
+    "pack": "camp",
+    "source": "C:\\Users\\ty\\Desktop\\FleetCommanderAssets\\GRIDRUNNER-Field-Camp-Pack-02.blend",
+    "triangles": 6668,
+    "materials": 3,
+    "bytes": 149625,
+    "sha256": "cfdc465a65265aba0e370a623e32b942b709de6b6dbcafd81007ff63473f3b9f"
+  },
+  {
+    "name": "GR_ChargingStation_02",
+    "pack": "camp",
+    "source": "C:\\Users\\ty\\Desktop\\FleetCommanderAssets\\GRIDRUNNER-Field-Camp-Pack-02.blend",
+    "triangles": 11162,
+    "materials": 8,
+    "bytes": 232970,
+    "sha256": "213c5fe76434fc10ee016812c004466866499b77545c4a52a461edb92608b737"
+  },
+  {
+    "name": "GR_SupplyLocker_02",
+    "pack": "camp",
+    "source": "C:\\Users\\ty\\Desktop\\FleetCommanderAssets\\GRIDRUNNER-Field-Camp-Pack-02.blend",
+    "triangles": 16736,
+    "materials": 7,
+    "bytes": 324469,
+    "sha256": "6229a0c08a4b989fad84ad0b8f9db63784a0d6f14849d521b09c25fdff076108"
+  },
+  {
+    "name": "GR_SolarArray_02",
+    "pack": "camp",
+    "source": "C:\\Users\\ty\\Desktop\\FleetCommanderAssets\\GRIDRUNNER-Field-Camp-Pack-02.blend",
+    "triangles": 44836,
+    "materials": 4,
+    "bytes": 824075,
+    "sha256": "08baec23e25b6e20652bdc9ad6b51e74c47df19f57072bda6f2e73cba9f73dd3"
+  },
+  {
+    "name": "GR_RainCollector_02",
+    "pack": "camp",
+    "source": "C:\\Users\\ty\\Desktop\\FleetCommanderAssets\\GRIDRUNNER-Field-Camp-Pack-02.blend",
+    "triangles": 4168,
+    "materials": 5,
+    "bytes": 90369,
+    "sha256": "aed11149d8b36befad0345f59e039337a1ef47ae105d97cc66d70e6ce4a4ffc0"
+  },
+  {
+    "name": "GR_CampCot_02",
+    "pack": "camp",
+    "source": "C:\\Users\\ty\\Desktop\\FleetCommanderAssets\\GRIDRUNNER-Field-Camp-Pack-02.blend",
+    "triangles": 4160,
+    "materials": 5,
+    "bytes": 93140,
+    "sha256": "d7cd256bc3e9c41fd9cefb1d7b5e2d6a46ce0b95e96568e7c612a893bd255754"
+  },
+  {
+    "name": "GR_BikeRepairStand_02",
+    "pack": "camp",
+    "source": "C:\\Users\\ty\\Desktop\\FleetCommanderAssets\\GRIDRUNNER-Field-Camp-Pack-02.blend",
+    "triangles": 3844,
+    "materials": 5,
+    "bytes": 89896,
+    "sha256": "d81922e27c4a214401cd8eda6bec700b4b21254d6dc1e9c2cea2d7662e89120e"
+  },
+  {
+    "name": "GR_WaterBarrel_02",
+    "pack": "camp",
+    "source": "C:\\Users\\ty\\Desktop\\FleetCommanderAssets\\GRIDRUNNER-Field-Camp-Pack-02.blend",
+    "triangles": 3692,
+    "materials": 6,
+    "bytes": 78745,
+    "sha256": "c9cca4facdd73a9b8e1f7fefe086be76fb502e87992409f26e3c80e5a454fea5"
+  },
+  {
+    "name": "GR_BatteryCase_02",
+    "pack": "camp",
+    "source": "C:\\Users\\ty\\Desktop\\FleetCommanderAssets\\GRIDRUNNER-Field-Camp-Pack-02.blend",
+    "triangles": 4780,
+    "materials": 7,
+    "bytes": 103730,
+    "sha256": "b8dae3714ebe8210764087f0fde9cbab61e758e25c52b85bf2c7a1d4577e7e35"
+  },
+  {
+    "name": "GR_WaterFilter_02",
+    "pack": "camp",
+    "source": "C:\\Users\\ty\\Desktop\\FleetCommanderAssets\\GRIDRUNNER-Field-Camp-Pack-02.blend",
+    "triangles": 4808,
+    "materials": 5,
+    "bytes": 102691,
+    "sha256": "6040c36b2e8cd77f1ba00365bba26e266a66f243afbe876ecb9c942b9429d398"
+  },
+  {
+    "name": "GR_FoldingChair_02",
+    "pack": "camp",
+    "source": "C:\\Users\\ty\\Desktop\\FleetCommanderAssets\\GRIDRUNNER-Field-Camp-Pack-02.blend",
+    "triangles": 3596,
+    "materials": 2,
+    "bytes": 77280,
+    "sha256": "973fab53e1263638200f91ee2a99779d00e4c9322311071aa0dce9b7973c7471"
+  },
+  {
+    "name": "GR_FieldRadio_02",
+    "pack": "camp",
+    "source": "C:\\Users\\ty\\Desktop\\FleetCommanderAssets\\GRIDRUNNER-Field-Camp-Pack-02.blend",
+    "triangles": 5724,
+    "materials": 6,
+    "bytes": 122198,
+    "sha256": "a1dc62c40f836e288db5d62f946552e3512100afd66b2741341c36714cf48dd6"
+  },
+  {
+    "name": "GR_CampStove_02",
+    "pack": "camp",
+    "source": "C:\\Users\\ty\\Desktop\\FleetCommanderAssets\\GRIDRUNNER-Field-Camp-Pack-02.blend",
+    "triangles": 4144,
+    "materials": 6,
+    "bytes": 86460,
+    "sha256": "b00002747e53d7da334f20767d541d945898ed0df8904006e7614717d2048850"
+  },
+  {
+    "name": "GR_DroneHardCase_02",
+    "pack": "camp",
+    "source": "C:\\Users\\ty\\Desktop\\FleetCommanderAssets\\GRIDRUNNER-Field-Camp-Pack-02.blend",
+    "triangles": 4028,
+    "materials": 5,
+    "bytes": 85360,
+    "sha256": "2b6ae565ac6f1be6c2cfb508c4a740ddff692d709fcd120621434d63b60108df"
+  },
+  {
+    "name": "GR_SupplyCrate_02",
+    "pack": "camp",
+    "source": "C:\\Users\\ty\\Desktop\\FleetCommanderAssets\\GRIDRUNNER-Field-Camp-Pack-02.blend",
+    "triangles": 6876,
+    "materials": 3,
+    "bytes": 123328,
+    "sha256": "e92e924d3d792d5c1bff9941f3843eecc30805d8073cc9cecb9981a9b7548341"
+  },
+  {
+    "name": "GR_FirstAidCase_02",
+    "pack": "camp",
+    "source": "C:\\Users\\ty\\Desktop\\FleetCommanderAssets\\GRIDRUNNER-Field-Camp-Pack-02.blend",
+    "triangles": 3136,
+    "materials": 5,
+    "bytes": 67662,
+    "sha256": "02d1461edc119d0f1a28c02019da572b6d65a383e3c9a876f4a3f0bebb8fc2b1"
+  },
+  {
+    "name": "GR_ExtensionReel_02",
+    "pack": "camp",
+    "source": "C:\\Users\\ty\\Desktop\\FleetCommanderAssets\\GRIDRUNNER-Field-Camp-Pack-02.blend",
+    "triangles": 7780,
+    "materials": 3,
+    "bytes": 149272,
+    "sha256": "0e56c46e4d056e9ebc5fa623af5e73892c0cc992d9ffe70b9f80202c9a3eb065"
+  },
+  {
+    "name": "GR_FieldStorageCase_02",
+    "pack": "camp",
+    "source": "C:\\Users\\ty\\Desktop\\FleetCommanderAssets\\GRIDRUNNER-Field-Camp-Pack-02.blend",
+    "triangles": 3468,
+    "materials": 6,
+    "bytes": 72888,
+    "sha256": "2490e56035fe99f1c7f7abd4bed496096c7cfd26be9fe1195a12aec1a95f918b"
+  },
+  {
+    "name": "GR_FO_01",
+    "pack": "ops",
+    "source": "C:\\Users\\ty\\Documents\\GRIDRUNNER_Field_Ops_Pack_01\\GRIDRUNNER_Field_Ops_Pack_01.blend",
+    "triangles": 1212,
+    "materials": 5,
+    "bytes": 24371,
+    "sha256": "60e3bf6753a621b930a099c245c64f2511df52f679a49909c16b2f3d2cc65be6"
+  },
+  {
+    "name": "GR_FO_02",
+    "pack": "ops",
+    "source": "C:\\Users\\ty\\Documents\\GRIDRUNNER_Field_Ops_Pack_01\\GRIDRUNNER_Field_Ops_Pack_01.blend",
+    "triangles": 944,
+    "materials": 5,
+    "bytes": 17695,
+    "sha256": "0098bf5a45078d447c3f9399361f01222adb00db2ffa18bcfe09e62459d0ad2d"
+  },
+  {
+    "name": "GR_FO_03",
+    "pack": "ops",
+    "source": "C:\\Users\\ty\\Documents\\GRIDRUNNER_Field_Ops_Pack_01\\GRIDRUNNER_Field_Ops_Pack_01.blend",
+    "triangles": 1240,
+    "materials": 6,
+    "bytes": 23715,
+    "sha256": "62e8a84dba9628463ab2a091d06c14e5cb4f72a9de933ead1f4f642523a4631c"
+  },
+  {
+    "name": "GR_FO_04",
+    "pack": "ops",
+    "source": "C:\\Users\\ty\\Documents\\GRIDRUNNER_Field_Ops_Pack_01\\GRIDRUNNER_Field_Ops_Pack_01.blend",
+    "triangles": 1060,
+    "materials": 7,
+    "bytes": 21262,
+    "sha256": "4f6028b21525cfd2d3b6db7af4fe22d09838df879ad2608fadf7c234a32161a3"
+  },
+  {
+    "name": "GR_FO_05",
+    "pack": "ops",
+    "source": "C:\\Users\\ty\\Documents\\GRIDRUNNER_Field_Ops_Pack_01\\GRIDRUNNER_Field_Ops_Pack_01.blend",
+    "triangles": 1196,
+    "materials": 6,
+    "bytes": 23861,
+    "sha256": "6cbcb711acf71bab11bbdcfd6effa712c00b7469bf6a7ac2d9b71faad16db3bb"
+  },
+  {
+    "name": "GR_FO_06",
+    "pack": "ops",
+    "source": "C:\\Users\\ty\\Documents\\GRIDRUNNER_Field_Ops_Pack_01\\GRIDRUNNER_Field_Ops_Pack_01.blend",
+    "triangles": 1648,
+    "materials": 5,
+    "bytes": 34320,
+    "sha256": "cdb9527a098ce3111d9693923492ae1722462bffeded6552ab20b96535901c61"
+  },
+  {
+    "name": "GR_FO_07",
+    "pack": "ops",
+    "source": "C:\\Users\\ty\\Documents\\GRIDRUNNER_Field_Ops_Pack_01\\GRIDRUNNER_Field_Ops_Pack_01.blend",
+    "triangles": 844,
+    "materials": 7,
+    "bytes": 16854,
+    "sha256": "6878b694d0d724933dc62ec463ed5368f3e0076681fdfb718130dc1ecdd55e4d"
+  },
+  {
+    "name": "GR_FO_08",
+    "pack": "ops",
+    "source": "C:\\Users\\ty\\Documents\\GRIDRUNNER_Field_Ops_Pack_01\\GRIDRUNNER_Field_Ops_Pack_01.blend",
+    "triangles": 1564,
+    "materials": 5,
+    "bytes": 29799,
+    "sha256": "78f00768cedd4b44ff65c673f77e1d4af0309237d9361249e8f30d256c5b389b"
+  },
+  {
+    "name": "GR_FO_09",
+    "pack": "ops",
+    "source": "C:\\Users\\ty\\Documents\\GRIDRUNNER_Field_Ops_Pack_01\\GRIDRUNNER_Field_Ops_Pack_01.blend",
+    "triangles": 1732,
+    "materials": 6,
+    "bytes": 34277,
+    "sha256": "3028b57e40df274e4c86656309b8e45a52c99329fd59a3a933be53c83df9a9a6"
+  },
+  {
+    "name": "GR_FO_10",
+    "pack": "ops",
+    "source": "C:\\Users\\ty\\Documents\\GRIDRUNNER_Field_Ops_Pack_01\\GRIDRUNNER_Field_Ops_Pack_01.blend",
+    "triangles": 1236,
+    "materials": 5,
+    "bytes": 26526,
+    "sha256": "405d238f5533705d0b23c9776b8fed34f050b072cbdd28428f22d625ac37ca6d"
+  },
+  {
+    "name": "GR05_Wall_Limestone",
+    "pack": "architecture",
+    "source": "C:\\Users\\ty\\GRIDRUNNER-Architecture-Pack-05\\GRIDRUNNER-Architecture-Pack-05.blend",
+    "triangles": 336,
+    "materials": 4,
+    "bytes": 6756,
+    "sha256": "032b6fe0afd12f65e9a6dfeb227526ac91db1f12b0b27ca57c5224a954968966"
+  },
+  {
+    "name": "GR05_Wall_Interior",
+    "pack": "architecture",
+    "source": "C:\\Users\\ty\\GRIDRUNNER-Architecture-Pack-05\\GRIDRUNNER-Architecture-Pack-05.blend",
+    "triangles": 228,
+    "materials": 3,
+    "bytes": 4858,
+    "sha256": "eaa4747adc3d113364a6e7552bfdd0241a4cf1576b556622481854bdb1c35505"
+  },
+  {
+    "name": "GR05_Wall_Door",
+    "pack": "architecture",
+    "source": "C:\\Users\\ty\\GRIDRUNNER-Architecture-Pack-05\\GRIDRUNNER-Architecture-Pack-05.blend",
+    "triangles": 2104,
+    "materials": 7,
+    "bytes": 45336,
+    "sha256": "c10d44bb6364f2a4ad40c696fcd54cacef8a668f88ab63bf1c6e0c2a6954842f"
+  },
+  {
+    "name": "GR05_Wall_DoubleDoor",
+    "pack": "architecture",
+    "source": "C:\\Users\\ty\\GRIDRUNNER-Architecture-Pack-05\\GRIDRUNNER-Architecture-Pack-05.blend",
+    "triangles": 2900,
+    "materials": 7,
+    "bytes": 59951,
+    "sha256": "04f7b703885a3efb5f2d3ff4f720abe286228f9ffc007bdbd10db14cba8befd4"
+  },
+  {
+    "name": "GR05_Wall_GarageDoor",
+    "pack": "architecture",
+    "source": "C:\\Users\\ty\\GRIDRUNNER-Architecture-Pack-05\\GRIDRUNNER-Architecture-Pack-05.blend",
+    "triangles": 3616,
+    "materials": 7,
+    "bytes": 78784,
+    "sha256": "770cce2b7f2d1862a441eaa23762b5829300ca970eb564f2aa877ccff0814edf"
+  },
+  {
+    "name": "GR05_Foundation",
+    "pack": "architecture",
+    "source": "C:\\Users\\ty\\GRIDRUNNER-Architecture-Pack-05\\GRIDRUNNER-Architecture-Pack-05.blend",
+    "triangles": 108,
+    "materials": 1,
+    "bytes": 2615,
+    "sha256": "6e48eedbc8abff7ae759af2596c0eed127245892913245cd286d4c97ed069258"
+  },
+  {
+    "name": "GR05_Floor_Vinyl",
+    "pack": "architecture",
+    "source": "C:\\Users\\ty\\GRIDRUNNER-Architecture-Pack-05\\GRIDRUNNER-Architecture-Pack-05.blend",
+    "triangles": 108,
+    "materials": 1,
+    "bytes": 2610,
+    "sha256": "5cd04a3f2074b4d895edffb7566372dd10fe5db60cee7ea0c9bd32644125904d"
+  },
+  {
+    "name": "GR05_Ceiling_Tile",
+    "pack": "architecture",
+    "source": "C:\\Users\\ty\\GRIDRUNNER-Architecture-Pack-05\\GRIDRUNNER-Architecture-Pack-05.blend",
+    "triangles": 108,
+    "materials": 1,
+    "bytes": 2569,
+    "sha256": "27d57286b27461455ad4c3b86476b12ea07e6afaf2e3c407590337f59cdc9f63"
+  },
+  {
+    "name": "GR05_Roof_Seam",
+    "pack": "architecture",
+    "source": "C:\\Users\\ty\\GRIDRUNNER-Architecture-Pack-05\\GRIDRUNNER-Architecture-Pack-05.blend",
+    "triangles": 1640,
+    "materials": 4,
+    "bytes": 30963,
+    "sha256": "f1c8ed2bcb7809200974033db80b6834c3aa870540e59aa6763fd7e457641f64"
+  },
+  {
+    "name": "GR05_Roof_Asphalt",
+    "pack": "architecture",
+    "source": "C:\\Users\\ty\\GRIDRUNNER-Architecture-Pack-05\\GRIDRUNNER-Architecture-Pack-05.blend",
+    "triangles": 884,
+    "materials": 4,
+    "bytes": 16905,
+    "sha256": "08dea46d69c0f89fbea261c8f782eb442358e251f1f746a873c4e0c1c88102d0"
+  },
+  {
+    "name": "GR05_Parapet",
+    "pack": "architecture",
+    "source": "C:\\Users\\ty\\GRIDRUNNER-Architecture-Pack-05\\GRIDRUNNER-Architecture-Pack-05.blend",
+    "triangles": 108,
+    "materials": 1,
+    "bytes": 2704,
+    "sha256": "63babdc08cd3c2e4a52ebea79b6043a7de8d43da3b85d1181eecadd8b2ccb0b5"
+  },
+  {
+    "name": "GR05_Column",
+    "pack": "architecture",
+    "source": "C:\\Users\\ty\\GRIDRUNNER-Architecture-Pack-05\\GRIDRUNNER-Architecture-Pack-05.blend",
+    "triangles": 108,
+    "materials": 1,
+    "bytes": 2629,
+    "sha256": "85f7eb288a7e8a084a2c370d895d3a2d76651982d634cee939c2a473058c52c2"
+  },
+  {
+    "name": "GR05_Beam",
+    "pack": "architecture",
+    "source": "C:\\Users\\ty\\GRIDRUNNER-Architecture-Pack-05\\GRIDRUNNER-Architecture-Pack-05.blend",
+    "triangles": 108,
+    "materials": 1,
+    "bytes": 2698,
+    "sha256": "7f14572bcc0c34e0fbcd3ee49413f35d5ef8feee1475aa2dc9d1a630253cd918"
+  },
+  {
+    "name": "GR05_StairFlight",
+    "pack": "architecture",
+    "source": "C:\\Users\\ty\\GRIDRUNNER-Architecture-Pack-05\\GRIDRUNNER-Architecture-Pack-05.blend",
+    "triangles": 5224,
+    "materials": 2,
+    "bytes": 94237,
+    "sha256": "42e809209e6229dc77f2316ad7d24c3ccf899994489e2dee594c58d4f0bc6bcf"
+  },
+  {
+    "name": "GR05_Landing",
+    "pack": "architecture",
+    "source": "C:\\Users\\ty\\GRIDRUNNER-Architecture-Pack-05\\GRIDRUNNER-Architecture-Pack-05.blend",
+    "triangles": 108,
+    "materials": 1,
+    "bytes": 2621,
+    "sha256": "60a0804bb500b713b2ff820a6232eba1bf848ac82d8c447c8df914d268a25c2c"
+  },
+  {
+    "name": "GR05_Railing",
+    "pack": "architecture",
+    "source": "C:\\Users\\ty\\GRIDRUNNER-Architecture-Pack-05\\GRIDRUNNER-Architecture-Pack-05.blend",
+    "triangles": 472,
+    "materials": 1,
+    "bytes": 7607,
+    "sha256": "bd3bc7ec6929428696798cd3f60b983254cfb994e4dc7db47e8995215adb891f"
+  },
+  {
+    "name": "GR05_EntranceRamp",
+    "pack": "architecture",
+    "source": "C:\\Users\\ty\\GRIDRUNNER-Architecture-Pack-05\\GRIDRUNNER-Architecture-Pack-05.blend",
+    "triangles": 8,
+    "materials": 1,
+    "bytes": 379,
+    "sha256": "42fcb34cfa7b455c2e586916e4bcd3fb9b9e29c2e552782b4083ce59cb75c8fa"
+  },
+  {
+    "name": "GR05_ServiceAssembly",
+    "pack": "architecture",
+    "source": "C:\\Users\\ty\\GRIDRUNNER-Architecture-Pack-05\\GRIDRUNNER-Architecture-Pack-05.blend",
+    "triangles": 1588,
+    "materials": 5,
+    "bytes": 29689,
+    "sha256": "e1a864655f1368e63477ed513b5cb734c5a0c68c2e1a5268769a76ae8a2edcc8"
+  },
+  {
+    "name": "GR05_RoofHVAC",
+    "pack": "architecture",
+    "source": "C:\\Users\\ty\\GRIDRUNNER-Architecture-Pack-05\\GRIDRUNNER-Architecture-Pack-05.blend",
+    "triangles": 2192,
+    "materials": 4,
+    "bytes": 38757,
+    "sha256": "76c57aaad36501f0ed8ae877ff1f726062059b019b85878ad70e932ff8021e9d"
+  },
+  {
+    "name": "GR05_PracticalLight",
+    "pack": "architecture",
+    "source": "C:\\Users\\ty\\GRIDRUNNER-Architecture-Pack-05\\GRIDRUNNER-Architecture-Pack-05.blend",
+    "triangles": 216,
+    "materials": 2,
+    "bytes": 4584,
+    "sha256": "02618fbfa920740a5caaa45423ba8535cac584c296eaa626b68a655297c9f20c"
+  },
+  {
+    "name": "GR05_Corner",
+    "pack": "architecture",
+    "source": "C:\\Users\\ty\\GRIDRUNNER-Architecture-Pack-05\\GRIDRUNNER-Architecture-Pack-05.blend",
+    "triangles": 672,
+    "materials": 4,
+    "bytes": 13077,
+    "sha256": "03b53d6a8ef0f3db6eac6e9f548229eaa6bb98bb6930cf4a992d411aa135a8ee"
+  },
+  {
+    "name": "GR05_Porch",
+    "pack": "architecture",
+    "source": "C:\\Users\\ty\\GRIDRUNNER-Architecture-Pack-05\\GRIDRUNNER-Architecture-Pack-05.blend",
+    "triangles": 944,
+    "materials": 4,
+    "bytes": 16741,
+    "sha256": "e39fb5b1b31879b3ebe5db2d65521ff6779d555553dcf2fa2cba5d37a7e6a5c9"
+  },
+  {
+    "name": "GR05_Balcony",
+    "pack": "architecture",
+    "source": "C:\\Users\\ty\\GRIDRUNNER-Architecture-Pack-05\\GRIDRUNNER-Architecture-Pack-05.blend",
+    "triangles": 1092,
+    "materials": 2,
+    "bytes": 16955,
+    "sha256": "74589a8aee01d23764f4bb8bf759a0cf7694bcd6c089bbb35453ed85b19959c9"
+  },
+  {
+    "name": "GR05_Vent",
+    "pack": "architecture",
+    "source": "C:\\Users\\ty\\GRIDRUNNER-Architecture-Pack-05\\GRIDRUNNER-Architecture-Pack-05.blend",
+    "triangles": 1188,
+    "materials": 2,
+    "bytes": 22317,
+    "sha256": "945a22d04b0531948dee798298587f96e7e017040376b77a1483aac3ea0428f2"
+  },
+  {
+    "name": "GR05_Shutter",
+    "pack": "architecture",
+    "source": "C:\\Users\\ty\\GRIDRUNNER-Architecture-Pack-05\\GRIDRUNNER-Architecture-Pack-05.blend",
+    "triangles": 1836,
+    "materials": 1,
+    "bytes": 32038,
+    "sha256": "8b5ae68731164beafba1a2e505c63d6253941f27b38c91e39081a3d987f2aa66"
+  },
+  {
+    "name": "GR05_Drainage",
+    "pack": "architecture",
+    "source": "C:\\Users\\ty\\GRIDRUNNER-Architecture-Pack-05\\GRIDRUNNER-Architecture-Pack-05.blend",
+    "triangles": 324,
+    "materials": 1,
+    "bytes": 7047,
+    "sha256": "748ed12f369463e2d2aaf6eb3b5580b035996506342bd6173698ee52b7b07c51"
+  },
+  {
+    "name": "GR05_UtilityPenetration",
+    "pack": "architecture",
+    "source": "C:\\Users\\ty\\GRIDRUNNER-Architecture-Pack-05\\GRIDRUNNER-Architecture-Pack-05.blend",
+    "triangles": 1372,
+    "materials": 6,
+    "bytes": 28476,
+    "sha256": "496d79f623c0d33872e607e662e5747e944c9858f4bb30292adedcd18ba6c0f5"
+  },
+  {
+    "name": "GR05_Window_intact",
+    "pack": "architecture",
+    "source": "C:\\Users\\ty\\GRIDRUNNER-Architecture-Pack-05\\GRIDRUNNER-Architecture-Pack-05.blend",
+    "triangles": 1776,
+    "materials": 7,
+    "bytes": 37247,
+    "sha256": "3bc67a85714cb38feb2ecdf853a4819c0a88224f8d3f12071a79ed713bfaf552"
+  },
+  {
+    "name": "GR05_Window_dirty",
+    "pack": "architecture",
+    "source": "C:\\Users\\ty\\GRIDRUNNER-Architecture-Pack-05\\GRIDRUNNER-Architecture-Pack-05.blend",
+    "triangles": 1776,
+    "materials": 7,
+    "bytes": 37234,
+    "sha256": "b8e982fb2bfdb318c3b51df8628fdbf725063d083eeec8123d726abbc812f414"
+  },
+  {
+    "name": "GR05_Window_cracked",
+    "pack": "architecture",
+    "source": "C:\\Users\\ty\\GRIDRUNNER-Architecture-Pack-05\\GRIDRUNNER-Architecture-Pack-05.blend",
+    "triangles": 1872,
+    "materials": 8,
+    "bytes": 39214,
+    "sha256": "f09d3fb99dc006058ebca91471ee3bf86552d45744cff60efdec41f4f21284f7"
+  },
+  {
+    "name": "GR05_Window_boarded",
+    "pack": "architecture",
+    "source": "C:\\Users\\ty\\GRIDRUNNER-Architecture-Pack-05\\GRIDRUNNER-Architecture-Pack-05.blend",
+    "triangles": 2088,
+    "materials": 7,
+    "bytes": 43555,
+    "sha256": "580cbe8e6c1bdcbf2397173628df1a3c382e220fb093e29208a614c7c0ca9fc8"
+  },
+  {
+    "name": "GR05_Window_broken",
+    "pack": "architecture",
+    "source": "C:\\Users\\ty\\GRIDRUNNER-Architecture-Pack-05\\GRIDRUNNER-Architecture-Pack-05.blend",
+    "triangles": 1780,
+    "materials": 7,
+    "bytes": 37283,
+    "sha256": "c46bf8159c5e463c5f36dafc8967025848114c95eed6034fabcfa7696ef5ffae"
+  },
+  {
+    "name": "GR05_Window_salvaged",
+    "pack": "architecture",
+    "source": "C:\\Users\\ty\\GRIDRUNNER-Architecture-Pack-05\\GRIDRUNNER-Architecture-Pack-05.blend",
+    "triangles": 1764,
+    "materials": 6,
+    "bytes": 36922,
+    "sha256": "43e40ac75d7906716c4741708be47ac94003c9c76c6e7dcb4b4e545c3ff88914"
+  },
+  {
+    "name": "GR05_DamageWall_INTACT",
+    "pack": "architecture",
+    "source": "C:\\Users\\ty\\GRIDRUNNER-Architecture-Pack-05\\GRIDRUNNER-Architecture-Pack-05.blend",
+    "triangles": 336,
+    "materials": 4,
+    "bytes": 6754,
+    "sha256": "bb5bd3fb3faac8a836c0ff780c677ce80df07da8583002d73de8f1c0b3992a0e"
+  },
+  {
+    "name": "GR05_DamageWall_WEATHERED",
+    "pack": "architecture",
+    "source": "C:\\Users\\ty\\GRIDRUNNER-Architecture-Pack-05\\GRIDRUNNER-Architecture-Pack-05.blend",
+    "triangles": 336,
+    "materials": 4,
+    "bytes": 6761,
+    "sha256": "18f5fd3e3f760815a259044f95f8bdbe1002f309b63ecb72af048704dec8ad07"
+  },
+  {
+    "name": "GR05_DamageWall_DAMAGED",
+    "pack": "architecture",
+    "source": "C:\\Users\\ty\\GRIDRUNNER-Architecture-Pack-05\\GRIDRUNNER-Architecture-Pack-05.blend",
+    "triangles": 1504,
+    "materials": 7,
+    "bytes": 28240,
+    "sha256": "1043244fd377bb8ac021e196b03c8a0422e3253c12ec30e4fb10b7a99a90897d"
+  },
+  {
+    "name": "GR05_DamageWall_ABANDONED",
+    "pack": "architecture",
+    "source": "C:\\Users\\ty\\GRIDRUNNER-Architecture-Pack-05\\GRIDRUNNER-Architecture-Pack-05.blend",
+    "triangles": 1760,
+    "materials": 8,
+    "bytes": 32931,
+    "sha256": "4b7cc680f01cfb4dee0057c96064b7de40f7230aa7d7c8a25c99ce7998267845"
+  },
+  {
+    "name": "GR05_DamageWall_SALVAGED",
+    "pack": "architecture",
+    "source": "C:\\Users\\ty\\GRIDRUNNER-Architecture-Pack-05\\GRIDRUNNER-Architecture-Pack-05.blend",
+    "triangles": 1004,
+    "materials": 3,
+    "bytes": 18566,
+    "sha256": "c110e745b46ee52abf05a55547d1ef53db8073b991f6d6406989be3e27ff4da0"
+  },
+  {
+    "name": "GR05_01_UtilityHouse",
+    "pack": "architecture",
+    "source": "C:\\Users\\ty\\GRIDRUNNER-Architecture-Pack-05\\GRIDRUNNER-Architecture-Pack-05.blend",
+    "triangles": 25872,
+    "materials": 16,
+    "bytes": 489466,
+    "sha256": "7519823b925dbf057dfe52757175dd97199778b5406d62f66c325c074600954d"
+  },
+  {
+    "name": "GR05_02_RoadsideStore",
+    "pack": "architecture",
+    "source": "C:\\Users\\ty\\GRIDRUNNER-Architecture-Pack-05\\GRIDRUNNER-Architecture-Pack-05.blend",
+    "triangles": 32928,
+    "materials": 17,
+    "bytes": 602736,
+    "sha256": "26484dbd1002eeb39a351088577856dd4961ec705d179f17faff9e1247c578eb"
+  },
+  {
+    "name": "GR05_03_TexasHouse",
+    "pack": "architecture",
+    "source": "C:\\Users\\ty\\GRIDRUNNER-Architecture-Pack-05\\GRIDRUNNER-Architecture-Pack-05.blend",
+    "triangles": 65912,
+    "materials": 20,
+    "bytes": 1190612,
+    "sha256": "edf505e6372e82b615fd6dcc3d25fd0b0ef20bbd9bcc4f94135cda6c25ec758d"
+  },
+  {
+    "name": "GR05_04_Maintenance",
+    "pack": "architecture",
+    "source": "C:\\Users\\ty\\GRIDRUNNER-Architecture-Pack-05\\GRIDRUNNER-Architecture-Pack-05.blend",
+    "triangles": 32132,
+    "materials": 15,
+    "bytes": 616314,
+    "sha256": "f2eedc316d10d20df52790e08ae18924f22d1804c987aa82893a7035d72e8d83"
+  },
+  {
+    "name": "GR05_05_CreekPump",
+    "pack": "architecture",
+    "source": "C:\\Users\\ty\\GRIDRUNNER-Architecture-Pack-05\\GRIDRUNNER-Architecture-Pack-05.blend",
+    "triangles": 26100,
+    "materials": 14,
+    "bytes": 484079,
+    "sha256": "b5751c6298ea1e64a8459c571bbabfdd8bcbac8e719d0cf755a03a3fbe7241d2"
+  }
+]

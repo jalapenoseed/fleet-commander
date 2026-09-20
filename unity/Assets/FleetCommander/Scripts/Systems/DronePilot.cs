@@ -16,7 +16,7 @@ namespace FleetCommander.Systems
         public int DroneIndex {get;private set;}=-1;
         public bool InputCaptured {get;private set;}
         public bool IsPiloting => world!=null && Simulator!=null && Simulator.Arena==world &&
-            !Simulator.Replay.Playing && !world.RoundEnded && DroneIndex>=0 && DroneIndex<world.Count &&
+            !Simulator.Replay.Playing && !(Simulator.Sports?.Finished??false) && !(Simulator.Range?.Finished??false) && !world.RoundEnded && DroneIndex>=0 && DroneIndex<world.Count &&
             !world.States[DroneIndex].disabled && world.States[DroneIndex].phase==FlightPhase.Flying &&
             world.ControlledDrone==DroneIndex;
         public Quaternion AimRotation => Quaternion.Euler(pitch,yaw,0);
@@ -148,7 +148,10 @@ namespace FleetCommander.Systems
             if(Input.GetKey(KeyCode.LeftControl)||Input.GetKey(KeyCode.RightControl))move.y--;
             move=Quaternion.Euler(0,yaw,0)*Vector3.ClampMagnitude(move,1);
             if(!Input.GetKey(KeyCode.LeftShift)&&!Input.GetKey(KeyCode.RightShift))move*=.65f;
-            world.SetPilotInput(move,AimDirection,Input.GetMouseButton(0));
+            world.SetPilotInput(move,AimDirection,Simulator.Sports==null&&Simulator.Range==null&&Input.GetMouseButton(0));
+            if(Simulator.Range!=null&&Input.GetMouseButton(0))Simulator.Range.Fire(world.States[DroneIndex].position,AimDirection);
+            if(Simulator.Sports!=null&&Input.GetMouseButton(0))Simulator.Sports.Act(DroneIndex,true);
+            if(Simulator.Sports==null&&Simulator.Range==null){if(Input.GetKeyDown(KeyCode.R))world.Reload(DroneIndex);if(Input.GetMouseButtonDown(1))world.UseAbility(DroneIndex,DroneAbility.Guard,AimDirection);if(Input.GetKeyDown(KeyCode.E))world.UseAbility(DroneIndex,DroneAbility.Dodge,AimRotation*Vector3.right);if(Input.GetKeyDown(KeyCode.LeftShift))world.UseAbility(DroneIndex,DroneAbility.Boost,AimDirection);}
             if(Input.GetKeyDown(KeyCode.Q))Simulator.Payload();
             if(Input.GetKeyDown(KeyCode.C))CycleView();
         }
@@ -160,7 +163,7 @@ namespace FleetCommander.Systems
                 Rig!=null && Rig.Mode==CameraMode.Mounted?new Vector3(0,.85f,-1.05f):new Vector3(1.7f,1.4f,-4.8f);
             position=state.position+rotation*offset;position.y=Mathf.Max(.8f,position.y);
             Vector3 toCamera=position-state.position;float distance=toCamera.magnitude;
-            if(distance>.01f)foreach(var envelope in FleetWorld.Obstacles)
+            if(distance>.01f&&world.Config.obstacles)foreach(var envelope in FleetWorld.Obstacles)
             {
                 var box=envelope;box.Expand(.4f);
                 if(box.IntersectRay(new Ray(state.position,toCamera/distance),out float hit) && hit<distance)

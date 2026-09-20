@@ -89,7 +89,7 @@ namespace FleetCommander.Rendering
                     int seed=effect.hit.victim*31+k+17;
                     Vector3 direction=new Vector3(Hash(seed)*2-1,.4f+Hash(seed+9),Hash(seed+37)*2-1).normalized;
                     Vector3 p=effect.hit.to+direction*(2.2f+Hash(seed+4)*4.5f)*age+Vector3.down*4.9f*age*age;
-                    float ground=.07f+(k%3)*.03f;bool resting=p.y<ground;p.y=Mathf.Max(ground,p.y);
+                    float ground=SceneryTerrain.Height(Simulator.DisplayConfig,p.x,p.z)+.07f+(k%3)*.03f;bool resting=p.y<ground;p.y=Mathf.Max(ground,p.y);
                     var spin=Quaternion.Euler((resting?84:age*193)+seed,age*(resting?0:151)+seed*3,resting?12:age*227);
                     Vector3 scale=k%3==0?new Vector3(.45f,.025f,.075f):k%3==1?new Vector3(.17f,.09f,.24f):new Vector3(.1f,.14f,.1f);
                     matrices[n]=Matrix4x4.TRS(p,spin,scale);
@@ -104,8 +104,8 @@ namespace FleetCommander.Rendering
             int n=0;
             foreach(var s in states)
             {
-                if(!s.disabled||s.health>0)continue;
-                float age=s.destructionAge;
+                if(!s.disabled&&s.health>=45)continue;
+                float age=s.disabled?s.destructionAge:Clock*.25f%6;
                 if(smoke)
                 {
                     if(age>16)continue;
@@ -116,7 +116,7 @@ namespace FleetCommander.Rendering
                         Vector3 p=s.position+new Vector3(Mathf.Sin(s.id+phase)*phase*.45f,phase*2.2f+.3f,Mathf.Cos(s.id+phase)*phase*.35f);
                         float scale=.7f+phase*1.7f;
                         matrices[n]=Matrix4x4.TRS(p,cam.transform.rotation,Vector3.one*scale);
-                        colors[n++]=new Color(.075f,.073f,.07f,life*(1-phase/2.3f)*.52f);
+                        colors[n++]=new Color(.075f,.073f,.07f,life*(1-phase/2.3f)*(s.disabled?.52f:.18f));
                         if(n==MaxInstances){Flush(quad,smokeMaterial,n);n=0;}
                     }
                 }

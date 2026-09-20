@@ -2,19 +2,7 @@
 
 A native C# edition of Fleet Commander for **Unity 6000.6.2f1**. The `unity` branch contains the boot scene, imported aircraft models, command center, simulation, creator tools, persistence, and Windows build entry point. The browser edition is preserved in `../dist`; remaining differences are listed below.
 
-
-## September 20 recovery update
-
-- **Arena camera:** Start Round opens a stable, fitted overview. Arena now includes manual camera mode, follow-center toggle, distance/yaw/pitch, orbit/zoom buttons, frame-all and free camera. Middle drag or Shift + drag pans. WASD/Q/E move the free camera. Automatic action cameras remain optional.
-- **Menus:** H or Hide clears the command panels and telemetry; a visible Show Menus button restores them. The chess board remains playable with menus hidden.
-- **Sports:** the Sports page launches five-a-side capture the flag, arcade soccer, and arcade flag football. Each has its own marked 3D pitch, balls/flags/goals, timer, score target, winner/draw, and rematch. Configure each sports player's model and role, team skin, Balanced/Wide/Diamond/Defensive formations, or five custom depth/lane positions. Setup saves separately as sports.json. Changes apply on rematch; the show fleet is preserved.
-- **Sports rules:** CTF requires the home flag to be present to capture; tagged carriers return home for three seconds. Soccer goals count only between the posts; boundary boards rebound the ball. Flag football has six-point touchdowns, four downs to gain 20 field units, a 20-second play clock, one forward pass before the line of scrimmage, interceptions and turnovers. These are arcade rules with no kicks or extra points. Scores decide the result at full time; ties draw.
-- **Chess:** local two-player or White versus a two-ply Black AI, with selectable promotion, board flip, move list, legal highlights, castling, en passant, checkmate and stalemate. This casual mode automatically ends draws at threefold repetition, the 50-move threshold and insufficient material. It has no chess clock, online multiplayer or in-progress game persistence.
-- **Results:** completed sports/chess results and win/draw totals persist locally in match-results.json (latest 200). Automated QA writes a separate results file.
-- **Scenery:** recovered the unpublished reference-inspired stadium bowl, alpine cabins, mountain town, river, meadow, rocky overlook, coast, foliage atlas, terrain, water and sky shaders. Director exposes seven scenery and seven sky choices. These are native procedural environments and existing authored assets; the reference photographs are not distributed. Terrain outside the central flight field remains decorative; ground/free cameras follow its height.
-- **Aircraft:** retain the existing imported Scout/Relay/Cargo/Utility meshes and PBR textures. All ten sports aircraft use their detailed models. Large show fleets retain distance LODs for performance. Arena weapons, combat controllers and adaptive combat behavior are unchanged by this recovery.
-
-Sports are scripted automatic matches; direct sports-player piloting, sports replay, and sports learning are not implemented. The earlier arena/show replay remains available. See VALIDATION.md for native test and Windows GPU evidence.
+**Current release: 1.3.0.** See [the complete feature/location guide](RELEASE-1.3.md) for the combined games, science workshop, combat experiments, authored scenery, selection and camera update.
 
 ## Open and play
 
@@ -22,7 +10,7 @@ Sports are scripted automatic matches; direct sports-player piloting, sports rep
 2. Use Unity **6000.6.2f1** (the version installed on the development PC).
 3. Open `Assets/FleetCommander/Scenes/FleetCommander.unity` and press Play. The **Fleet Commander → Open Main Scene** menu opens the same scene.
 4. The initial 256-aircraft show launches automatically. Use **Fleet**, **Director**, and **Arena** to explore.
-5. Enable sound in **Director → Enable sound**. Sound starts muted.
+5. Sound starts enabled at a moderate volume. **Settings** controls FX, music, motors, ambience and mute.
 
 For a larger Editor view, focus the **Game** tab and press **Shift + Space**. A standalone Windows build opens its own resizable game window; see **Build and verify** below.
 
@@ -40,12 +28,12 @@ No third-party art pack, paid asset, external server, or manually assembled pref
 | Boids | Spatial hash with at most 64 candidates and 24 neighbors per drone; separation, alignment, cohesion; obstacle avoidance and formation attraction |
 | Squads | Alpha/Bravo/Charlie/Delta formation and offset overrides; individual squad launch/recall |
 | Physics | Earth/Moon/Mars gravity and atmosphere flags, constrained Earth-style rotors or arcade lift, material/battery/cargo mass ledger, watt-hour energy consumption |
-| Battle | Separate 2–256-aircraft arena, team frame/skin/weapon loadouts, four game behavior styles, manual pilot participation, health and armor, collision damage, limited secondary pulses, waypoint controls, saved settings |
+| Battle | Separate 2–256-aircraft arena, team frame/skin/weapon loadouts, sixteen game behavior styles and mixed role rosters, manual pilot participation, health and armor, collision damage, limited secondary pulses, waypoint controls, saved settings |
 | Destruction | Motor/beacon failure, tumbling aircraft, charred wrecks, lost propellers, debris, sparks, fire, smoke and ground marks; effects follow pause and replay time |
 | Scoring | Winner/draw banner, round timer, team kills/damage, personal kills, persistent session win tally, rematches and separate score reset |
 | Cameras | Orbit, top, front, follow, FPV, shoulder, mounted, ground, free, cinematic, action, best fight, survivor |
 | Replays | 10 Hz, 180-frame rolling recording, copied aircraft/environment/events and round scoreboard, interpolated playback, scrub, pause, 1/8×–2× speed, highlights and JSON export |
-| Director | Fireworks, halftime, aurora and galaxy sequences; stadium, coast, alpine and city; day, golden, dusk and night; rain, storm, snow, fog and wind |
+| Director | Fireworks, halftime, aurora and galaxy sequences; stadium, coast, alpine, mountain town, meadow, creek and overlook; day, golden, dusk, night, Milky Way, moonlit and overcast; rain, storm, snow, fog and wind |
 | Art Studio | Bitmap lettering, selected emoji/symbols, 32×24 paint canvas, PNG/JPG RGB/outline/silhouette sampling, formation colors |
 | Program | Validated bounded command language with timed cues, groups, formations, four fields, shows, words and repeat; no arbitrary code execution |
 | Audio | Soft motor audio, muted vacuum ambience, 16-step sequencer, BPM control, WAV/OGG/MP3 music playback, volume/mute |
@@ -70,7 +58,7 @@ The 10,000 count is a **stress ceiling**, not a guaranteed frame rate. The every
 | Scatter | Wider cone that can hit up to three enemies |
 | Shockwave | Short-range pulse around the aircraft |
 
-Primary weapons use cooldowns. Each aircraft also has three secondary arcade pulses, shown as payloads in the HUD. These apply immediate nearby damage and visual effects; they are not physical dropped projectiles. Scout, Relay, Cargo and Utility have different game speed, agility, armor, energy and mass profiles. These are game balance values, not real aircraft specifications.
+Primary weapons use cooldowns, magazines/reserves, reloads, heat and battery energy. Six additional profiles and resource/ability controls are described in the 1.3 guide. Each aircraft also has three secondary arcade pulses, shown as payloads in the HUD. These apply immediate nearby damage and visual effects; they are not physical dropped projectiles. Scout, Relay, Cargo and Utility have different game speed, agility, armor, energy and mass profiles. These are game balance values, not real aircraft specifications.
 
 **Save Battle Setup** stores loadouts, rules and the match tally. **Load Battle Setup** validates the file before applying settings; use **Apply & Rematch** to deploy its aircraft. **Clear Match Score** clears wins and draws separately from the current round. Battle aircraft and environment settings are separate from the show fleet, which remains available through **Return to Show Fleet**.
 
@@ -78,9 +66,12 @@ Primary weapons use cooldowns. Each aircraft also has three secondary arcade pul
 
 | Input | Action |
 | --- | --- |
+| Click drone / F | Select and highlight / focus selected |
 | Mouse drag | Orbit/look |
 | Wheel / touch pinch | Zoom |
-| WASD / arrow keys | Ground/free camera movement |
+| WASD / arrow keys | Pan orbit/top/front, move ground/free camera |
+| Middle drag / Shift + right drag | Pan camera |
+| Home / F | Arena overview / focus selected drone |
 | Q / E | Free camera down/up |
 | Shift | Faster camera movement |
 | Space | Pause/resume live session or replay |
@@ -88,7 +79,7 @@ Primary weapons use cooldowns. Each aircraft also has three secondary arcade pul
 | C | Cycle camera |
 | F8 | Cinematic camera |
 | B | Selected arena drone's arcade payload |
-| H | Hide/show command center |
+| H | Hide/show all menus and HUD; restore button remains |
 | Escape | Exit replay |
 | / | Search controls on the current page |
 
@@ -103,9 +94,10 @@ While piloting, these bindings replace the spectator controls:
 | Mouse | Aim |
 | Left mouse button | Fire selected primary weapon |
 | Q | Use one secondary arcade pulse |
+| R / right mouse / E | Reload / guard and timed parry / dodge |
 | C | Cycle shoulder, FPV and mounted views |
 | Escape | Release cursor for menus |
-| H | Hide/show command center |
+| H | Hide/show all menus and HUD; restore button remains |
 
 Pilot movement is level flight with separate altitude controls. Releasing the cursor stops manual movement/fire input while keeping the aircraft joined; **Leave Drone to AI** returns it to autonomous flight. Opening a command page, pausing, typing or losing application focus releases the cursor. Keyboard shortcuts suspend while editing text. Camera dragging is blocked over command panels. The UI is intended for desktop; touchscreen pinch and painting are included, but mobile builds and touch piloting have not been validated.
 
@@ -134,7 +126,7 @@ Unity.exe -batchmode -nographics -projectPath <unity-folder> -runTests -testPlat
 Unity.exe -batchmode -projectPath <unity-folder> -executeMethod FleetCommander.Editor.FleetBuild.BuildWindows -quit -logFile <build.log>
 ```
 
-The regression suite covers formations, scoped resets, reproducibility, bounded neighbor work, return/landing, energy, constrained planetary descent, weapons and armor, manual flight input, kill credit, winner/draw logic, rematches, replay isolation/capacity/scoreboard, saves, browser migration, grouped cues, and artwork. The player smoke harness checks the assembled scene, eight model/LOD assets, UI pages, cameras, battle/destruction, pilot API transitions, replay, score/reset isolation, screenshots and 2,000-aircraft timings. Mouse capture and input feel still need an interactive check on the PC.
+The regression suite covers formations, scoped resets, reproducibility, bounded neighbor work, return/landing, energy, constrained planetary descent, weapons and armor, manual flight input, kill credit, winner/draw logic, rematches, replay isolation/capacity/scoreboard, saves, browser migration, grouped cues, and artwork. The player smoke harness checks the assembled scene, twelve model/LOD assets, UI pages, cameras, battle/destruction, pilot API transitions, replay, score/reset isolation, screenshots and 2,000-aircraft timings. Mouse capture and input feel still need an interactive check on the PC.
 
 **Verification status:** see `VALIDATION.md`. Do not equate a successful C# compilation or portable logic check with a completed Unity player/GPU test.
 
@@ -150,14 +142,14 @@ Native fleet saves, journal, battle setup, exported replay and screenshots live 
 
 This port replaces the browser renderer and DOM interface with native Unity equivalents. It does not embed the browser app. The following remain browser references or later fidelity work:
 
-- The four detailed aircraft are now ported from the browser's existing GLB pack, with original UVs/material surfaces and PBR maps. The scene and lighting remain native Unity implementations, with procedural scenery rather than a complete port of browser graphics controls.
+- The four detailed aircraft are now ported from the browser's existing GLB pack, with original UVs/material surfaces and PBR maps. The scene and lighting remain native Unity implementations, with native scenery and 73 imported GRIDRUNNER props/buildings rather than a complete port of browser graphics controls.
 - The browser's Rapier rigid-body combat and physical contact-detonated payloads. Unity uses bounded arcade movement, overlap collision handling and instant game attacks, with animated tumble/debris visuals rather than a full rigid-body fracture system.
 - Full coach-board route drawing and the browser's entire script dialect. Unity has squad offsets, team waypoints and a documented native cue language.
-- The browser's repeated-round scheduling, scenario ratings/recommendations, color-hunt and pass-and-play challenges. Unity currently offers scored manual rematches, a formation challenge and a simple journal.
+- The complete browser scenario-rating/recommendation suite and color-hunt challenges. Native sports/toy batches, saved playbook learning, chess and formation challenges are now available; see the release guide.
 - Arbitrary operating-system emoji/font rasterization. Native symbols currently include heart, star, smile and robot; ASCII letters/digits use a deterministic bitmap font.
 - Encoded video export, replay-file import and a full multitrack music workstation. Unity provides screenshots, replay-data export, external music and a step sequencer.
-- Fluid simulation and the full browser lab widget collection. Native Nerd Lab exposes the implemented flight/energy math and basic logic tools.
-- Research-grade aerodynamic fidelity, real-world weapon models, and machine-learning training. Battle adaptation is bounded game behavior, not a learned flight controller.
+- Fluid simulation and the full browser lab widget collection. Native Nerd Lab now includes live influence equations, vector fields, oscillator/Lorenz displays and Python exports; Logic Lab supports editable combinational circuits.
+- Research-grade aerodynamic fidelity, real-world weapon models, general neural-policy training, and actual YOLO inference. Native adaptation learns bounded game parameters and playbook values from resolved outcomes.
 
 ## Code map
 

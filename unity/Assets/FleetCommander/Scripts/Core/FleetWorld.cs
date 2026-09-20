@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 namespace FleetCommander.Core
 {
-    public enum BattleStyle { Balanced, Pursuit, Evasive, Guardian }
+    public enum BattleStyle { Balanced, Pursuit, Evasive, Guardian, FlankLeft, FlankRight, HighCover, Orbit, Weave, Strafe, HitAndRun, Screen, Intercept, Ambush, Regroup, Adaptive }
     [Serializable] public sealed class BattleSettings
     {
         public BattleStyle blue, red = BattleStyle.Evasive;
@@ -12,16 +12,20 @@ namespace FleetCommander.Core
         public FrameKind blueFrame = FrameKind.Scout, redFrame = FrameKind.Utility;
         public SkinKind blueSkin = SkinKind.Cobalt, redSkin = SkinKind.Crimson;
         public WeaponKind blueWeapon = WeaponKind.Pulse, redWeapon = WeaponKind.RapidFire;
+        public AdaptiveLabSettings lab = new AdaptiveLabSettings();
+        public ArenaTeamPlan bluePlan=new ArenaTeamPlan(),redPlan=new ArenaTeamPlan();
         public int blueWins, redWins, draws;
+        public int roundCount=3;public bool autoAdvance=true,finiteAmmo=true,abilities=true;public float resourceScale=1;
         public Vector3 blueWaypoint = new Vector3(-20, 25, 0), redWaypoint = new Vector3(20, 25, 0);
-        public BattleSettings Clone() => (BattleSettings)MemberwiseClone();
+        public BattleSettings Clone() => JsonUtility.FromJson<BattleSettings>(JsonUtility.ToJson(this));
         public void ResetDefaults()
         {
             blue=BattleStyle.Balanced; red=BattleStyle.Evasive; engage=adaptive=true;
-            gameDamage=9; fireInterval=.8f; roundSeconds=180;
+            gameDamage=9; fireInterval=.8f; roundSeconds=180;roundCount=3;autoAdvance=finiteAmmo=abilities=true;resourceScale=1;
             blueFrame=FrameKind.Scout; redFrame=FrameKind.Utility;
             blueSkin=SkinKind.Cobalt; redSkin=SkinKind.Crimson;
             blueWeapon=WeaponKind.Pulse; redWeapon=WeaponKind.RapidFire;
+            lab??=new AdaptiveLabSettings();lab.ResetDefaults();bluePlan=new ArenaTeamPlan();redPlan=new ArenaTeamPlan();
             blueWaypoint=new Vector3(-20,25,0); redWaypoint=new Vector3(20,25,0);
         }
         public void ResetScores() { blueWins=redWins=draws=0; }
@@ -34,6 +38,8 @@ namespace FleetCommander.Core
                 !FleetConfig.Finite(blueWaypoint)||!FleetConfig.Finite(redWaypoint)||blueWaypoint.magnitude>800||redWaypoint.magnitude>800||
                 !FleetConfig.Finite(new Vector3(gameDamage,fireInterval,roundSeconds))||gameDamage<0||fireInterval<=0||roundSeconds<0||
                 blueWins<0||redWins<0||draws<0) throw new ArgumentException("Invalid arena settings.");
+            roundCount=Mathf.Clamp(roundCount==0?3:roundCount,1,99);resourceScale=Mathf.Clamp(resourceScale,.25f,4);
+            lab??=new AdaptiveLabSettings();lab.Validate();bluePlan??=new ArenaTeamPlan();redPlan??=new ArenaTeamPlan();bluePlan.Validate();redPlan.Validate();
             gameDamage=Mathf.Clamp(gameDamage,0,100); fireInterval=Mathf.Clamp(fireInterval,.08f,5);
             // A zero limit is the missing-field value in saves made before timed rounds existed.
             roundSeconds=roundSeconds==0?180:Mathf.Clamp(roundSeconds,5,1800);
@@ -53,7 +59,7 @@ namespace FleetCommander.Core
         public float elapsed, blueDamage, redDamage;
         public int winner=-1, blueKills, redKills;
     }
-    public sealed class FleetWorld
+    public sealed partial class FleetWorld
     {
         public const int MaxDrones = 10000, MaxBattleDrones = 256;
         public static readonly Bounds[] Obstacles = {
@@ -61,9 +67,13 @@ namespace FleetCommander.Core
             new Bounds(new Vector3(78,15,-58),new Vector3(20,30,28)),
             new Bounds(new Vector3(62,6.5f,66),new Vector3(26,13,20)) };
         public FleetConfig Config;
+        public Vector3[] ExternalTargets;
+        public int[] TargetIds {get;private set;}=Array.Empty<int>();
+        public Vector3[] AimPoints {get;private set;}=Array.Empty<Vector3>();
         public DroneState[] States { get; private set; } = Array.Empty<DroneState>();
         public readonly SpatialHash Neighbors = new SpatialHash();
         public readonly List<BattleEvent> Events = new List<BattleEvent>(256);
+        public readonly AdaptiveDuelLab AdaptiveLab = new AdaptiveDuelLab();
         public readonly BattleSettings Battle;
         public float Time { get; private set; }
         public bool IsBattle => Battle != null;
@@ -80,16 +90,23 @@ namespace FleetCommander.Core
         public int ControlledDrone { get; private set; } = -1;
         Vector3 pilotMove, pilotAim=Vector3.forward;
         bool pilotFire;
+        public Vector3 PilotAim=>pilotAim;
         DroneState[] next = Array.Empty<DroneState>();
         float[] damage = Array.Empty<float>(), strongestHit = Array.Empty<float>();
         int[] damageSources=Array.Empty<int>();
         WeaponKind[] damageWeapons=Array.Empty<WeaponKind>();
         int[] groupIndices=Array.Empty<int>();readonly int[] groupCounts=new int[4];
-        public FleetWorld(FleetConfig config, int count, BattleSettings battle = null) { Config = config; Battle = battle; Battle?.Validate(); Resize(count); }
+        float lastStep=1f/60f;
+        public FleetWorld(FleetConfig config, int count, BattleSettings battle = null)
+        {
+            Config = config; Battle = battle; Battle?.Validate(); Resize(count);
+            if(IsBattle){AdaptiveLab.Reset(Battle.lab,Battle.lab.seed);AdaptiveLab.Environment=Config;for(int i=0;i<Count;i++){var role=(i%2==0?Battle.bluePlan:Battle.redPlan).Role(i/2,Count/2);if(role!=null)AdaptiveLab.SetAgentLoadout(i,role.sensors,role.effector);}}
+        }
 
         public void Resize(int count)
         {
             count = Mathf.Clamp(count, 0, IsBattle ? MaxBattleDrones : MaxDrones);
+            TargetIds=new int[count];AimPoints=new Vector3[count];for(int i=0;i<count;i++)TargetIds[i]=-1;
             States = new DroneState[count]; next = new DroneState[count]; damage = new float[count]; strongestHit=new float[count];
             damageSources=new int[count]; damageWeapons=new WeaponKind[count]; groupIndices=new int[count];
             Time = RoundTime = BlueDamage = RedDamage = 0; BlueKills=RedKills=0; Winner = -1; RoundStarted=false; ClearControl(); Events.Clear();
@@ -97,6 +114,7 @@ namespace FleetCommander.Core
             {
                 Vector3 home = FormationMath.Grid(i, count, 2.5f) + new Vector3(0, .65f, 130);
                 if (IsBattle) home = new Vector3(i % 2 == 0 ? -65 : 65, .65f, (i / 2 - count / 4f) * 2.5f);
+                home.y+=SceneryTerrain.Height(Config,home.x,home.z);
                 foreach (var box in Obstacles) if (Mathf.Abs(home.x-box.center.x) < box.extents.x+2 && Mathf.Abs(home.z-box.center.z) < box.extents.z+2) home.y = box.max.y + .7f;
                 States[i] = DroneState.Create(i, IsBattle ? i % 2 : i % 4, home);
                 if(IsBattle)
@@ -105,9 +123,10 @@ namespace FleetCommander.Core
                     States[i].frame=blue?Battle.blueFrame:Battle.redFrame;
                     States[i].skin=blue?Battle.blueSkin:Battle.redSkin;
                     States[i].weapon=blue?Battle.blueWeapon:Battle.redWeapon;
+                    var role=(blue?Battle.bluePlan:Battle.redPlan).Role(i/2,count/2);if(role!=null){States[i].frame=role.frame;States[i].skin=role.skin;States[i].weapon=role.weapon;}
                 }
             }
-            IndexGroups();
+            InitializeCombat();IndexGroups();
         }
         void IndexGroups(){Array.Clear(groupCounts,0,4);for(int i=0;i<Count;i++)groupIndices[i]=groupCounts[States[i].fleetId]++;}
         public void Launch(int group = -1)
@@ -134,14 +153,15 @@ namespace FleetCommander.Core
         public void Step(float dt)
         {
             if (dt <= 0 || float.IsNaN(dt) || float.IsInfinity(dt)) return;
-            dt = Mathf.Min(dt, .05f); Time += dt; Events.Clear(); Array.Clear(damage,0,damage.Length); Array.Clear(strongestHit,0,strongestHit.Length);
+            dt = Mathf.Min(dt, .05f); lastStep=dt; Time += dt; Events.Clear(); Array.Clear(damage,0,damage.Length); Array.Clear(strongestHit,0,strongestHit.Length);
             if(IsBattle && RoundStarted && !RoundEnded && Battle.engage) RoundTime+=dt;
             if(ControlledDrone>=0 && (RoundEnded || States[ControlledDrone].phase!=FlightPhase.Flying || States[ControlledDrone].disabled)) ClearControl();
+            if(IsBattle)UpdateTactics(dt);
             if (Config.boids) Neighbors.Build(States, Config.neighborRadius);
             for (int i = 0; i < Count; i++)
             {
                 var s = States[i]; var profile=DroneCatalog.Profile(s.frame);
-                s.cooldown = Mathf.Max(0, s.cooldown-dt); s.massKg = PlanetModel.Mass(Config)*profile.mass;
+                UpdateResources(ref s,dt);s.cooldown = Mathf.Max(0, s.cooldown-dt); s.massKg = PlanetModel.Mass(Config)*profile.mass;
                 if(s.disabled) s.destructionAge+=dt;
                 if (s.phase == FlightPhase.Grounded)
                 {
@@ -156,7 +176,7 @@ namespace FleetCommander.Core
                     s.velocity += Vector3.down * PlanetModel.Gravity(Config.planet) * dt;
                     s.position += s.velocity * dt;
                     if(s.disabled) s.rotation=s.rotation*Quaternion.Euler((110+s.id%7*13)*dt,(47+s.id%5*17)*dt,157*dt);
-                    float floor=.65f;
+                    float floor=.65f+SceneryTerrain.Height(Config,s.position.x,s.position.z);
                     if(Config.obstacles) foreach(var box in Obstacles)
                         if(Mathf.Abs(s.position.x-box.center.x)<=box.extents.x && Mathf.Abs(s.position.z-box.center.z)<=box.extents.z && States[i].position.y>=box.max.y) floor=Mathf.Max(floor,box.max.y+.65f);
                     if (s.position.y <= floor)
@@ -175,6 +195,7 @@ namespace FleetCommander.Core
                     s.target = Vector2.Distance(new Vector2(s.position.x,s.position.z),new Vector2(s.home.x,s.home.z)) < 1.2f ? s.home : aboveHome;
                 }
                 else if(i==ControlledDrone) s.target=s.position+pilotMove*20;
+                else if(ExternalTargets!=null && i<ExternalTargets.Length) s.target=ExternalTargets[i];
                 else s.target = IsBattle ? BattleTarget(i, ref s) : FormationMath.Target(Config,i,Count,Time,s.fleetId,groupIndices[i],groupCounts[s.fleetId]);
                 bool controlled=i==ControlledDrone && s.phase==FlightPhase.Flying;
                 if(i==ControlledDrone && !controlled) ClearControl();
@@ -190,10 +211,11 @@ namespace FleetCommander.Core
                         if(d.sqrMagnitude < 36) force += d.sqrMagnitude < .01f ? Vector3.up * 35 : d.normalized * (6-d.magnitude)*8;
                     }
                 if (Config.planet == PlanetKind.Earth && s.phase == FlightPhase.Flying) force += new Vector3(Mathf.Sin(Time*.4f+s.position.z*.01f),0,Mathf.Cos(Time*.31f))*Config.wind;
+                if(s.stunTime>0)force*=.2f;
                 s.acceleration = Vector3.ClampMagnitude(force,Config.acceleration*profile.agility);
                 s.velocity = Vector3.ClampMagnitude(s.velocity+s.acceleration*dt,maxSpeed);
                 s.position += s.velocity*dt;
-                s.position.x = Mathf.Clamp(s.position.x,-1000,1000); s.position.z = Mathf.Clamp(s.position.z,-1000,1000); s.position.y = Mathf.Clamp(s.position.y,.65f,320);
+                s.position.x = Mathf.Clamp(s.position.x,-1000,1000); s.position.z = Mathf.Clamp(s.position.z,-1000,1000); s.position.y = Mathf.Clamp(s.position.y,.65f+SceneryTerrain.Height(Config,s.position.x,s.position.z),Mathf.Max(320,SceneryTerrain.Height(Config,s.position.x,s.position.z)+10));
                 if (Config.obstacles) foreach (var box in Obstacles) if (box.Contains(s.position)) { s.position.y = box.max.y+.7f; s.velocity.y = Mathf.Max(0,s.velocity.y); }
                 if (s.phase == FlightPhase.Returning && Vector3.Distance(s.position,s.home) < .25f && s.velocity.magnitude < 1) { s.position=s.home; s.velocity=Vector3.zero; s.phase=FlightPhase.Grounded; }
                 var flat = new Vector3(s.velocity.x,0,s.velocity.z);
@@ -227,24 +249,55 @@ namespace FleetCommander.Core
         {
             if(RoundEnded) return;
             Winner=winner; ClearControl();
+            if(Battle.adaptive&&Battle.lab!=null&&Battle.lab.enabled)AdaptiveLab.LearnRound();
             if(winner==0) Battle.blueWins++; else if(winner==1) Battle.redWins++; else Battle.draws++;
         }
         Vector3 BattleTarget(int i, ref DroneState s)
         {
-            BattleStyle style=s.fleetId==0 ? Battle.blue : Battle.red;
+            TargetIds[i]=-1;
+            var plan=s.fleetId==0?Battle.bluePlan:Battle.redPlan;var role=deployedRoles[i];
+            BattleStyle style=role!=null?role.behavior:s.fleetId==0 ? Battle.blue : Battle.red;
             int enemy=-1; float nearest=float.MaxValue;
             for(int j=0;j<Count;j++) if(States[j].fleetId!=s.fleetId && States[j].phase==FlightPhase.Flying && !States[j].disabled)
             {float d=(States[j].position-s.position).sqrMagnitude;if(d<nearest){nearest=d;enemy=j;}}
             Vector3 waypoint=s.fleetId==0 ? Battle.blueWaypoint : Battle.redWaypoint;
-            if(!Battle.engage || RoundEnded || enemy<0) return waypoint+FormationMath.Ring(i/2,Mathf.Max(1,Count/2),12);
+            float side=s.fleetId==0?1:-1;Vector3 slot=plan.Slot(i/2,Mathf.Max(1,Count/2),CurrentFormations[s.fleetId])+(role?.offset??Vector3.zero);slot.x*=side;
+            if(ManualTargets[i]>=0&&ManualTargets[i]<Count&&!States[ManualTargets[i]].disabled&&States[ManualTargets[i]].fleetId!=s.fleetId){enemy=ManualTargets[i];nearest=(States[enemy].position-s.position).sqrMagnitude;}
+            if(!Battle.engage || RoundEnded || enemy<0){s.aiState="PATROL";return waypoint+slot;}
             var other=States[enemy];
+            Vector3 perceived=other.position;
+            bool labActive=Battle.adaptive && Battle.lab!=null && Battle.lab.enabled;
+            SensorObservation observation=default;
+            if(labActive)
+            {
+                observation=AdaptiveLab.Observe(s,other,Time,lastStep);
+                if(AdaptiveLab.TryGetTrack(i,enemy,out var estimate))perceived=AdaptiveLab.AimPoint(s,other,Time);else{AdaptiveLab.Log(i,enemy,s.fleetId,waypoint,slot,false,false,true,0);s.aiState="SEARCH";return waypoint+slot;}
+            }
+            TargetIds[i]=enemy;AimPoints[i]=perceived;
             if(Battle.adaptive && s.health<40) style=BattleStyle.Evasive;
-            Vector3 away=(s.position-other.position).normalized;
-            Vector3 target=other.position + away*(style==BattleStyle.Pursuit ? 3 : 13);
+            Vector3 away=(s.position-perceived).sqrMagnitude>.001f?(s.position-perceived).normalized:Vector3.back;
+            Vector3 target=perceived + away*(style==BattleStyle.Pursuit ? 3 : 13);
             if(style==BattleStyle.Evasive) target+=new Vector3(Mathf.Sin(Time*1.7f+i),Mathf.Sin(Time+i)*.4f,Mathf.Cos(Time*1.7f+i))*12;
             if(style==BattleStyle.Guardian) target=Vector3.Lerp(target,waypoint,.65f);
-            if(s.cooldown<=0 && nearest<=DroneCatalog.Weapon(s.weapon).range*DroneCatalog.Weapon(s.weapon).range)
-                FireWeapon(i,ref s,other.position-s.position,false);
+            if(style==BattleStyle.FlankLeft||style==BattleStyle.FlankRight)target+=new Vector3(-side*8,4,style==BattleStyle.FlankLeft?-20:20);
+            if(style==BattleStyle.HighCover)target+=new Vector3(-side*12,18,0);
+            if(style==BattleStyle.Orbit)target+=new Vector3(Mathf.Cos(Time*.4f+i)*20,6,Mathf.Sin(Time*.4f+i)*20);
+            target=BehaviorTarget(i,ref s,style,target,perceived,waypoint,away);
+            Vector3 teamCenter=Vector3.zero;int alive=0;foreach(var mate in States)if(mate.fleetId==s.fleetId&&!mate.disabled){teamCenter+=mate.position;alive++;}
+            if(alive>0){teamCenter/=alive;Vector3 anchor=Vector3.Lerp(teamCenter,target,.35f);target=Vector3.Lerp(target,anchor+slot,plan.cohesion*(plan.automatic&&nearest<1600?.22f:1));}
+            // Opening deployment holds the chosen formation long enough to orient the player.
+            if(RoundTime<2.5f)target=Vector3.Lerp(new Vector3(-side*50,25,0)+slot,target,Mathf.SmoothStep(0,1,RoundTime/2.5f));
+            bool fired=false,hit=false;
+            Vector3 aim=perceived-s.position;
+            if(s.cooldown<=0 && nearest<=DroneCatalog.Weapon(s.weapon).range*DroneCatalog.Weapon(s.weapon).range &&
+               (!labActive || observation.detected && AdaptiveLab.ShouldEngage(s,other)))
+            {
+                int eventStart=Events.Count;
+                fired=FireWeapon(i,ref s,aim,false);
+                for(int e=eventStart;e<Events.Count;e++)if(Events[e].source==i&&Events[e].victim==enemy&&Events[e].impact){hit=true;break;}
+            }
+            if(labActive){var policy=AdaptiveLab.Policy(s.fleetId);target+=new Vector3(0,0,Mathf.Sin(Time+i)*policy.dodge*3);target=Vector3.Lerp(s.position,target,.8f+policy.aggression*.2f);}
+            if(labActive)AdaptiveLab.Log(i,enemy,s.fleetId,perceived,target-s.position,fired,hit,!observation.detected,hit?1f:fired?-.08f:0);
             target.y=Mathf.Clamp(target.y,8,90); return target;
         }
         void ResolveDroneCollisions()
@@ -282,14 +335,17 @@ namespace FleetCommander.Core
         {
             if(ControlledDrone<0 || ControlledDrone>=Count) return false;
             int index=ControlledDrone;var s=States[index];
-            bool fired=FireWeapon(index,ref s,pilotAim,true); s.kills=States[index].kills; States[index]=s; return fired;
+            bool fired=FireWeapon(index,ref s,pilotAim,true); s.kills=States[index].kills;s.stunTime=Mathf.Max(s.stunTime,States[index].stunTime);States[index]=s; return fired;
         }
         bool FireWeapon(int index, ref DroneState s, Vector3 aim, bool immediate)
         {
-            if(!IsBattle || !Battle.engage || RoundEnded || s.disabled || s.phase!=FlightPhase.Flying || s.cooldown>0) return false;
+            if(!IsBattle || !Battle.engage || RoundEnded || s.disabled || s.phase!=FlightPhase.Flying || s.cooldown>0 || s.stunTime>0 || s.reloadTime>0 || s.heat>=.96f || s.guarding) return false;
             var weapon=DroneCatalog.Weapon(s.weapon); aim=aim.normalized;
             if(aim.sqrMagnitude<.1f) aim=Vector3.forward;
-            s.cooldown=Battle.fireInterval*weapon.interval;
+            EnsureResources(ref s);
+            if(Battle.finiteAmmo&&s.ammo<=0){BeginReload(ref s);return false;}if(!Config.unlimited&&s.battery01<weapon.energy)return false;
+            if(Battle.finiteAmmo)s.ammo--;if(!Config.unlimited)s.battery01=Mathf.Max(0,s.battery01-weapon.energy);
+            s.heat=Mathf.Min(1,s.heat+weapon.heat);s.shotsFired++;s.cooldown=Battle.fireInterval*weapon.interval;
             int hits=0; float nearest=float.MaxValue; int closest=-1;
             for(int j=0;j<Count;j++)
             {
@@ -298,16 +354,19 @@ namespace FleetCommander.Core
                 if(distance>weapon.range)continue;
                 float dot=distance<.001f?1:(offset.x*aim.x+offset.y*aim.y+offset.z*aim.z)/distance;
                 if(s.weapon!=WeaponKind.Shockwave && dot<weapon.cone)continue;
+                if(s.weapon!=WeaponKind.Shockwave&&weapon.targets==1&&!TraceSphere(s.position,aim,target.position,.95f,weapon.range))continue;
+                if(Config.obstacles&&Blocked(s.position,target.position))continue;
                 if(weapon.targets==1) {if(distance<nearest){nearest=distance;closest=j;}continue;}
                 Hit(index,j,s.position,s.weapon,immediate);hits++; if(hits>=weapon.targets)break;
             }
             if(closest>=0) {Hit(index,closest,s.position,s.weapon,immediate);hits++;}
+            if(hits>0){s.hitsLanded+=hits;s.combo=s.comboWindow>0?Mathf.Min(8,s.combo+1):1;s.comboWindow=2.2f;}else{s.combo=0;s.comboWindow=0;}
             if(hits==0) Events.Add(new BattleEvent{from=s.position,to=s.position+aim*weapon.range,team=s.fleetId,source=index,victim=-1,weapon=s.weapon});
             return true;
         }
         void Hit(int source,int victim,Vector3 from,WeaponKind weapon,bool immediate)
         {
-            float amount=Battle.gameDamage*DroneCatalog.Weapon(weapon).damage;
+            float amount=Battle.gameDamage*DroneCatalog.Weapon(weapon).damage*(1+Mathf.Min(3,States[source].combo)*.08f);
             Events.Add(new BattleEvent{from=from,to=States[victim].position,team=States[source].fleetId,source=source,victim=victim,weapon=weapon,impact=true,damage=amount});
             if(immediate) ApplyDamage(victim,amount,source,weapon); else QueueDamage(victim,amount,source,weapon);
         }
@@ -320,7 +379,9 @@ namespace FleetCommander.Core
         {
             if(index<0 || index>=Count || States[index].disabled || (IsBattle && RoundEnded) || float.IsNaN(amount) || float.IsInfinity(amount) || amount<=0) return;
             bool credited=source>=0 && source<Count && States[source].fleetId!=States[index].fleetId;
+            amount=DefendDamage(index,source,amount);
             float actual=Mathf.Min(States[index].health,amount/DroneCatalog.Profile(States[index].frame).armor);
+            if(credited&&actual>0){var direction=(States[index].position-States[source].position).normalized;States[index].hitDirection=direction;States[index].hitAge=0;States[index].velocity+=direction*Mathf.Min(3,actual*.1f);States[index].stunTime=Mathf.Max(States[index].stunTime,.045f);if(weapon==WeaponKind.IonDisruptor)States[index].stunTime=.45f;if(weapon==WeaponKind.Repulsor)States[index].velocity+=direction*9;if(weapon==WeaponKind.DrainRay)States[index].battery01=Mathf.Max(0,States[index].battery01-.006f);}
             States[index].health=Mathf.Max(0,States[index].health-actual);
             if(IsBattle && credited){if(States[source].fleetId==0)BlueDamage+=actual;else if(States[source].fleetId==1)RedDamage+=actual;}
             if(States[index].health==0)
@@ -360,7 +421,7 @@ namespace FleetCommander.Core
                 float.IsNaN(s.battery01)||s.battery01<0||s.battery01>1||float.IsNaN(s.health)||s.health<0||s.health>100||s.position.magnitude>2000||s.home.magnitude>2000||s.target.magnitude>2000||
                 float.IsNaN(s.cooldown)||float.IsInfinity(s.cooldown)||s.cooldown<0||s.cooldown>20||s.payloads<0||s.payloads>3||s.id<0||s.palette<0||s.palette>8||s.kills<0||s.kills>MaxBattleDrones||float.IsNaN(s.destructionAge)||float.IsInfinity(s.destructionAge)||s.destructionAge<0)
                 throw new ArgumentException("Invalid drone state.");
-            Resize(states.Length); Array.Copy(states,States,states.Length);IndexGroups(); Time=time; RoundStarted=IsBattle && Alive(0)+Alive(1)>0;
+            Resize(states.Length); Array.Copy(states,States,states.Length);for(int i=0;i<Count;i++)EnsureResources(ref States[i]);IndexGroups(); Time=time; RoundStarted=IsBattle && Alive(0)+Alive(1)>0;
         }
     }
 }

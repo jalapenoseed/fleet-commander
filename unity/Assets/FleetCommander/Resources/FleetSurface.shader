@@ -50,7 +50,9 @@ Shader "FleetCommander/AircraftSurface" {
   void surf(Input IN,inout SurfaceOutputStandard o) {
    float4 c=UNITY_ACCESS_INSTANCED_PROP(Props,_Color);
    float weave=sin((IN.localPos.x+IN.localPos.z)*170)*sin((IN.localPos.x-IN.localPos.z)*170);
-   float scorch=saturate((1-c.a)*1.3);
+   float wear=1-saturate(c.a);
+   float patch=sin(IN.localPos.x*17+IN.localPos.y*31)*sin(IN.localPos.z*21-IN.localPos.x*9)*.5+.5;
+   float scorch=saturate((wear-patch*.6)*2.2);
    float3 albedo=tex2D(_MainTex,IN.uv_MainTex).rgb;
    o.Albedo=lerp(c.rgb*albedo*(1+weave*.08*_Weave),float3(.026,.023,.021),scorch*.94);
    o.Normal=UnpackScaleNormal(tex2D(_BumpMap,IN.uv_MainTex),.5);

@@ -1,0 +1,20 @@
+fileFormatVersion: 2
+guid: 6bff64b2b3554b6b8f181c439f94e7b6
+TextureImporter:
+  serializedVersion: 13
+  mipmaps:
+    enableMipMap: 1
+    sRGBTexture: 1
+  isReadable: 0
+  maxTextureSize: 1024
+  textureSettings:
+    filterMode: 1
+    aniso: 4
+    wrapU: 0
+    wrapV: 0
+    wrapW: 0
+  npotScale: 0
+  alphaIsTransparency: 0
+  alphaSource: 0
+  textureType: 0
+  textureShape: 1

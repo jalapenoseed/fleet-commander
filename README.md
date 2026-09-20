@@ -1,6 +1,6 @@
 # Fleet Commander
 
-**Unity edition:** this branch includes a native Unity 6.2 project in [`unity/`](unity/README.md). Open that folder in Unity Hub and use its `FleetCommander.unity` scene. See [verification status](unity/VALIDATION.md) for the verified Windows build, native tests, and recovery update.
+**Unity edition:** this branch includes a native Unity project for **6000.6.2f1** in [`unity/`](unity/README.md). Open that folder in Unity Hub and use its `FleetCommander.unity` scene. See [verification status](unity/VALIDATION.md) for the verified Windows build, native tests, and recovery update. The [1.3 feature guide](unity/RELEASE-1.3.md) maps the combined workshop, combat, sports, chess, scenery and selection controls.
 
 A standalone drone swarm game and flight lab, branched from GRIDRUNNER v7.40 at `a9a64002ff4536eee819654cd5e45d4964765255`.
 

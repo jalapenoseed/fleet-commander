@@ -7,7 +7,7 @@ namespace FleetCommander.Core
     public enum InfluenceKind { None, Vortex, Attract, Repel, Wave, Lissajous, Spiral, Braid, Twin, Square, Riemann }
     public enum MotionPattern { None, Orbit, Wave, Pulse, Dance }
     public enum PlanetKind { Earth, Moon, Mars }
-    public enum SceneryKind { Stadium, Coast, Alpine, City, Meadow, River, Overlook }
+    public enum SceneryKind { Stadium, Coast, Alpine, City, Meadow, Creek, Overlook, RuralTown, Metro, Harbor, Desert, ForestLake }
     public enum SkyKind { Day, Golden, Dusk, Night, MilkyWay, Moonlit, Overcast }
     public enum WeatherKind { Clear, Rain, Storm, Snow }
     public enum FrameKind { Scout, Relay, Cargo, Utility }
@@ -41,7 +41,7 @@ namespace FleetCommander.Core
         public PlanetKind planet;
         public bool arcadeLift = true;
         public SceneryKind scenery = SceneryKind.Stadium;
-        public SkyKind sky = SkyKind.Dusk;
+        public SkyKind sky = SkyKind.Day;
         public WeatherKind weather;
         public float wind = 1, beaconSize = 1, bpm = 120;
         public InfluenceLayer[] layers = { new InfluenceLayer(), new InfluenceLayer(), new InfluenceLayer(), new InfluenceLayer() };

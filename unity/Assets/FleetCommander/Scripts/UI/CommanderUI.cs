@@ -5,6 +5,7 @@ using FleetCommander.Core;
 using FleetCommander.Cameras;
 using FleetCommander.Systems;
 using FleetCommander.Rendering;
+using FleetCommander.Games;
 using UnityEngine;
 using UnityEngine.UIElements;
 namespace FleetCommander.UI
@@ -23,20 +24,23 @@ namespace FleetCommander.UI
         public VisualElement Root => Document.rootVisualElement;
         VisualElement header,nav,sidebar,bottom,reticle;ScrollView content;Label stats,status,telemetry,roundBanner,arenaScore,pilotInfo;VisualElement combatHud;TextField search;
         PanelSettings panel;float clock,challengeClock,challengeDwell;int challengeStage,challengeScore;bool challenge;
+        VisualElement restoreMenus,controlParent;
+        VisualElement Controls=>controlParent??content;
+        public bool MenusHidden=>hidden;
         bool hidden;int rosterSize=256,perTeam=16;string saveName="My fleet",savePath="",imagePath="",musicPath="",imageMode="RGB";float threshold=.18f;
         string showFrame="Mixed fleet";SkinKind showSkin=SkinKind.Graphite;
         string artText="HELLO",journalDraft="";int logicValue=1337;bool logicA,logicB;Color artInk=Color.cyan;
         readonly Color[] artPixels=new Color[32*24];
-        const string Pages="Fleet,Squads,Fields,Arena,Sports,Chess,Director,Art Studio,Program,Physics,Nerd Lab,Replays,Journal,Saves,Help";
+        const string Pages="Fleet,Squads,Fields,Arena,Sports,Drone Range,Chess,Director,Cameras,Art Studio,Night Brite,Program,Physics,Nerd Lab,Logic Lab,Systems,Settings,Replays,Journal,Saves,Help";
         public bool PointerBlocked
         {
             get
             {
                 if(!Document||Root.panel==null)return false;
-                if(Page=="Chess")return true;
-                if(hidden){var pointer=RuntimePanelUtils.ScreenToPanel(Root.panel,new Vector2(Input.mousePosition.x,Screen.height-Input.mousePosition.y));return restoreMenu!=null&&restoreMenu.worldBound.Contains(pointer);}
                 var p=RuntimePanelUtils.ScreenToPanel(Root.panel,new Vector2(Input.mousePosition.x,Screen.height-Input.mousePosition.y));
-                return header.worldBound.Contains(p)||nav.worldBound.Contains(p)||sidebar.worldBound.Contains(p)||bottom.worldBound.Contains(p);
+                if(ResultOpen&&resultPanel.worldBound.Contains(p))return true;
+                if(hidden)return restoreMenus!=null&&restoreMenus.worldBound.Contains(p);
+                return ResultOpen&&resultPanel.worldBound.Contains(p)||workspace!=null&&workspace.worldBound.Contains(p)||header.worldBound.Contains(p)||nav.worldBound.Contains(p)||sidebar.worldBound.Contains(p)||bottom.worldBound.Contains(p);
             }
         }
         public bool Typing
@@ -54,28 +58,30 @@ namespace FleetCommander.UI
             Document=gameObject.AddComponent<UIDocument>();Document.panelSettings=panel;
             Root.styleSheets.Add(Resources.Load<StyleSheet>("Commander"));Root.pickingMode=PickingMode.Ignore;
             Root.style.unityFontDefinition=FontDefinition.FromFont(Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"));
-            header=Element(Root,"header");var brand=Element(header,"brand");Label(brand,"FLEET COMMANDER","brand-title");Label(brand,"SWARM DIRECTOR  /  UNITY EDITION","eyebrow");
-            stats=Label(header,"","stats");Button(header,"LAUNCH",()=>Simulator.LaunchAll(),"primary");Button(header,"PAUSE",TogglePause);Button(header,"LAND",()=>Simulator.LandAll());Button(header,"HIDE  [H]",()=>ToggleUI());
+            header=Element(Root,"header");var brand=Element(header,"brand");Label(brand,"FLEET COMMANDER","brand-title");Label(brand,"UNITY 1.3  /  SWARM EXPERIMENT WORKSHOP","eyebrow");
+            stats=Label(header,"","stats");Button(header,"LAUNCH",()=>Simulator.LaunchAll(),"primary");Button(header,"PAUSE",TogglePause);Button(header,"LAND",()=>Simulator.LandAll());Button(header,"HIDE MENUS [H]",()=>ToggleUI());
             nav=Element(Root,"nav");foreach(string p in Pages.Split(',')){string page=p;var button=Button(nav,page,()=>OpenPage(page));button.name="nav-"+page;}
-            sidebar=Element(Root,"sidebar");search=new TextField{label="Find controls",name="control-search"};sidebar.Add(search);search.RegisterValueChangedCallback(e=>Filter(e.newValue));
+            sidebar=Element(Root,"sidebar");Button(sidebar,"HIDE MENUS  [H]",()=>SetMenusVisible(false),"reset-button");search=new TextField{label="Find controls",name="control-search"};sidebar.Add(search);search.RegisterValueChangedCallback(e=>Filter(e.newValue));
             content=new ScrollView();content.AddToClassList("page");sidebar.Add(content);
             bottom=Element(Root,"bottom");status=Label(bottom,"","status");Button(bottom,"CAMERA",CycleCamera);Button(bottom,"NEXT DRONE",NextDrone);Button(bottom,"FIT",()=>{Pilot?.LeavePilot();Rig.Fit();});
             telemetry=Label(Root,"","telemetry");telemetry.pickingMode=PickingMode.Ignore;reticle=Element(Root,"reticle");reticle.pickingMode=PickingMode.Ignore;Label(reticle,"+","crosshair");
             combatHud=Element(Root,"combat-hud");combatHud.pickingMode=PickingMode.Ignore;roundBanner=Label(combatHud,"","round-banner");roundBanner.pickingMode=PickingMode.Ignore;pilotInfo=Label(combatHud,"","pilot-info");pilotInfo.pickingMode=PickingMode.Ignore;combatHud.style.display=DisplayStyle.None;
+            restoreMenus=Button(Root,"SHOW MENUS  [H]",()=>SetMenusVisible(true),"restore-menus");restoreMenus.style.display=DisplayStyle.None;
             Simulator.OnRoundFinished+=RecordRound;
             try{Journal.Load();}catch(Exception e){Simulator.Notice=e.Message;}
-            InitializeGames();savePath=Path.Combine(Application.persistentDataPath,"fleet.json");OpenPage("Fleet");
+            InitializeWorkshop();InitializeExpansion();savePath=Path.Combine(Application.persistentDataPath,"fleet.json");OpenPage("Fleet");
         }
         public void OpenPage(string page)
         {
-            Pilot?.ReleaseCursor();GamePageChanged(page);Page=page;content.Clear();arenaScore=null;search.SetValueWithoutNotify("");
+            Pilot?.ReleaseCursor();ClearWorkspace();controlParent=null;Page=page;content.Clear();arenaScore=null;gameScore=null;chessInfo=null;promotionPanel=null;search.SetValueWithoutNotify("");
             foreach(var b in nav.Children())b.EnableInClassList("selected",b.name=="nav-"+page);
             Label(content,"COMMAND CENTER / "+page.ToUpperInvariant(),"eyebrow");Label(content,page,"page-title");
             if(page!="Help")Button(content,"↺  RESET SECTION",()=>ResetPage(page),"reset-button");
             switch(page)
             {
                 case "Fleet":FleetPage();break;case "Squads":SquadsPage();break;case "Fields":FieldsPage();break;
-                case "Sports":SportsPage();break;case "Chess":ChessPage();break;case "Arena":ArenaPage();break;case "Director":DirectorPage();break;case "Art Studio":ArtPage();break;
+                case "Arena":ArenaPage();break;case "Sports":SportsPage();break;case "Chess":ChessPage();break;case "Director":DirectorPage();break;case "Art Studio":ArtPage();break;
+                case "Drone Range":RangePage();break;case "Cameras":CameraPage();break;case "Night Brite":BoardPage();break;case "Logic Lab":LogicPage();break;case "Systems":SystemsPage();break;case "Settings":SettingsPage();break;
                 case "Program":ProgramPage();break;case "Physics":PhysicsPage();break;case "Nerd Lab":LabPage();break;
                 case "Replays":ReplayPage();break;case "Journal":JournalPage();break;case "Saves":SavesPage();break;default:HelpPage();break;
             }
@@ -145,21 +151,23 @@ namespace FleetCommander.UI
             Note("Arcade drone arena · Choose frames, skins and game weapons before the round. Apply & Rematch deploys your setup with fresh aircraft; match wins stay on the board.");
             var b=Simulator.BattleSession;
             arenaScore=Label(content,"","scoreboard");UpdateArenaScore();
-            var n=new IntegerField("Drones per team"){value=perTeam,tooltip="Drones per team"};content.Add(n);n.RegisterValueChangedCallback(e=>perTeam=Mathf.Clamp(e.newValue,1,128));
+            var n=new IntegerField("Drones per team [NEXT ROUND]"){value=perTeam,tooltip="Drones per team [NEXT ROUND]"};content.Add(n);n.RegisterValueChangedCallback(e=>perTeam=Mathf.Clamp(e.newValue,1,128));
             Button(content,Simulator.Arena==null?"START ROUND":"APPLY & REMATCH",()=>StartRound(),"primary");
-            if(Simulator.Arena!=null)
+            RoundSeriesControls(b);TeamSetup(b,true);TeamSetup(b,false);ArenaCameraControls();
+            if(Simulator.Arena!=null&&Simulator.Sports==null)
             {
                 Section("Join the fight");
                 var join=Row();Button(join,"JOIN BLUE",()=>Pilot.JoinBlue(),"blue-button");Button(join,"JOIN RED",()=>Pilot.JoinRed(),"red-button");
                 Button(content,"PILOT SELECTED DRONE",()=>Pilot.JoinSelected());Button(content,"LEAVE DRONE TO AI",()=>Pilot.LeavePilot());
                 Note("Click the flight view to take control. WASD fly · Space / Ctrl up / down · Mouse aim · Left click fire · Q payload · Shift boost · C view · Escape release mouse.");
             }
-            CameraControls();TeamSetup(b,true);TeamSetup(b,false);
-            Section("Round rules");
+
+            Section("Round rules");SeriesControls(b);
             Toggle("Engage",b.engage,v=>b.engage=v);Toggle("Adaptive game behavior",b.adaptive,v=>b.adaptive=v);
             Slider("Round length · s",b.roundSeconds,30,600,v=>b.roundSeconds=v);
             Slider("Game damage",b.gameDamage,1,20,v=>b.gameDamage=v);Slider("Attack interval · s",b.fireInterval,.2f,3,v=>b.fireInterval=v);
             Note("Eliminate the opposing team to win. At the time limit, surviving aircraft decide the result, then remaining health; an equal result is a draw.");
+            AdaptiveLabControls(b);CombatExperimentControls();
             ResetButton("ROUND RULES",()=>ResetArenaRules());
             Button(content,"DROP SELECTED PAYLOAD  [B]",()=>Simulator.Payload());
             Button(content,"SAVE BATTLE SETUP",()=>{b.Validate();File.WriteAllText(Path.Combine(Application.persistentDataPath,"battle.json"),JsonUtility.ToJson(b,true));Simulator.Notice="Battle setup and match score saved.";});
@@ -168,28 +176,30 @@ namespace FleetCommander.UI
             Button(content,"CLEAR MATCH SCORE",()=>{Simulator.ResetBattleScore();UpdateArenaScore();Simulator.Notice="Match score cleared.";});
             Button(content,"RETURN TO SHOW FLEET",()=>{Pilot?.LeavePilot();Simulator.EndBattle();Rig.Fit();OpenPage(Page);});
         }
-        void TeamSetup(BattleSettings b,bool blue)
+        void SensorToggle(BattleSettings b,bool blue,SensorKind sensor)
         {
-            string team=blue?"Blue":"Red";Section(team+" team loadout");
-            EnumField(team+" frame",blue?b.blueFrame:b.redFrame,v=>{if(blue)b.blueFrame=v;else b.redFrame=v;});
-            EnumField(team+" skin",blue?b.blueSkin:b.redSkin,v=>{if(blue)b.blueSkin=v;else b.redSkin=v;});
-            EnumField(team+" weapon",blue?b.blueWeapon:b.redWeapon,v=>{if(blue)b.blueWeapon=v;else b.redWeapon=v;});
-            EnumField(team+" behavior",blue?b.blue:b.red,v=>{if(blue)b.blue=v;else b.red=v;});
-            Slider(team+" waypoint X",blue?b.blueWaypoint.x:b.redWaypoint.x,-100,100,v=>{if(blue)b.blueWaypoint.x=v;else b.redWaypoint.x=v;});
-            Slider(team+" waypoint Z",blue?b.blueWaypoint.z:b.redWaypoint.z,-100,100,v=>{if(blue)b.blueWaypoint.z=v;else b.redWaypoint.z=v;});
-            ResetButton(team.ToUpperInvariant()+" LOADOUT",()=>ResetArenaTeam(blue));
+            SensorKind current=blue?b.lab.blueSensors:b.lab.redSensors;
+            Toggle((blue?"Blue ":"Red ")+sensor.ToString(),(current&sensor)!=0,v=>
+            {
+                SensorKind value=blue?b.lab.blueSensors:b.lab.redSensors;
+                value=v?value|sensor:value&~sensor;
+                if(blue)b.lab.blueSensors=value;else b.lab.redSensors=value;
+            });
         }
         void StartRound()
         {
-            ResetChallenge();Pilot?.LeavePilot();Simulator.StartBattle(perTeam);Rig.Fit();OpenPage(Page);Journal.Add("Started "+perTeam+" v "+perTeam+" arcade round.");
+            ResetChallenge();Pilot?.LeavePilot();
+            if(Simulator.BattleSession.lab.useToyRules)
+            {var activity=Simulator.BattleSession.lab.activity;sportsKind=activity==AdaptiveActivity.Soccer?SportKind.Soccer:activity==AdaptiveActivity.Football?SportKind.FlagFootball:activity==AdaptiveActivity.CaptureFlag?SportKind.CaptureTheFlag:activity==AdaptiveActivity.KingOfHill?SportKind.KingOfHill:SportKind.TagDuel;Simulator.StartSports(sportsKind,Simulator.BattleSession.roundSeconds);Rig.Overview(true);OpenPage("Sports");return;}
+            Simulator.StartBattle(perTeam);Rig.Overview();OpenPage(Page);Journal.Add("Started "+perTeam+" v "+perTeam+" arcade round.");
         }
         void DirectorPage()
         {
             Note("Light-show presets, scenic settings and camera direction.");Section("Show presets");
             foreach(string show in new[]{"fireworks","halftime","aurora","galaxy"}){string s=show;Button(content,s.ToUpperInvariant(),()=>{Simulator.EndBattle();Simulator.Program.Compile("show "+s+"\nwait 24\nshow galaxy\nwait 24\nshow fireworks\nrepeat 72");Simulator.Program.Start();Simulator.LaunchAll();Rig.Mode=CameraMode.Cinematic;});}
             Button(content,"STOP SHOW PRESET",()=>Simulator.Program.Stop());
-            Section("Camera");EnumField("Camera",Rig.Mode,v=>{Pilot?.LeavePilot();Rig.SetMode(v);});Slider("Camera distance",Rig.Distance,3,650,v=>Rig.Distance=v);ResetButton("CAMERA",()=>{Pilot?.LeavePilot();Rig.ResetView();});
-            Section("Environment");EnumField("Scenery",Simulator.Config.scenery,v=>Simulator.Config.scenery=v);EnumField("Sky",Simulator.Config.sky,v=>Simulator.Config.sky=v);EnumField("Weather",Simulator.Config.weather,v=>Simulator.Config.weather=v);
+            Section("Camera");EnumField("Camera",Rig.Mode,v=>{Pilot?.LeavePilot();Rig.Mode=v;});Slider("Camera distance",Rig.Distance,3,650,v=>Rig.Distance=v);ResetButton("CAMERA",()=>{Pilot?.LeavePilot();Rig.ResetView();});
+            SceneryPresets();Section("Environment");EnumField("Scenery",Simulator.Config.scenery,v=>Simulator.Config.scenery=v);EnumField("Sky",Simulator.Config.sky,v=>Simulator.Config.sky=v);EnumField("Weather",Simulator.Config.weather,v=>Simulator.Config.weather=v);
             Slider("Wind",Simulator.Config.wind,0,15,v=>Simulator.Config.wind=v);Slider("Beacon size",Simulator.Config.beaconSize,.25f,3,v=>Simulator.Config.beaconSize=v);ResetButton("ENVIRONMENT",()=>FleetDefaults.Environment(Simulator.Config));
             Section("Audio & beat studio");Toggle("Enable sound",!Audio.Muted,v=>Audio.Muted=!v);Slider("Volume",Audio.Volume,0,1,v=>Audio.Volume=v);Slider("Tempo · BPM",Simulator.Config.bpm,40,240,v=>Simulator.Config.bpm=v);Toggle("Play step sequencer",Audio.Sequencer,v=>Audio.Sequencer=v);
             var steps=Row();steps.style.flexWrap=Wrap.Wrap;for(int i=0;i<16;i++){int j=i;var t=new Toggle((i+1).ToString()){value=Audio.Steps[i]};t.style.width=72;steps.Add(t);t.RegisterValueChangedCallback(e=>Audio.Steps[j]=e.newValue);}
@@ -235,15 +245,7 @@ namespace FleetCommander.UI
             ResetButton("ENERGY",()=>FleetDefaults.Energy(Simulator.Config));
             Label(content,"Airframe: 0.18 / 0.32 / 0.24 kg\nMotors, electronics, hardware: 0.23 kg\nBattery and cargo: adjustable","note");
         }
-        void LabPage()
-        {
-            Note("Math & Science / Nerd Lab");
-            Label(content,"Energy\nΔWh = watts × Δseconds / 3600\nHover draw scales with mass^1.35\n\nSteering\na = clamp((desired velocity − velocity) × 2.6 + Boids + wind)\nv(next) = clamp(v + a × dt)\nx(next) = x + v(next) × dt\n\nFields\nFour bounded vector fields add to formation slots.\n\nIntegration\nFixed 60 Hz; six catch-up steps per frame.\n\nBoids\nSpatial cells, at most 64 candidates and 24 neighbors per drone.","note");
-            Section("Logic lab");var input=new IntegerField("Integer"){value=logicValue,tooltip="Integer"};content.Add(input);var binary=Label(content,"","note");
-            Action<int> update=n=>binary.text="Decimal: "+n+"\nBinary: "+Convert.ToString(n,2)+"\nHex: 0x"+n.ToString("X")+"\nLow-byte popcount: "+PopCount(n&255);input.RegisterValueChangedCallback(e=>{logicValue=e.newValue;update(logicValue);});update(logicValue);
-            var row=Row();Button(row,"1337",()=>input.value=1337);Button(row,"80085",()=>input.value=80085);
-            var gates=Label(content,"","note");Action show=()=>gates.text="AND "+(logicA&&logicB?1:0)+"   OR "+(logicA||logicB?1:0)+"   XOR "+(logicA^logicB?1:0)+"\nHalf adder: carry "+(logicA&&logicB?1:0)+", sum "+(logicA^logicB?1:0);Toggle("Input A",logicA,v=>{logicA=v;show();});Toggle("Input B",logicB,v=>{logicB=v;show();});show();
-        }
+        void LabPage()=>SciencePage();
         static int PopCount(int n){int count=0;while(n!=0){count+=n&1;n>>=1;}return count;}
         void ReplayPage()
         {
@@ -274,7 +276,8 @@ namespace FleetCommander.UI
         void HelpPage()
         {
             Note("1. Fleet → Build → Launch.\n2. Choose a formation and motion.\n3. Fields adds Boids and layered math.\n4. Director changes shows, sky, camera and sound.\n5. Art Studio draws text, pixels and images.\n6. Arena configures teams, starts scored rounds and lets you pilot a drone.\n7. Replays watches recent flight without altering it.\n8. Saves stores your setup and current aircraft.");
-            Note("Drag: orbit/look\nWheel or pinch: zoom\nWASD / arrows: ground/free camera\nQ / E: descend/ascend\nShift: move faster\nSpace: pause/resume\nTab: next drone\nC: next camera\nF8: cinematic\nB: arena payload\nH: hide/show interface\nEscape: exit replay\n/: search controls on this page");
+            Note("Nerd Lab → live field equations, vectors and Python export. Logic Lab → wired gates and truth tables. Night Brite → interactive peg board and drone light show. Cameras → audience seating and multicamera. Drone Range → 90-second reflex game. Settings → sound and display. Systems → live target and diagnostics.");
+            Note("Sports → Soccer / Capture the Flag / Flag Football. Chess → Computer or Two players. Every game keeps results and declares its outcome.\nCamera: Home overview · F focus drone · Middle-drag pan · Wheel zoom.\nDrag: orbit/look\nWheel or pinch: zoom\nWASD / arrows: ground/free camera\nQ / E: descend/ascend\nShift: move faster\nSpace: pause/resume\nTab: next drone\nC: next camera\nF8: cinematic\nB: arena payload\nH: hide/show interface\nEscape: exit replay\n/: search controls on this page");
             Note("PILOT MODE · Arena → Join Blue / Join Red / Pilot selected. Click the flight view to capture the mouse. WASD flies in the horizontal plane; Space ascends, Ctrl descends, Shift boosts. Mouse aims; left click fires; Q drops an arcade payload; C cycles FPV / Shoulder / Mounted. Escape releases the cursor for menus; Leave drone to AI gives control back. Match ends at elimination or the time limit.");
             Note("RESET SECTION restores that page’s defaults. Smaller reset buttons affect only the named subsection. Saved fleets, journal entries and replay data are preserved. Arena match score has its own Clear match score button.");
             Note("Low battery recalls aircraft. Empty batteries descend under local gravity. Recharge works on parked aircraft. None/reset stops old fields and patterns.");
@@ -288,14 +291,20 @@ namespace FleetCommander.UI
                 case "Fleet":Simulator.Program.Stop();FleetDefaults.Formation(c);c.boids=new FleetConfig().boids;c.unlimited=new FleetConfig().unlimited;rosterSize=256;ResetShowAppearance();ResetChallenge();break;
                 case "Squads":FleetDefaults.Squads(c);break;
                 case "Fields":FleetDefaults.Layers(c);FleetDefaults.Flocking(c);break;
-                case "Sports":SportsSetup=new SportsSettings();break;
-                case "Chess":Chess.Reset();chessRecorded=false;chessSelected=-1;break;
                 case "Arena":Simulator.ResetBattleDefaults();perTeam=16;break;
+                case "Sports":sportsKind=SportKind.Soccer;sportsDuration=180;SportsSetup=new SportsSettings();break;
+                case "Chess":chessVsAI=true;humanWhite=true;ChessFlipped=false;break;
                 case "Director":Simulator.Program.Stop();FleetDefaults.Environment(c);Pilot?.LeavePilot();Rig.ResetView();ResetAudio();break;
                 case "Art Studio":artText="HELLO";imagePath="";imageMode="RGB";threshold=.18f;artInk=Color.cyan;Array.Clear(artPixels,0,artPixels.Length);c.art=Array.Empty<ArtPoint>();if(c.formation==FormationKind.Art)c.formation=new FleetConfig().formation;break;
                 case "Program":Simulator.Program.Stop();ProgramSource=DefaultProgram;break;
                 case "Physics":FleetDefaults.Flight(c);FleetDefaults.Energy(c);break;
-                case "Nerd Lab":logicValue=1337;logicA=logicB=false;break;
+                case "Nerd Lab":Simulator.Science.vectors=false;Simulator.Science.paused=false;Simulator.Science.view=FleetCommander.Labs.ScienceView.InfluenceField;break;
+                case "Logic Lab":Simulator.Circuit=FleetCommander.Labs.LogicCircuit.Example("Half adder");logicValue=1337;logicSelected=0;break;
+                case "Night Brite":Simulator.Board.Clear();Simulator.BoardInWorld=false;break;
+                case "Cameras":Multi.FeedCount=0;Rig.ResetView();break;
+                case "Settings":preferences=new PlayerPreferences();ApplyPreferences();break;
+                case "Systems":GetComponent<LabRenderer>().ShowTarget=true;showTargetDetails=true;break;
+                case "Drone Range":Pilot.LeavePilot();Simulator.EndBattle();Rig.ResetView();break;
                 case "Replays":Simulator.ExitReplay();Simulator.Replay.Rate=1;Simulator.Replay.Paused=false;break;
                 case "Journal":journalDraft="";break;
                 case "Saves":saveName="My fleet";savePath=Path.Combine(Application.persistentDataPath,"fleet.json");break;
@@ -315,23 +324,24 @@ namespace FleetCommander.UI
         }
         void ResetAudio()
         {
-            StopAllCoroutines();Audio.ResetDefaults();Simulator.Config.bpm=new FleetConfig().bpm;musicPath="";
+            Audio.ResetDefaults();Simulator.Config.bpm=new FleetConfig().bpm;musicPath="";
         }
         void ResetChallenge(){challenge=false;challengeClock=challengeDwell=0;challengeStage=challengeScore=0;}
         void ResetArenaRules()
         {
             var b=Simulator.BattleSession;var d=new BattleSettings();b.engage=d.engage;b.adaptive=d.adaptive;b.roundSeconds=d.roundSeconds;b.gameDamage=d.gameDamage;b.fireInterval=d.fireInterval;
+            b.lab=JsonUtility.FromJson<AdaptiveLabSettings>(JsonUtility.ToJson(d.lab));
         }
         void ResetArenaTeam(bool blue)
         {
             var b=Simulator.BattleSession;var d=new BattleSettings();
-            if(blue){b.blue=d.blue;b.blueFrame=d.blueFrame;b.blueSkin=d.blueSkin;b.blueWeapon=d.blueWeapon;b.blueWaypoint=d.blueWaypoint;}
-            else{b.red=d.red;b.redFrame=d.redFrame;b.redSkin=d.redSkin;b.redWeapon=d.redWeapon;b.redWaypoint=d.redWaypoint;}
+            if(blue){b.blue=d.blue;b.blueFrame=d.blueFrame;b.blueSkin=d.blueSkin;b.blueWeapon=d.blueWeapon;b.blueWaypoint=d.blueWaypoint;b.bluePlan=new ArenaTeamPlan();b.lab.blueEffector=d.lab.blueEffector;b.lab.blueSensors=d.lab.blueSensors;}
+            else{b.red=d.red;b.redFrame=d.redFrame;b.redSkin=d.redSkin;b.redWeapon=d.redWeapon;b.redWaypoint=d.redWaypoint;b.redPlan=new ArenaTeamPlan();b.lab.redEffector=d.lab.redEffector;b.lab.redSensors=d.lab.redSensors;}
         }
         void UpdateArenaScore()
         {
             if(arenaScore==null)return;
-            var w=Simulator.Arena;var b=Simulator.BattleSession;
+            var w=Simulator.Sports==null?Simulator.Arena:null;var b=Simulator.BattleSession;
             if(Simulator.Replay.Playing&&Simulator.Replay.DisplayBattle!=null)
             {
                 var r=Simulator.Replay.DisplayBattle;
@@ -356,37 +366,37 @@ namespace FleetCommander.UI
         }
         void Update()
         {
-            if(!Document||Simulator==null)return;
-            UpdateGamePages();
-            if(!RuntimeSmoke.Running&&!Typing&&Page!="Chess"&&!(Pilot&&Pilot.IsPiloting))
+            if(!Document||Simulator==null)return;UpdateExpansion();
+            if(!RuntimeSmoke.Running&&!Typing&&!(Pilot&&Pilot.IsPiloting))
             {
-                if(Input.GetKeyDown(KeyCode.Space))TogglePause();if(Input.GetKeyDown(KeyCode.Tab))NextDrone();if(Input.GetKeyDown(KeyCode.C))Rig.Mode=(CameraMode)(((int)Rig.Mode+1)%13);
+                if(Input.GetKeyDown(KeyCode.Space))TogglePause();if(Input.GetKeyDown(KeyCode.Tab))NextDrone();if(Input.GetKeyDown(KeyCode.C))Rig.Mode=(CameraMode)(((int)Rig.Mode+1)%Enum.GetValues(typeof(CameraMode)).Length);
                 if(Input.GetKeyDown(KeyCode.F8))Rig.Mode=CameraMode.Cinematic;if(Input.GetKeyDown(KeyCode.B))Simulator.Payload();if(Input.GetKeyDown(KeyCode.H))ToggleUI();if(Input.GetKeyDown(KeyCode.Escape))Simulator.ExitReplay();if(Input.GetKeyDown(KeyCode.Slash))search.Focus();
             }
             if(!RuntimeSmoke.Running&&!Typing&&Pilot&&Pilot.IsPiloting&&Input.GetKeyDown(KeyCode.H))ToggleUI();
-            if(!RuntimeSmoke.Running&&Page=="Chess"&&Input.GetKeyDown(KeyCode.H))ToggleUI();
-            if(challenge&&(Simulator.Arena!=null||Simulator.Sports!=null))ResetChallenge();
+            if(challenge&&Simulator.Arena!=null)ResetChallenge();
             if(challenge&&!Simulator.Paused&&!Simulator.Replay.Playing)
             {
                 challengeClock+=Time.deltaTime;challengeDwell=Simulator.Show.FormationError<4?challengeDwell+Time.deltaTime:0;
                 if(challengeDwell>=3){challengeDwell=0;challengeScore+=100;challengeStage++;if(challengeStage<4)Simulator.Config.formation=new[]{FormationKind.Ring,FormationKind.Grid,FormationKind.Heart,FormationKind.Sphere}[challengeStage];}
                 Simulator.Notice="Formation challenge: "+challengeScore+" points · "+Mathf.Max(0,90-challengeClock).ToString("F0")+"s left";
-                if(challengeClock>=90||challengeStage>=4){challenge=false;Journal.Add("Formation challenge: "+challengeScore+" points in "+challengeClock.ToString("F1")+"s.");}
+                if(challengeClock>=90||challengeStage>=4){challenge=false;ShowOutcome(challengeScore>=400?"YOU WIN":"TIME UP",challengeScore+" / 400 POINTS",challengeStage+" of 4 formations completed","Formation challenge");Journal.Add("Formation challenge: "+challengeScore+" points in "+challengeClock.ToString("F1")+"s.");}
             }
             clock+=Time.unscaledDeltaTime;if(clock<.15f)return;clock=0;
             var w=Simulator.Active;
-            status.text=Simulator.Notice;UpdateArenaScore();
+            status.text=Simulator.Notice;UpdateArenaScore();UpdateGamesUI();UpdateWorkshop();
             var states=Simulator.Replay.Playing?Simulator.Replay.Display:w.States;int i=Mathf.Clamp(Simulator.Selected,0,Mathf.Max(0,states.Length-1));
             int blue=0,red=0;float charge=0;foreach(var d in states){charge+=d.battery01;if(IsAlive(d)){if(d.fleetId==0)blue++;if(d.fleetId==1)red++;}}
             stats.text=(Simulator.Replay.Playing?"REPLAY":Simulator.Paused?"PAUSED":"LIVE")+"   /   "+states.Length.ToString("N0")+" DRONES"+(Simulator.Arena!=null?"   BLUE "+blue+" : "+red+" RED":"   /   "+(charge/Mathf.Max(1,states.Length)*100).ToString("F0")+"% ENERGY");
-            if(Page=="Chess")stats.text="LOCAL CHESS  /  "+Chess.Status;
             string details=states.Length==0?"NO AIRCRAFT":$"DRONE {i+1:0000}   {states[i].frame.ToString().ToUpperInvariant()}\nALT {states[i].position.y:F1} m   SPD {states[i].velocity.magnitude:F1} m/s\nBAT {states[i].battery01*100:F0}%   HP {states[i].health:F0}   {states[i].phase}";
             var c=Simulator.Replay.Playing?Simulator.Replay.DisplayConfig:Simulator.Config;
             telemetry.text=Rig.Mode.ToString().ToUpperInvariant()+" / "+c.planet.ToString().ToUpperInvariant()+"\n"+details+$"\nMASS {PlanetModel.Mass(c):F2} kg   HOVER {PlanetModel.Power(c,0):F0} W\nEST. {PlanetModel.EnduranceMinutes(c):F1} min   NEIGHBOR CHECKS {w.Neighbors.LastChecks:N0}";
+            if(Simulator.Sports!=null)stats.text=Simulator.Sports.Title+"   "+Simulator.Sports.ScoreText+"   "+ClockText(Simulator.Sports.Remaining);
+            if(Simulator.Range!=null)stats.text=Simulator.Range.Status+" · "+Simulator.Range.Score+" POINTS";
+            if(Simulator.Chess!=null)stats.text="CHESS   /   "+Simulator.Chess.TurnText;
+            telemetry.style.display=hidden||Simulator.Chess!=null||workspace!=null?DisplayStyle.None:DisplayStyle.Flex;
             bool piloting=Pilot&&Pilot.IsPiloting;
             reticle.style.display=piloting||Rig.Mode==CameraMode.FPV||Rig.Mode==CameraMode.Mounted?DisplayStyle.Flex:DisplayStyle.None;
-            UpdateCombatHud(states,piloting);UpdateSportsHud();
-            if(Page=="Chess"){combatHud.style.display=DisplayStyle.None;reticle.style.display=DisplayStyle.None;}
+            UpdateCombatHud(states,piloting);
             // Keep desktop controls reachable on narrower windows through horizontal scrolling/wrapping.
             float sidebarWidth=Root.resolvedStyle.width<900?290:340;sidebar.style.width=sidebarWidth;
             float pageTop=Mathf.Max(155,nav.layout.y+nav.resolvedStyle.height+12);sidebar.style.top=pageTop;telemetry.style.top=pageTop;
@@ -396,7 +406,9 @@ namespace FleetCommander.UI
         {
             var w=Simulator.Arena;var replay=Simulator.Replay.Playing?Simulator.Replay.DisplayBattle:null;
             bool inArena=Simulator.Replay.Playing?replay!=null:w!=null;
-            combatHud.style.display=inArena?DisplayStyle.Flex:DisplayStyle.None;if(!inArena)return;
+            combatHud.style.display=inArena&&!hidden?DisplayStyle.Flex:DisplayStyle.None;if(!inArena||hidden)return;
+            if(Simulator.Range!=null){roundBanner.text=Simulator.Range.Status+" · "+Simulator.Range.Score+" POINTS";pilotInfo.text=Simulator.Range.Finished?"Drone Range → Start another run":"BLUE: score · AMBER: avoid · Mouse fire · WASD fly · Esc cursor";return;}
+            if(Simulator.Sports!=null){var sport=Simulator.Sports;roundBanner.text=sport.ScoreText+"   "+ClockText(sport.Remaining)+"\n"+sport.Status;pilotInfo.text=(sport.IsToy&&Simulator.Active.Count>0?ResourceText(Simulator.Active.States[Mathf.Clamp(Simulator.Selected,0,Simulator.Active.Count-1)])+"\n":"")+(sport.Finished?"Sports → Rematch":piloting?"WASD move · Mouse aim · Click shoot / Q pass · H menus · Esc cursor":"Sports → Join a team or watch the match");return;}
             int winner=replay!=null?replay.winner:w.Winner;
             float remaining=replay!=null?replay.timeRemaining:w.TimeRemaining;
             CountTeams(states,out int blue,out int red);
@@ -405,7 +417,7 @@ namespace FleetCommander.UI
             if(piloting&&Pilot.DroneIndex>=0&&Pilot.DroneIndex<states.Length)
             {
                 var d=states[Pilot.DroneIndex];
-                pilotInfo.text=(d.fleetId==0?"BLUE":"RED")+" PILOT  ·  "+d.frame.ToString().ToUpperInvariant()+"  ·  HP "+d.health.ToString("F0")+"\n"+d.weapon.ToString().ToUpperInvariant()+"  "+(d.cooldown<=0?"READY":d.cooldown.ToString("F1")+"s")+"  ·  "+d.kills+" KILLS  ·  "+d.payloads+" PAYLOADS\n"+(Pilot.InputCaptured?"WASD fly · Space/Ctrl height · Mouse aim · Click fire\nQ payload · Shift boost · C view · Esc menu":"Click flight view to resume · Leave drone to AI in Arena");
+                pilotInfo.text=ResourceText(d)+"\n"+(d.fleetId==0?"BLUE":"RED")+" PILOT  ·  "+d.frame.ToString().ToUpperInvariant()+"  ·  HP "+d.health.ToString("F0")+"\n"+d.weapon.ToString().ToUpperInvariant()+"  "+(d.cooldown<=0?"READY":d.cooldown.ToString("F1")+"s")+"  ·  "+d.kills+" KILLS  ·  "+d.payloads+" PAYLOADS\n"+(Pilot.InputCaptured?"WASD fly · Space/Ctrl height · Mouse aim · Click fire\nQ payload · Shift boost · C view · Esc menu":"Click flight view to resume · Leave drone to AI in Arena");
             }
             else pilotInfo.text=winner<0?"Arena → Join a team to pilot a drone":"Match score retained for the next round";
         }
@@ -415,23 +427,30 @@ namespace FleetCommander.UI
             catch(Exception e){Debug.LogWarning("Round result could not be written to the journal: "+e.Message);}
         }
         void TogglePause(){if(Simulator.Replay.Playing)Simulator.Replay.Paused=!Simulator.Replay.Paused;else Simulator.Paused=!Simulator.Paused;}
-        void CycleCamera(){if(Pilot&&Pilot.IsPiloting)Pilot.CycleView();else Rig.Mode=(CameraMode)(((int)Rig.Mode+1)%13);}
+        void CycleCamera(){if(Pilot&&Pilot.IsPiloting)Pilot.CycleView();else Rig.Mode=(CameraMode)(((int)Rig.Mode+1)%Enum.GetValues(typeof(CameraMode)).Length);}
         void NextDrone(){if(Pilot&&Pilot.IsPiloting){Simulator.Notice="Leave drone to AI before selecting another aircraft.";return;}Simulator.Selected=(Simulator.Selected+1)%Mathf.Max(1,Simulator.Active.Count);}
-        public void ToggleUI(){hidden=!hidden;Pilot?.ReleaseCursor();foreach(var e in new[]{header,nav,sidebar,bottom})e.style.display=hidden?DisplayStyle.None:DisplayStyle.Flex;if(restoreMenu!=null)restoreMenu.style.display=hidden?DisplayStyle.Flex:DisplayStyle.None;telemetry.style.display=hidden?DisplayStyle.None:DisplayStyle.Flex;LayoutChess();}
-        void Section(string text)=>Label(content,text,"section");void Note(string text)=>Label(content,text,"note");
-        VisualElement Row(){var row=Element(content,"row");return row;}
+        public void SetMenusVisible(bool visible)
+        {
+            hidden=!visible;Root.panel?.focusController?.focusedElement?.Blur();if(visible)Pilot?.ReleaseCursor();
+            foreach(var e in new[]{header,nav,sidebar,bottom,telemetry})e.style.display=hidden?DisplayStyle.None:DisplayStyle.Flex;
+            if(workspace!=null)workspace.style.display=hidden?DisplayStyle.None:DisplayStyle.Flex;UpdateWorkshop();if(hidden)combatHud.style.display=DisplayStyle.None;UpdateExpansion();restoreMenus.style.display=hidden?DisplayStyle.Flex:DisplayStyle.None;
+        }
+        void ToggleUI()=>SetMenusVisible(hidden);
+        void Section(string text)=>Label(Controls,text,"section");void Note(string text)=>Label(Controls,text,"note");
+        VisualElement Row(){var row=Element(Controls,"row");return row;}
         static VisualElement Element(VisualElement parent,string css){var e=new VisualElement();e.AddToClassList(css);parent.Add(e);return e;}
         static Label Label(VisualElement parent,string text,string css){var e=new Label(text);e.AddToClassList(css);e.tooltip=text;parent.Add(e);return e;}
         Button Button(VisualElement parent,string text,Action action,string css="")
         {
-            var b=new Button(()=>{try{action();}catch(Exception e){Simulator.Notice=e.Message;Debug.LogWarning(e.Message);}}){text=text,tooltip=text};if(css.Length>0)b.AddToClassList(css);parent.Add(b);return b;
+            if(parent==content&&controlParent!=null)parent=controlParent;
+            var b=new Button(()=>{try{Audio?.PlayFx("ui");action();}catch(Exception e){Simulator.Notice=e.Message;Debug.LogWarning(e.Message);}}){text=text,tooltip=text};if(css.Length>0)b.AddToClassList(css);parent.Add(b);return b;
         }
-        void Slider(string label,float value,float min,float max,Action<float> changed){var s=new Slider(label,min,max){value=value,showInputField=true,tooltip=label};content.Add(s);s.RegisterValueChangedCallback(e=>changed(e.newValue));}
-        void Toggle(string label,bool value,Action<bool> changed){var t=new Toggle(label){value=value,tooltip=label};content.Add(t);t.RegisterValueChangedCallback(e=>changed(e.newValue));}
-        void Text(string label,string value,Action<string> changed){var f=new TextField(label){value=value,tooltip=label};content.Add(f);f.RegisterValueChangedCallback(e=>changed(e.newValue));}
-        void Choice(string label,string[] choices,string value,Action<string> changed){var d=new DropdownField(label,new List<string>(choices),Mathf.Max(0,Array.IndexOf(choices,value))){tooltip=label};content.Add(d);d.RegisterValueChangedCallback(e=>changed(e.newValue));}
-        void EnumField<T>(string label,T value,Action<T> changed) where T:struct,Enum {var d=new EnumField(label,(Enum)(object)value){tooltip=label};content.Add(d);d.RegisterValueChangedCallback(e=>changed((T)(object)e.newValue));}
-        void OnDestroy(){if(Simulator){Simulator.OnRoundFinished-=RecordRound;Simulator.OnSportsFinished-=RecordSportsResult;}if(panel)Destroy(panel);}
+        void Slider(string label,float value,float min,float max,Action<float> changed){var s=new Slider(TimedLabel(label),min,max){value=value,showInputField=true,tooltip=label};Controls.Add(s);s.RegisterValueChangedCallback(e=>changed(e.newValue));}
+        void Toggle(string label,bool value,Action<bool> changed){var t=new Toggle(TimedLabel(label)){value=value,tooltip=label};Controls.Add(t);t.RegisterValueChangedCallback(e=>changed(e.newValue));}
+        void Text(string label,string value,Action<string> changed){var f=new TextField(TimedLabel(label)){value=value,tooltip=label};Controls.Add(f);f.RegisterValueChangedCallback(e=>changed(e.newValue));}
+        void Choice(string label,string[] choices,string value,Action<string> changed){var d=new DropdownField(TimedLabel(label),new List<string>(choices),Mathf.Max(0,Array.IndexOf(choices,value))){tooltip=label};Controls.Add(d);d.RegisterValueChangedCallback(e=>changed(e.newValue));}
+        void EnumField<T>(string label,T value,Action<T> changed) where T:struct,Enum {var d=new EnumField(TimedLabel(label),(Enum)(object)value){tooltip=label};Controls.Add(d);d.RegisterValueChangedCallback(e=>changed((T)(object)e.newValue));}
+        void OnDestroy(){if(Simulator)Simulator.OnRoundFinished-=RecordRound;if(panel)Destroy(panel);}
     }
     public sealed class PixelCanvas : VisualElement
     {

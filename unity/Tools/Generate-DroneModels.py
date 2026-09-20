@@ -4,8 +4,7 @@
 Coordinates: visual meters, +Y up, +Z nose. Each semantic surface is an imported mesh.
 The runtime supplies materials from the separately preserved original PBR textures.
 Detailed meshes come from the repository's existing browser asset pack, retaining
-its original geometry, UVs, normals and material surfaces. LODs are original
-project-authored geometric approximations. No external dependency is required.
+its original geometry, UVs, normals and material surfaces. Distance meshes are derived from original surfaces by Derive-DroneLODs.py (numpy).
 """
 
 import gzip
@@ -373,11 +372,11 @@ def main():
     for name,target_span in [("Scout",1.6),("Relay",2),("Cargo",3),("Utility",2)]:
         record=convert_glb(name,target_span)
         records.append(record)
-        lod_record=make_lod(name,record).write(name+"_LOD")
-        assert lod_record["triangles"]<=600,lod_record
-        records.append(lod_record)
     manifest={"provenance":"Detailed models are direct mesh/UV/normal conversions of the existing repository approved Blender reference pack02. LOD proxies are project-authored geometric approximations, not replacement source models.","generator":"unity/Tools/Generate-DroneModels.py","format":"FCM1 gzip binary; documented in unity/Tools/DroneModels.md","units":"visual meters","up":"+Y","forward":"+Z","sourceMaterialMap":SOURCE_SURFACES,"sourceRotors":"Prop","models":records}
     (ROOT/"Tools/DroneModels.manifest.json").write_text(json.dumps(manifest,indent=2)+"\n")
+    import importlib.util
+    spec=importlib.util.spec_from_file_location("derive",ROOT/"Tools/Derive-DroneLODs.py")
+    derive=importlib.util.module_from_spec(spec);spec.loader.exec_module(derive);derive.main()
     print(json.dumps([{k:r[k] for k in ["file","triangles","bytes","boundsXYZ"]} for r in records],indent=2))
 
 

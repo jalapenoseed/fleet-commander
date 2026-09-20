@@ -1,0 +1,82 @@
+"""Fleet Commander exported equations. Python 3; standard library only.
+Run: python fleet_science.py --output samples
+Optional plots: python fleet_science.py --output samples --plot (requires matplotlib).
+Influences are target-position offsets, not physical forces. This does not reproduce
+the flight solver. Lorenz is a dimensionless teaching system, integrated with RK4.
+"""
+import argparse
+import csv
+import json
+import math
+from pathlib import Path
+
+CONFIG = json.loads(r'''__CONFIG_JSON__''')
+
+def norm(v):
+    m = math.sqrt(sum(x*x for x in v))
+    return tuple(x/m for x in v) if m > 1e-5 else (0.0, 0.0, 0.0)
+
+def influence(layer, p, i, t):
+    a = t * layer['frequency'] + layer['phase']
+    x, z = p[0]/20, p[2]/20
+    k = layer['kind']
+    if k == 1: v = norm((-z, math.sin(a+x), x))
+    elif k == 2: v = tuple(-x for x in norm(p))
+    elif k == 3: v = norm(p)
+    elif k == 4: v = (0, math.sin(a+x), 0)
+    elif k == 5: v = (math.sin(2*a+i*.1), math.sin(3*a+i*.1), math.cos(a))
+    elif k == 6: v = (math.cos(a+i*.15), math.sin(a+x), math.sin(a+i*.15))
+    elif k == 7: v = (math.sin(a+z), math.cos(a+(i%3)*2.094), 0)
+    elif k == 8: v = (math.sin(a)*(-1 if i%2 == 0 else 1), math.cos(a+x), 0)
+    elif k == 9: v = (1 if math.sin(a+x)>=0 else -1, 0, 1 if math.sin(a+z)>=0 else -1)
+    elif k == 10: v = (math.sin(x*x-z*z+a), math.sin(2*x*z+a), math.cos(x*x+z*z-a))
+    else: v = (0, 0, 0)
+    return tuple(x*layer['strength']*layer['blend'] for x in v)
+
+def field(p, i, t):
+    parts = [influence(l, p, i, t) for l in CONFIG['layers']]
+    v = tuple(sum(q[j] for q in parts) for j in range(3))
+    m = math.sqrt(sum(x*x for x in v))
+    return tuple(x*min(1, 32/max(m, 1e-9)) for x in v)
+
+def lorenz(p):
+    x,y,z=p
+    return (CONFIG['sigma']*(y-x), x*(CONFIG['rho']-z)-y, x*y-CONFIG['beta']*z)
+
+def rk4(p, h=.01):
+    a=lorenz(p)
+    b=lorenz(tuple(p[i]+h*a[i]/2 for i in range(3)))
+    c=lorenz(tuple(p[i]+h*b[i]/2 for i in range(3)))
+    d=lorenz(tuple(p[i]+h*c[i] for i in range(3)))
+    return tuple(p[i]+h*(a[i]+2*b[i]+2*c[i]+d[i])/6 for i in range(3))
+
+def write_csv(path, header, rows):
+    with path.open('w', newline='') as f:
+        w=csv.writer(f); w.writerow(header); w.writerows(rows)
+
+def main():
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--output', default='fleet-science-output')
+    parser.add_argument('--plot', action='store_true')
+    args=parser.parse_args(); out=Path(args.output); out.mkdir(parents=True, exist_ok=True)
+    rows=[]
+    for z in range(-60,61,10):
+        for x in range(-60,61,10):
+            p=(x,0,z); rows.append((*p,*field(p,len(rows),CONFIG['time'])))
+    write_csv(out/'field.csv', ['x','y','z','dx','dy','dz'], rows)
+    p=(.1,0,0); trajectory=[]
+    for i in range(1800):
+        p=rk4(p); trajectory.append(((i+1)*.01,*p))
+    write_csv(out/'lorenz.csv', ['t','x','y','z'], trajectory)
+    osc=[(i*.025,CONFIG['amplitude']*math.cos(CONFIG['frequency']*i*.025),-CONFIG['amplitude']*CONFIG['frequency']*math.sin(CONFIG['frequency']*i*.025)) for i in range(600)]
+    write_csv(out/'oscillator.csv', ['t','x','v'], osc)
+    print('Wrote field.csv, lorenz.csv and oscillator.csv to',out.resolve())
+    if args.plot:
+        import matplotlib.pyplot as plt
+        fig=plt.figure(figsize=(12,4))
+        a=fig.add_subplot(131,projection='3d');a.quiver(*zip(*rows));a.set_title('Target offsets (m)')
+        b=fig.add_subplot(132,projection='3d');b.plot(*zip(*(r[1:] for r in trajectory)));b.set_title('Lorenz RK4')
+        c=fig.add_subplot(133);c.plot([r[1] for r in osc],[r[2] for r in osc]);c.set(xlabel='Position (m)',ylabel='Velocity (m/s)',title='Harmonic phase portrait')
+        fig.tight_layout();fig.savefig(out/'science.png',dpi=180);plt.show()
+
+if __name__ == '__main__': main()

@@ -1,3 +1,5 @@
+> Historical recovery record. The later [Unity 1.3 release](../unity/RELEASE-1.3.md) combines this work with the adaptive-lab branch and subsequent workshop/combat requests. Its validation record supersedes the counts and scope below. Sports rosters, first downs, board flipping and saved setups are preserved in the consolidated Games implementations.
+
 # Unity recovery contract
 
 Objective: complete the missing native game UI/camera, sports/chess and scenery work while preserving the existing show and arcade arena.

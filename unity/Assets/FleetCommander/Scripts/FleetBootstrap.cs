@@ -21,10 +21,15 @@ namespace FleetCommander
             var environment=new GameObject("Arena environment");environment.transform.SetParent(transform);environment.AddComponent<ArenaEnvironment>().Simulator=sim;
             gameObject.AddComponent<DroneRenderer>().Simulator=sim;gameObject.AddComponent<BattleEffects>().Simulator=sim;
             gameObject.AddComponent<WeatherRenderer>().Simulator=sim;
-            gameObject.AddComponent<SportsField>().Simulator=sim;
             var sound=gameObject.AddComponent<FleetAudio>();sound.Simulator=sim;
             var ui=gameObject.AddComponent<CommanderUI>();ui.Simulator=sim;ui.Rig=rig;ui.Audio=sound;rig.UI=ui;
-            var pilot=gameObject.AddComponent<DronePilot>();pilot.Simulator=sim;pilot.Rig=rig;pilot.UI=ui;rig.Pilot=pilot;ui.Pilot=pilot;
+            var pilot=gameObject.AddComponent<DronePilot>();pilot.Simulator=sim;pilot.Rig=rig;pilot.UI=ui;rig.Pilot=pilot;ui.Pilot=pilot;var selection=gameObject.AddComponent<Systems.DroneSelection>();selection.Simulator=sim;selection.UI=ui;selection.Pilot=pilot;
+            var multi=gameObject.AddComponent<MultiCameraRig>();multi.Simulator=sim;multi.UI=ui;multi.Rig=rig;
+            gameObject.AddComponent<LabRenderer>().Simulator=sim;
+            gameObject.AddComponent<RangeRenderer>().Simulator=sim;
+            var sensorHud=gameObject.AddComponent<SensorHud>();sensorHud.Simulator=sim;sensorHud.Rig=rig;sensorHud.Pilot=pilot;
+            gameObject.AddComponent<GameFieldRenderer>().Simulator=sim;
+            var chessBoard=gameObject.AddComponent<ChessBoardRenderer>();chessBoard.Simulator=sim;chessBoard.UI=ui;
             cameraObject.AddComponent<FleetBloom>();
             if(System.Array.IndexOf(System.Environment.GetCommandLineArgs(),"-fleetSmoke")>=0)gameObject.AddComponent<RuntimeSmoke>();
         }

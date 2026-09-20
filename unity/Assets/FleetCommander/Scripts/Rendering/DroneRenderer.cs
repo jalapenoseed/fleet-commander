@@ -12,30 +12,31 @@ namespace FleetCommander.Rendering
     {
         public SwarmSimulator Simulator;
         public static readonly Color[] Palette={new Color(.1f,1,1),new Color(.2f,.4f,1),new Color(.65f,.3f,1),new Color(1,.3f,.65f),new Color(1,.15f,.12f),new Color(1,.45f,.1f),new Color(1,.9f,.2f),new Color(.3f,1,.3f),Color.white};
-        public bool ShowHealth=true;
+        public bool ShowHealth=true;public int Quality=1;
         public int LoadedModelAssets {get;private set;}
         public int LastDetailedDrones {get;private set;}
         static readonly string[] Surfaces={"Panel","Rubber","OffWhite","Anodized","Galvanized","Optical","MarkingDark","Metal","MarkingLight","Emission","Carbon","Copper","Glass","Trim","Accent","Prop"};
         sealed class Aircraft { public readonly Mesh[] surfaces=new Mesh[16];public Mesh silhouette; }
-        readonly Aircraft[,] models=new Aircraft[4,2];
+        readonly Aircraft[,] models=new Aircraft[4,3];
         readonly List<int>[] groups=new List<int>[12];
         readonly List<Mesh> ownedMeshes=new List<Mesh>();
+        readonly Plane[] frustum=new Plane[6];
         readonly Matrix4x4[] matrices=new Matrix4x4[1023];
         readonly Vector4[] colors=new Vector4[1023];
         readonly float[] rotorActive=new float[1023];
         static readonly Vector4[] RotorLayout={new Vector4(.533886f,.171366f,.374715f,.23026f),new Vector4(.668705f,-.064628f,.505606f,.28682f),new Vector4(1.000932f,.438691f,.698975f,.43391f),new Vector4(.670051f,.156914f,.491371f,.28566f)};
         readonly Material[] materials=new Material[16];
         Material lightMaterial;Mesh beacon;MaterialPropertyBlock properties;
-        GUIStyle selectedLabel;DroneCameraRig rig;
+        GUIStyle selectedLabel;DroneCameraRig rig;MultiCameraRig multi;
         public static Mesh Primitive(PrimitiveType type)
         {var go=GameObject.CreatePrimitive(type);var m=go.GetComponent<MeshFilter>().sharedMesh;Destroy(go);return m;}
 
         void Start()
         {
-            properties=new MaterialPropertyBlock();beacon=Primitive(PrimitiveType.Quad);rig=FindFirstObjectByType<DroneCameraRig>();
+            properties=new MaterialPropertyBlock();beacon=Primitive(PrimitiveType.Quad);rig=FindFirstObjectByType<DroneCameraRig>();multi=GetComponent<MultiCameraRig>();
             for(int i=0;i<groups.Length;i++)groups[i]=new List<int>(256);
-            for(int f=0;f<4;f++)for(int lod=0;lod<2;lod++)
-                models[f,lod]=LoadModel(((FrameKind)f).ToString()+(lod==1?"_LOD":""));
+            for(int f=0;f<4;f++)for(int lod=0;lod<3;lod++)
+                models[f,lod]=LoadModel(((FrameKind)f).ToString()+(lod==2?"_Far":lod==1?"_LOD":""));
             var shader=Resources.Load<Shader>("FleetSurface");
             for(int p=0;p<materials.Length;p++)
             {
@@ -80,23 +81,30 @@ namespace FleetCommander.Rendering
 
         void LateUpdate()
         {
-            if(!Simulator||materials[0]==null)return;
+            if(!Simulator||materials[0]==null||Simulator.Chess!=null)return;
+            LastDetailedDrones=0;RenderCamera(Camera.main,rig&&rig.Mode==CameraMode.FPV?Simulator.Selected:-1);
+            if(multi&&multi.Active)foreach(var camera in multi.Cameras)if(camera&&camera.enabled)RenderCamera(camera,multi.HiddenDrone(camera));
+        }
+        void RenderCamera(Camera cam,int hiddenDrone)
+        {
             var states=Simulator.Replay.Playing?Simulator.Replay.Display:Simulator.Active.States;
             var config=Simulator.Replay.Playing?Simulator.Replay.DisplayConfig:Simulator.Config;
-            var cam=Camera.main;if(cam==null||config==null)return;
-            foreach(var g in groups)g.Clear();LastDetailedDrones=0;
+            if(cam==null||config==null)return;
+            foreach(var g in groups)g.Clear();GeometryUtility.CalculateFrustumPlanes(cam,frustum);
             for(int i=0;i<states.Length;i++)
             {
-                if(rig&&rig.Mode==CameraMode.FPV&&i==Simulator.Selected)continue;
+                if(i==hiddenDrone)continue;
+                if(!GeometryUtility.TestPlanesAABB(frustum,new Bounds(states[i].position,Vector3.one*4)))continue;
                 float distance=(states[i].position-cam.transform.position).sqrMagnitude;
-                int level=distance<20*20&&LastDetailedDrones<15?0:distance<170*170?1:2;
-                if(i==Simulator.Selected&&distance<80*80||Simulator.Sports!=null)level=0;
-                if(level==0)LastDetailedDrones++;
+                float pixels=cam.pixelHeight*2.4f/(2*Mathf.Tan(cam.fieldOfView*Mathf.Deg2Rad*.5f)*Mathf.Sqrt(Mathf.Max(1,distance)));
+                int level=DetailLevel(pixels,Quality,i==Simulator.Selected);
+                if(rig&&rig.DirectorSubject==i&&pixels>5)level=0;
+                if(level==0&&cam==Camera.main)LastDetailedDrones++;
                 groups[Mathf.Clamp((int)states[i].frame,0,3)*3+level].Add(i);
             }
             for(int f=0;f<4;f++)for(int level=0;level<3;level++)
             {
-                var asset=models[f,Mathf.Min(level,1)];if(asset==null)continue;
+                var asset=models[f,level];if(asset==null)continue;
                 var group=groups[f*3+level];
                 for(int start=0;start<group.Count;start+=1023)
                 {
@@ -108,12 +116,12 @@ namespace FleetCommander.Rendering
                         rotorActive[j]=s.airborne&&!s.disabled?1:0;
                     }
                     properties.SetFloatArray("_RotorActive",rotorActive);
-                    properties.SetFloat("_RotorClock",Simulator.Replay.Playing?Simulator.Replay.Cursor:Simulator.Sports!=null?Simulator.Sports.Elapsed:Simulator.Active.Time);
+                    properties.SetFloat("_RotorClock",Simulator.Replay.Playing?Simulator.Replay.Cursor:Simulator.Active.Time);
                     properties.SetVector("_RotorLayout",RotorLayout[f]);
-                    int surfaces=level==2?1:16;
+                    int surfaces=16;
                     for(int p=0;p<surfaces;p++)
                     {
-                        Mesh mesh=level==2?asset.silhouette:asset.surfaces[p];if(!mesh)continue;
+                        Mesh mesh=asset.surfaces[p];if(!mesh)continue;
                         for(int j=0;j<n;j++)
                         {
                             var s=states[group[start+j]];Color c=SurfaceColor(p,s);
@@ -123,7 +131,7 @@ namespace FleetCommander.Rendering
                             else if(p==0)matrices[j]=Matrix4x4.TRS(s.position,s.rotation,Vector3.one);
                         }
                         properties.SetVectorArray("_Color",colors);
-                        Graphics.DrawMeshInstanced(mesh,0,materials[p],matrices,n,properties,level<2&&states.Length<=2000?ShadowCastingMode.On:ShadowCastingMode.Off,true,0,null,LightProbeUsage.Off);
+                        Graphics.DrawMeshInstanced(mesh,0,materials[p],matrices,n,properties,level<2&&states.Length<=2000?ShadowCastingMode.On:ShadowCastingMode.Off,true,0,cam,LightProbeUsage.BlendProbes);
                     }
                 }
             }
@@ -135,12 +143,12 @@ namespace FleetCommander.Rendering
                     var s=states[start+j];float distance=Vector3.Distance(cam.transform.position,s.position);
                     float size=Mathf.Clamp(distance*.0025f,.10f,1.4f)*config.beaconSize;
                     matrices[j]=Matrix4x4.TRS(s.position+s.rotation*Vector3.up*.25f,cam.transform.rotation,Vector3.one*size);
-                    Color c=(Simulator.Arena!=null||Simulator.Sports!=null)?(s.fleetId==0?Palette[0]:Palette[4]):Palette[Mathf.Abs(s.palette)%9];
+                    Color c=Simulator.Arena!=null?(s.fleetId==0?Palette[0]:Palette[4]):Palette[Mathf.Abs(s.palette)%9];
                     if(config.formation==FormationKind.Art&&config.art.Length>0)c=config.art[Mathf.Min(config.art.Length-1,(start+j)%Mathf.Min(states.Length,config.art.Length)*config.art.Length/Mathf.Max(1,Mathf.Min(states.Length,config.art.Length)))].color;
-                    if(s.battery01<.15f)c=Palette[5];if(s.disabled||(rig&&rig.Mode==CameraMode.FPV&&start+j==Simulator.Selected))c=Color.black;colors[j]=c*2.5f;
+                    if(s.battery01<.15f)c=Palette[5];if(s.disabled||start+j==hiddenDrone)c=Color.black;colors[j]=c*2.5f;
                 }
                 properties.SetVectorArray("_Color",colors);
-                Graphics.DrawMeshInstanced(beacon,0,lightMaterial,matrices,n,properties,ShadowCastingMode.Off,false,0,null,LightProbeUsage.Off);
+                Graphics.DrawMeshInstanced(beacon,0,lightMaterial,matrices,n,properties,ShadowCastingMode.Off,false,0,cam,LightProbeUsage.BlendProbes);
             }
         }
         static void BindTextures(Material material,int surface)
@@ -172,9 +180,10 @@ namespace FleetCommander.Rendering
                 default:return Color.white;
             }
         }
+        public static int DetailLevel(float pixels,int quality,bool selected)=>selected&&pixels>4?0:pixels>=(quality==2?6:quality==1?12:24)?0:pixels>=(quality==2?1.5f:quality==1?7:9)?1:2;
         void OnGUI()
         {
-            if(!ShowHealth||Simulator==null||Simulator.Sports!=null||rig&&rig.UI&&(rig.UI.Page=="Chess"||rig.UI.MenusHidden))return;var cam=Camera.main;if(!cam)return;
+            if(!ShowHealth||Simulator==null||Simulator.Chess!=null||rig&&rig.UI&&(rig.UI.MenusHidden||rig.UI.WorkspaceOpen||rig.UI.ResultOpen))return;var cam=Camera.main;if(!cam)return;
             var states=Simulator.Replay.Playing?Simulator.Replay.Display:Simulator.Active.States;
             for(int i=0;i<states.Length;i++)
             {
@@ -192,7 +201,7 @@ namespace FleetCommander.Rendering
                     GUI.DrawTexture(new Rect(p.x-20,y-3,3,11),Texture2D.whiteTexture);
                     GUI.DrawTexture(new Rect(p.x+17,y-3,3,11),Texture2D.whiteTexture);
                     if(selectedLabel==null)selectedLabel=new GUIStyle(GUI.skin.label){fontSize=11,alignment=TextAnchor.MiddleCenter};
-                    GUI.Label(new Rect(p.x-130,y-23,260,20),s.frame+"  /  "+s.weapon+"  /  #"+s.id,selectedLabel);
+                    GUI.Label(new Rect(p.x-130,y-23,260,20),Simulator.Sports!=null?s.frame+" / #"+(s.id+1)+(Simulator.Sports.Carrier==i?" / BALL":""):s.frame+"  /  "+s.weapon+"  /  #"+(s.id+1),selectedLabel);
                 }
             }
             GUI.color=Color.white;

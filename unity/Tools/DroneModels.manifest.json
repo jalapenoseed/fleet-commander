@@ -1,5 +1,5 @@
 {
-  "provenance": "Detailed models are direct mesh/UV/normal conversions of the existing repository approved Blender reference pack02. LOD proxies are project-authored geometric approximations, not replacement source models.",
+  "provenance": "All three distance levels come from the approved Blender reference pack02. Full meshes preserve original geometry; distance meshes cluster original vertices per material and normal region. No proxy aircraft or flattened silhouette materials.",
   "generator": "unity/Tools/Generate-DroneModels.py",
   "format": "FCM1 gzip binary; documented in unity/Tools/DroneModels.md",
   "units": "visual meters",
@@ -117,37 +117,6 @@
       "bytes": 1787976
     },
     {
-      "file": "Scout_LOD.fleetmesh",
-      "triangles": 428,
-      "vertices": 1284,
-      "surfaces": {
-        "Panel": 12,
-        "Carbon": 236,
-        "Metal": 48,
-        "Rubber": 24,
-        "Glass": 12,
-        "Prop": 48,
-        "Accent": 12,
-        "Emission": 12,
-        "OffWhite": 24
-      },
-      "boundsXYZ": [
-        [
-          -0.76067,
-          0.79638
-        ],
-        [
-          -0.19402,
-          0.21037
-        ],
-        [
-          -0.62436,
-          0.62436
-        ]
-      ],
-      "bytes": 7883
-    },
-    {
       "file": "Relay.fleetmesh",
       "source": "dist/assets/drones/GR_RELAY_01.glb.gz",
       "triangles": 132852,
@@ -238,37 +207,6 @@
         }
       ],
       "bytes": 1954638
-    },
-    {
-      "file": "Relay_LOD.fleetmesh",
-      "triangles": 444,
-      "vertices": 1332,
-      "surfaces": {
-        "Panel": 12,
-        "Carbon": 236,
-        "Metal": 64,
-        "Rubber": 24,
-        "Glass": 12,
-        "Prop": 48,
-        "Accent": 12,
-        "Emission": 12,
-        "OffWhite": 24
-      },
-      "boundsXYZ": [
-        [
-          -0.95119,
-          0.99568
-        ],
-        [
-          -0.55351,
-          0.54251
-        ],
-        [
-          -0.81658,
-          0.81658
-        ]
-      ],
-      "bytes": 8212
     },
     {
       "file": "Cargo.fleetmesh",
@@ -363,37 +301,6 @@
       "bytes": 1909809
     },
     {
-      "file": "Cargo_LOD.fleetmesh",
-      "triangles": 456,
-      "vertices": 1368,
-      "surfaces": {
-        "Panel": 12,
-        "Carbon": 236,
-        "Metal": 64,
-        "Rubber": 24,
-        "Glass": 12,
-        "Prop": 48,
-        "Accent": 24,
-        "Emission": 12,
-        "OffWhite": 24
-      },
-      "boundsXYZ": [
-        [
-          -1.42828,
-          1.49559
-        ],
-        [
-          -0.50535,
-          0.50419
-        ],
-        [
-          -1.16942,
-          1.16942
-        ]
-      ],
-      "bytes": 8295
-    },
-    {
       "file": "Utility.fleetmesh",
       "source": "dist/assets/drones/GR_UTILITY_01.glb.gz",
       "triangles": 154014,
@@ -486,35 +393,101 @@
       "bytes": 2278886
     },
     {
-      "file": "Utility_LOD.fleetmesh",
-      "triangles": 452,
-      "vertices": 1356,
-      "surfaces": {
-        "Panel": 12,
-        "Carbon": 236,
-        "Metal": 72,
-        "Rubber": 24,
-        "Glass": 12,
-        "Prop": 48,
-        "Accent": 12,
-        "Emission": 12,
-        "OffWhite": 24
-      },
+      "file": "Assets/FleetCommander/Resources/DroneModels/Scout_LOD.fleetmesh",
+      "triangles": 21940,
+      "bytes": 276240,
+      "source": "Scout.fleetmesh",
+      "method": "material/normal-aware vertex clustering",
       "boundsXYZ": [
-        [
-          -0.95139,
-          0.9957
-        ],
-        [
-          -0.37364,
-          0.19591
-        ],
-        [
-          -0.80108,
-          0.80108
-        ]
-      ],
-      "bytes": 8402
+        1.600000023841858,
+        0.38043519854545593,
+        1.2816580533981323
+      ]
+    },
+    {
+      "file": "Assets/FleetCommander/Resources/DroneModels/Scout_Far.fleetmesh",
+      "triangles": 1695,
+      "bytes": 31870,
+      "source": "Scout.fleetmesh",
+      "method": "material/normal-aware vertex clustering",
+      "boundsXYZ": [
+        1.600000023841858,
+        0.38043519854545593,
+        1.2816580533981323
+      ]
+    },
+    {
+      "file": "Assets/FleetCommander/Resources/DroneModels/Relay_LOD.fleetmesh",
+      "triangles": 30684,
+      "bytes": 369345,
+      "source": "Relay.fleetmesh",
+      "method": "material/normal-aware vertex clustering",
+      "boundsXYZ": [
+        2.0,
+        1.0850151777267456,
+        1.673802137374878
+      ]
+    },
+    {
+      "file": "Assets/FleetCommander/Resources/DroneModels/Relay_Far.fleetmesh",
+      "triangles": 1999,
+      "bytes": 40233,
+      "source": "Relay.fleetmesh",
+      "method": "material/normal-aware vertex clustering",
+      "boundsXYZ": [
+        2.0,
+        1.0850151777267456,
+        1.673802137374878
+      ]
+    },
+    {
+      "file": "Assets/FleetCommander/Resources/DroneModels/Cargo_LOD.fleetmesh",
+      "triangles": 25152,
+      "bytes": 302951,
+      "source": "Cargo.fleetmesh",
+      "method": "material/normal-aware vertex clustering",
+      "boundsXYZ": [
+        3.0,
+        0.9527027606964111,
+        2.396085739135742
+      ]
+    },
+    {
+      "file": "Assets/FleetCommander/Resources/DroneModels/Cargo_Far.fleetmesh",
+      "triangles": 1803,
+      "bytes": 33310,
+      "source": "Cargo.fleetmesh",
+      "method": "material/normal-aware vertex clustering",
+      "boundsXYZ": [
+        3.0,
+        0.9527027606964111,
+        2.396085739135742
+      ]
+    },
+    {
+      "file": "Assets/FleetCommander/Resources/DroneModels/Utility_LOD.fleetmesh",
+      "triangles": 30928,
+      "bytes": 389365,
+      "source": "Utility.fleetmesh",
+      "method": "material/normal-aware vertex clustering",
+      "boundsXYZ": [
+        2.0,
+        0.7252791523933411,
+        1.6426396369934082
+      ]
+    },
+    {
+      "file": "Assets/FleetCommander/Resources/DroneModels/Utility_Far.fleetmesh",
+      "triangles": 1478,
+      "bytes": 30862,
+      "source": "Utility.fleetmesh",
+      "method": "material/normal-aware vertex clustering",
+      "boundsXYZ": [
+        2.0,
+        0.7252791523933411,
+        1.6426396369934082
+      ]
     }
-  ]
+  ],
+  "lodGenerator": "unity/Tools/Derive-DroneLODs.py (numpy)"
 }

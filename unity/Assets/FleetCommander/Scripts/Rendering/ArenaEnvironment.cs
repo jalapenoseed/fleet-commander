@@ -24,10 +24,11 @@ namespace FleetCommander.Rendering
         void Update()
         {
             if(!Simulator||!sky)return;var c=Simulator.DisplayConfig;
-            string key=c.planet+"/"+c.scenery+"/"+(Simulator.Sports!=null)+"/"+c.obstacles;
+            string key=c.planet+"/"+c.scenery+"/"+(Simulator.Sports!=null||Simulator.Range!=null)+"/"+c.obstacles;
             if(key!=geometryKey){geometryKey=key;Build(c);}
-            key=c.planet+"/"+c.sky+"/"+c.weather;
-            if(key!=lightKey){lightKey=key;Lighting(c);}
+            if(scenery)scenery.SetActive(Simulator.Chess==null);
+            key=c.planet+"/"+c.sky+"/"+c.weather+"/"+(Simulator.Chess!=null);
+            if(key!=lightKey){lightKey=key;Lighting(Simulator.Chess!=null?new FleetConfig{sky=SkyKind.Day}:c);}
             if(c.planet==PlanetKind.Earth&&c.weather==WeatherKind.Storm){float pulse=Mathf.Pow(Mathf.Max(0,Mathf.Sin(Time.time*.83f)*Mathf.Sin(Time.time*3.2f)),40);sun.intensity=Mathf.Lerp(.65f,2.8f,pulse);}
         }
         void Lighting(FleetConfig c)
@@ -60,7 +61,7 @@ namespace FleetCommander.Rendering
             grass.SetFloat("_Terrain",1);if(c.scenery==SceneryKind.Alpine||c.scenery==SceneryKind.City)grass.SetFloat("_Snow",245);if(c.scenery==SceneryKind.Coast)grass.SetFloat("_Shore",1);mesh.Terrain(c,grass);
             foliage=new Material(Resources.Load<Shader>("FleetFoliage")){name="Natural foliage atlas"};foliage.SetTexture("_MainTex",Resources.Load<Texture2D>("FoliageAtlas"));materials.Add(foliage);for(int i=0;i<4;i++)foliageCards[i]=mesh.FoliageCard(i);
             // These envelopes are shared with flight collision and pad placement.
-            if(Simulator.Sports==null&&c.obstacles)foreach(var b in FleetWorld.Obstacles)
+            if(Simulator.Sports==null&&Simulator.Range==null&&c.obstacles)foreach(var b in FleetWorld.Obstacles)
             {
                 mesh.Box(b.center,b.size,stone);mesh.Box(b.center+Vector3.up*(b.extents.y-.2f),new Vector3(b.size.x+.5f,.4f,b.size.z+.5f),roof);
                 var glass=Mat("Operations glass",new Color(.12f,.32f,.38f),.1f,.12f);
@@ -68,17 +69,23 @@ namespace FleetCommander.Rendering
                 mesh.Box(new Vector3(b.center.x,2.8f,b.min.z-.08f),new Vector3(5,5.6f,.2f),roof);
             }
             if(moon||mars){Ridges(c.scenery,false);for(int i=0;i<160;i++){float a=i*2.39996f,r=190+Hash(i)*850;mesh.Ball(new Vector3(Mathf.Cos(a)*r,-3,Mathf.Sin(a)*r),new Vector3(8+Hash(i+4)*25,5+Hash(i+6)*16,12),stone);}mesh.Build(scenery.transform,"Planet terrain");return;}
+            if(c.scenery==SceneryKind.Desert)grass.SetColor("_Color",new Color(.38f,.24f,.1f));
             switch(c.scenery)
             {
+                case SceneryKind.RuralTown:RuralTown();Trees(false,270,650);break;
+                case SceneryKind.Metro:Metro();break;
+                case SceneryKind.Harbor:Harbor();break;
+                case SceneryKind.Desert:Desert();break;
+                case SceneryKind.ForestLake:Lake();Trees(false,230,1500);Cabins();break;
                 case SceneryKind.Stadium:Stadium();Trees(false,270,140);break;
                 case SceneryKind.Coast:Coast();break;
                 case SceneryKind.Alpine:Ridges(c.scenery,true);Trees(true,220,1400);Cabins();break;
                 case SceneryKind.City:Ridges(c.scenery,true);Town();Trees(false,320,160);break;
-                case SceneryKind.River:Creek();Trees(false,190,1500);Ridges(c.scenery,false);break;
+                case SceneryKind.Creek:Creek();Trees(false,190,1500);Ridges(c.scenery,false);break;
                 case SceneryKind.Overlook:Overlook();Trees(false,360,260);Ridges(c.scenery,false);break;
                 default:Ridges(c.scenery,false);Trees(false,230,700);Meadow();break;
             }
-            mesh.Build(scenery.transform,"Scenery");
+            mesh.Build(scenery.transform,"Scenery");ScenePackPlacement.Build(scenery.transform,c);
         }
         static float Hash(int i)=>FormationMath.Hash(i+743);
         void Ridges(SceneryKind kind,bool snowy) { /* The continuous shared terrain supplies the skyline. */ }
@@ -89,7 +96,7 @@ namespace FleetCommander.Rendering
             mesh.Add(foliageCards[type],p,new Vector3(width,h,1),foliage,Quaternion.Euler(0,yaw,0));mesh.Add(foliageCards[type],p,new Vector3(width,h,1),foliage,Quaternion.Euler(0,yaw+90,0));
         }
         void Trees(bool autumn,float start,int count)
-        {for(int i=0;i<count;i++){float a=i*2.39996f,r=start+Hash(i)*390;float x=Mathf.Cos(a)*r,z=Mathf.Sin(a)*r;if(Simulator.Config.scenery==SceneryKind.River&&Mathf.Abs(x-(270+Mathf.Sin(z*.009f)*50))<50)continue;Tree(new Vector3(x,0,z),7+Hash(i+8)*15,autumn,i);}}
+        {for(int i=0;i<count;i++){float a=i*2.39996f,r=start+Hash(i)*390;float x=Mathf.Cos(a)*r,z=Mathf.Sin(a)*r;if(Simulator.Config.scenery==SceneryKind.Creek&&Mathf.Abs(x-(270+Mathf.Sin(z*.009f)*50))<50)continue;if(Simulator.Config.scenery==SceneryKind.ForestLake&&new Vector2(x-290,z).magnitude<165)continue;Tree(new Vector3(x,0,z),7+Hash(i+8)*15,autumn,i);}}
         void Stadium()
         {
             var concrete=Mat("Stadium concrete",new Color(.63f,.62f,.57f));var crimson=Mat("Crimson seating",new Color(.52f,.04f,.05f));var cream=Mat("Crowd light shirts",new Color(.84f,.78f,.66f));var navy=Mat("Crowd dark shirts",new Color(.07f,.12f,.2f));var metal=Mat("White roof canopy",new Color(.77f,.8f,.79f));
@@ -105,7 +112,7 @@ namespace FleetCommander.Rendering
             mesh.Box(new Vector3(0,23,163),new Vector3(38,18,2),crimson);mesh.Box(new Vector3(0,23,161.9f),new Vector3(34,14,.3f),roof);
             for(int x=-1;x<=1;x+=2)mesh.Cylinder(new Vector3(x*15,11,164),1.3f,22,concrete);
             // The main arena retains a visible field even before a sports match starts.
-            if(Simulator.Sports==null){var line=Mat("Arena field markings",new Color(.67f,.77f,.53f),0);mesh.Ring(Vector3.zero,26,26,.17f,line);mesh.Line(new Vector3(0,0,-95),new Vector3(0,0,95),.15f,line);}
+            if(Simulator.Sports==null&&Simulator.Range==null){var line=Mat("Arena field markings",new Color(.67f,.77f,.53f),0);mesh.Ring(Vector3.zero,26,26,.17f,line);mesh.Line(new Vector3(0,0,-95),new Vector3(0,0,95),.15f,line);}
         }
         void Coast()
         {
@@ -141,8 +148,36 @@ namespace FleetCommander.Rendering
         {
             var road=Mat("Main street",new Color(.2f,.22f,.23f),.3f);mesh.Box(new Vector3(0,.02f,225),new Vector3(800,.02f,24),road);
             Color[] colors={new Color(.6f,.23f,.22f),new Color(.86f,.74f,.49f),new Color(.4f,.56f,.5f),new Color(.67f,.63f,.53f),new Color(.57f,.37f,.25f)};
-            for(int i=0;i<24;i++){int side=i%2==0?1:-1;float x=(i/2-6)*32;House(new Vector3(x,0,225+side*34),colors[i%5],25,10+Hash(i)*12,24);}
+            for(int i=0;i<16;i++){float x=(i/2-4)*45,z=i%2==0?207:243;mesh.Cylinder(new Vector3(x,3,z),.1f,6,roof);mesh.Ball(new Vector3(x,6,z),Vector3.one*.6f,stone);}
         }
+        void RuralTown()
+        {
+            var fence=Mat("Cedar fence",new Color(.28f,.2f,.13f));var crop=Mat("Planted rows",new Color(.32f,.39f,.07f));
+            var lane=Mat("Village road",new Color(.13f,.14f,.13f));mesh.Box(new Vector3(0,.05f,220),new Vector3(550,.06f,18),lane);
+            for(int i=0;i<24;i++){float z=i*8-96;float y=SceneryTerrain.Height(Simulator.DisplayConfig,280,z);mesh.Box(new Vector3(280,y+.3f,z),new Vector3(100,.6f,2.5f),crop);}
+            for(int i=0;i<35;i++){float x=195+i*4,y=SceneryTerrain.Height(Simulator.DisplayConfig,x,-108);mesh.Box(new Vector3(x,y+1,-108),new Vector3(.3f,2,.3f),fence);if(i<34)mesh.Box(new Vector3(x+2,y+1.2f,-108),new Vector3(4,.2f,.2f),fence);}
+            House(new Vector3(-260,0,0),new Color(.48f,.09f,.055f),40,20,30);
+        }
+        void Metro()
+        {
+            var asphalt=Mat("Metro asphalt",new Color(.045f,.055f,.06f));var pavement=Mat("Concrete sidewalks",new Color(.27f,.28f,.27f));var glass=Mat("Tower glazing",new Color(.12f,.26f,.35f),.05f,.06f);var steel=Mat("Tower frame",new Color(.24f,.27f,.28f));
+            for(int side=-1;side<=1;side+=2){mesh.Box(new Vector3(side*250,.04f,0),new Vector3(24,.05f,1300),asphalt);mesh.Box(new Vector3(0,.04f,side*250),new Vector3(1300,.05f,24),asphalt);}
+            for(int i=0;i<48;i++){int row=i/8,col=i%8;float x=(col-3.5f)*105,z=(row-2.5f)*140;if(Mathf.Abs(x)<180&&Mathf.Abs(z)<180)continue;float h=25+Hash(i)*130;mesh.Box(new Vector3(x,.2f,z),new Vector3(74,.4f,75),pavement);mesh.Box(new Vector3(x,h*.5f,z),new Vector3(42,h,48),glass);for(int floor=0;floor<h/5;floor++)mesh.Box(new Vector3(x,1+floor*5,z),new Vector3(43,.7f,49),steel);for(int k=-2;k<=2;k++)mesh.Box(new Vector3(x+k*8,h*.5f,z-24.2f),new Vector3(.6f,h,.3f),steel);mesh.Box(new Vector3(x,h+2,z),new Vector3(12,4,16),roof);}
+        }
+        void Harbor()
+        {
+            var pier=Mat("Harbor concrete",new Color(.3f,.32f,.3f));var safety=Mat("Crane yellow",new Color(.72f,.46f,.06f));mesh.Box(new Vector3(4240,.13f,0),new Vector3(8000,.09f,8000),water);mesh.Box(new Vector3(235,1.2f,0),new Vector3(80,2.4f,520),pier);
+            for(int i=0;i<40;i++){var paint=Mat("Container "+i,new Color(.16f+Hash(i)*.3f,.2f+Hash(i+7)*.2f,.2f+Hash(i+20)*.25f));float x=165-i%4*18,z=(i/4-4.5f)*28;mesh.Box(new Vector3(x,3,z),new Vector3(12,6,24),paint);for(int k=-5;k<=5;k++)mesh.Box(new Vector3(x+6.1f,3,z+k*2),new Vector3(.2f,5.8f,.15f),steelMaterial());}
+            for(int i=-1;i<=1;i++){Vector3 p=new Vector3(232,0,i*130);mesh.Box(p+Vector3.up*25,new Vector3(3,50,3),safety);mesh.Box(p+new Vector3(20,49,0),new Vector3(65,2,2),safety);mesh.Beam(p+new Vector3(50,49,0),p+new Vector3(50,8,0),.12f,roof);}
+        }
+        Material steelMaterial()=>roof;
+        void Desert()
+        {
+            var rock=Mat("Red mesa sandstone",new Color(.45f,.22f,.095f),.32f);var cactus=Mat("Desert cactus",new Color(.17f,.26f,.1f));
+            for(int i=0;i<100;i++){float a=i*2.39996f,r=210+Hash(i)*700,x=Mathf.Cos(a)*r,z=Mathf.Sin(a)*r,y=SceneryTerrain.Height(Simulator.DisplayConfig,x,z);if(i%3==0){mesh.Cylinder(new Vector3(x,y+4,z),.55f,8,cactus);mesh.Beam(new Vector3(x,y+4,z),new Vector3(x+2,y+5,z),.5f,cactus);mesh.Cylinder(new Vector3(x+2,y+6,z),.4f,3,cactus);}else mesh.Ball(new Vector3(x,y,z),new Vector3(15+Hash(i+4)*35,10+Hash(i+7)*25,20+Hash(i+5)*30),rock);}
+        }
+        void Lake()
+        {mesh.Cylinder(new Vector3(290,.12f,0),151,.1f,water);var timber=Mat("Lakeside dock",new Color(.34f,.24f,.13f));mesh.Box(new Vector3(170,.6f,-25),new Vector3(55,.6f,8),timber);for(int i=0;i<10;i++)mesh.Box(new Vector3(147+i*5,.98f,-25),new Vector3(.15f,.15f,8),roof);}
         void OnDestroy(){Clear();if(sky)Destroy(sky);if(reflection)Destroy(reflection);}
     }
 }
