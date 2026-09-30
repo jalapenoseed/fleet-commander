@@ -1,4 +1,19 @@
 import * as THREE from '../../three.js';
+import {
+  SwarmLab,
+  DEFAULTS,
+  FIELD_TYPES,
+  SENSORS,
+  ROLES,
+  FORMATIONS,
+  PLAYS,
+  CONDITIONS,
+  REACTIONS,
+  TEAM_COLORS,
+  LIMITS,
+  validateScript,
+  clearPoint,
+} from './simulation.js?v=swarm-2';
 
 const canvas = document.querySelector('#scene');
 let renderer;
@@ -81,289 +96,887 @@ for (const o of obstacleData) {
   scene.add(ring);
 }
 
-const target = new THREE.Group();
-const targetCore = new THREE.Mesh(
-  new THREE.OctahedronGeometry(0.68),
+const lab = new SwarmLab();
+const $ = (id) => document.getElementById(id);
+let selectedSquad = lab.squads[0].id,
+  selectedTarget = lab.targets[0].id,
+  selectedField = '',
+  paused = false,
+  placement = null,
+  activePane = 'squads';
+const squad = () => lab.squads.find((s) => s.id === selectedSquad);
+const color = new THREE.Color(),
+  dummy = new THREE.Object3D();
+const bodyGeo = new THREE.ConeGeometry(0.3, 0.85, 4);
+bodyGeo.rotateX(Math.PI / 2);
+const droneMesh = new THREE.InstancedMesh(
+  bodyGeo,
   new THREE.MeshStandardMaterial({
-    color: 0xffce73,
-    emissive: 0xf3a93c,
-    emissiveIntensity: 0.8,
-    roughness: 0.3,
+    color: 0xffffff,
+    roughness: 0.48,
+    metalness: 0.2,
+    emissive: 0x16372f,
+    emissiveIntensity: 0.3,
   }),
+  LIMITS.agents,
 );
-const targetRing = new THREE.Mesh(
-  new THREE.TorusGeometry(1.7, 0.08, 10, 64),
-  new THREE.MeshBasicMaterial({ color: 0xffce73, transparent: true, opacity: 0.95 }),
+droneMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+droneMesh.castShadow = true;
+droneMesh.frustumCulled = false;
+scene.add(droneMesh);
+const healthMesh = new THREE.InstancedMesh(
+  new THREE.BoxGeometry(0.7, 0.045, 0.07),
+  new THREE.MeshBasicMaterial({ color: 0x9df3d5 }),
+  LIMITS.agents,
 );
-targetRing.rotation.x = Math.PI / 2;
-target.add(targetCore, targetRing);
-target.position.set(0, 0.55, 0);
-scene.add(target);
-
-const N = 100;
-const positions = [],
-  velocities = [],
-  agents = [];
-const agentGeo = new THREE.ConeGeometry(0.29, 0.85, 4);
-agentGeo.rotateX(Math.PI / 2);
-const agentMat = new THREE.MeshStandardMaterial({
-  color: 0xa8fce1,
-  emissive: 0x4dc5a5,
-  emissiveIntensity: 0.6,
-  roughness: 0.5,
-  metalness: 0.15,
-});
-// One shared buffer: 24 fading path segments per agent, sampled at 20 Hz.
-const TRAIL_STEPS = 24;
-const trailHistory = Array.from({ length: N }, () => []);
+healthMesh.frustumCulled = false;
+scene.add(healthMesh);
+const selectionRing = new THREE.Mesh(
+  new THREE.TorusGeometry(1, 0.045, 6, 48),
+  new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5 }),
+);
+selectionRing.rotation.x = Math.PI / 2;
+scene.add(selectionRing);
+const targetVisuals = new Map(),
+  fieldVisuals = new Map(),
+  labels = new Map();
+const history = new Map(),
+  TRAIL_STEPS = 16;
+const trailPositions = new Float32Array(LIMITS.agents * TRAIL_STEPS * 6),
+  trailColors = new Float32Array(trailPositions.length);
 const trailGeo = new THREE.BufferGeometry();
-const trailPositions = new Float32Array(N * TRAIL_STEPS * 6);
-const trailColors = new Float32Array(trailPositions.length);
-const trailColor = new THREE.Color(0x72c9b3),
-  floorColor = new THREE.Color(0x314953);
-for (let i = 0; i < N; i++)
-  for (let j = 0; j < TRAIL_STEPS; j++) {
-    const c = floorColor.clone().lerp(trailColor, 0.15 + 0.85 * (1 - j / TRAIL_STEPS));
-    for (let v = 0; v < 2; v++) c.toArray(trailColors, (i * TRAIL_STEPS + j) * 6 + v * 3);
-  }
 trailGeo.setAttribute(
   'position',
   new THREE.BufferAttribute(trailPositions, 3).setUsage(THREE.DynamicDrawUsage),
 );
 trailGeo.setAttribute('color', new THREE.BufferAttribute(trailColors, 3));
-const trailLines = new THREE.LineSegments(
+const trails = new THREE.LineSegments(
   trailGeo,
-  new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.7 }),
+  new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.52 }),
 );
-trailLines.frustumCulled = false;
-scene.add(trailLines);
-let trailElapsed = 0;
-function clearTrails() {
-  for (let i = 0; i < N; i++)
-    trailHistory[i] = Array.from({ length: TRAIL_STEPS + 1 }, () => positions[i].clone());
-  updateTrails(false);
-}
-function updateTrails(sample = true) {
-  for (let i = 0; i < N; i++) {
-    const h = trailHistory[i];
-    if (sample) {
-      h.unshift(positions[i].clone());
-      h.length = TRAIL_STEPS + 1;
-    }
-    for (let j = 0; j < TRAIL_STEPS; j++) {
-      const k = (i * TRAIL_STEPS + j) * 6;
-      trailPositions.set([h[j].x, 0.18, h[j].z, h[j + 1].x, 0.18, h[j + 1].z], k);
-    }
-  }
-  trailGeo.attributes.position.needsUpdate = true;
-}
-
-function randomPos() {
-  let p;
-  do {
-    const a = Math.random() * Math.PI * 2,
-      r = 8 + Math.random() * 18;
-    p = new THREE.Vector3(Math.cos(a) * r, 0.42, Math.sin(a) * r);
-  } while (obstacleData.some((o) => Math.hypot(p.x - o.x, p.z - o.z) < o.r + 0.6));
-  return p;
-}
-for (let i = 0; i < N; i++) {
-  const p = randomPos(),
-    v = new THREE.Vector3((Math.random() - 0.5) * 2, 0, (Math.random() - 0.5) * 2);
-  positions.push(p);
-  velocities.push(v);
-  const m = new THREE.Mesh(agentGeo, agentMat);
-  m.position.copy(p);
-  m.castShadow = true;
-  scene.add(m);
-  agents.push(m);
-}
-
-clearTrails();
-const arrowGroup = new THREE.Group();
+trails.frustumCulled = false;
+scene.add(trails);
+const shotPositions = new Float32Array(LIMITS.agents * 6),
+  shotColors = new Float32Array(shotPositions.length),
+  shotGeo = new THREE.BufferGeometry();
+shotGeo.setAttribute('position', new THREE.BufferAttribute(shotPositions, 3));
+shotGeo.setAttribute('color', new THREE.BufferAttribute(shotColors, 3));
+const beams = new THREE.LineSegments(
+  shotGeo,
+  new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.9 }),
+);
+beams.frustumCulled = false;
+scene.add(beams);
+const arrowGroup = new THREE.Group(),
+  arrows = [];
 scene.add(arrowGroup);
-const arrows = [];
-for (let x = -24; x <= 24; x += 4) {
-  for (let z = -24; z <= 24; z += 4) {
+for (let x = -24; x <= 24; x += 6)
+  for (let z = -24; z <= 24; z += 6) {
     const a = new THREE.ArrowHelper(
       new THREE.Vector3(1, 0, 0),
       new THREE.Vector3(x, 0.08, z),
       1,
-      0x7d9eae,
-      0.28,
-      0.12,
+      0x7097a0,
+      0.22,
+      0.1,
     );
     a.line.material.transparent = true;
-    a.line.material.opacity = 0.55;
+    a.line.material.opacity = 0.45;
     a.cone.material.transparent = true;
-    a.cone.material.opacity = 0.65;
+    a.cone.material.opacity = 0.5;
     arrowGroup.add(a);
     arrows.push(a);
   }
-}
-
-const ui = {};
-for (const id of [
-  'attraction',
-  'vortex',
-  'separation',
-  'avoid',
-  'wind',
-  'damping',
-  'vectors',
-  'trails',
-])
-  ui[id] = document.querySelector('#' + id);
-for (const id of ['attraction', 'vortex', 'separation', 'avoid', 'wind', 'damping']) {
-  const out = document.querySelector('#' + id + 'Out');
-  const sync = () => (out.textContent = Number(ui[id].value).toFixed(id === 'damping' ? 2 : 1));
-  ui[id].addEventListener('input', () => {
-    sync();
-    document.querySelector('#preset').value = 'custom';
+function disposeGroup(group) {
+  group.traverse((o) => {
+    o.geometry?.dispose();
+    if (o.material)
+      for (const m of Array.isArray(o.material) ? o.material : [o.material]) m.dispose();
   });
-  sync();
+  scene.remove(group);
 }
-ui.vectors.addEventListener('change', () => (arrowGroup.visible = ui.vectors.checked));
-ui.trails.addEventListener('change', () => (trailLines.visible = ui.trails.checked));
-
-let paused = false,
-  collisions = 0;
-const tmp = new THREE.Vector3(),
-  tmp2 = new THREE.Vector3(),
-  force = new THREE.Vector3();
-const raycaster = new THREE.Raycaster(),
-  mouse = new THREE.Vector2(),
-  plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
-
-function params() {
-  return {
-    attraction: +ui.attraction.value,
-    vortex: +ui.vortex.value,
-    separation: +ui.separation.value,
-    avoid: +ui.avoid.value,
-    wind: +ui.wind.value,
-    damping: +ui.damping.value,
-  };
-}
-function fieldAt(pos, index = -1) {
-  const p = params();
-  force.set(0, 0, 0);
-  tmp.subVectors(target.position, pos);
-  tmp.y = 0;
-  const d = Math.max(1, tmp.length());
-  force.addScaledVector(tmp.normalize(), p.attraction * Math.min(1, d / 8));
-  tmp2.set(-tmp.z, 0, tmp.x);
-  force.addScaledVector(tmp2, p.vortex / (1 + d * 0.12));
-  force.x += p.wind;
-
-  for (const o of obstacleData) {
-    tmp.set(pos.x - o.x, 0, pos.z - o.z);
-    const od = tmp.length(),
-      reach = o.r + 4.2;
-    if (od < reach) force.addScaledVector(tmp.normalize(), p.avoid * (1 - od / reach));
+function labelFor(id, kind) {
+  if (!labels.has(id)) {
+    const el = document.createElement('span');
+    el.className = `arena-label ${kind}-label`;
+    $('arenaLabels').append(el);
+    labels.set(id, el);
   }
-  if (index >= 0) {
-    for (let j = 0; j < N; j++) {
-      if (j === index) continue;
-      tmp.subVectors(pos, positions[j]);
-      tmp.y = 0;
-      const sd = tmp.length();
-      if (sd > 0.001 && sd < 2.2)
-        force.addScaledVector(tmp.normalize(), p.separation * (1 - sd / 2.2));
+  return labels.get(id);
+}
+function syncObjects() {
+  for (const [id, g] of targetVisuals)
+    if (!lab.targets.some((t) => t.id === id)) {
+      disposeGroup(g);
+      targetVisuals.delete(id);
+    }
+  for (const [id, g] of fieldVisuals)
+    if (!lab.fields.some((f) => f.id === id)) {
+      disposeGroup(g);
+      fieldVisuals.delete(id);
+    }
+  for (const [id, el] of labels)
+    if (![...lab.targets, ...lab.fields, ...lab.squads].some((o) => o.id === id)) {
+      el.remove();
+      labels.delete(id);
+    }
+  for (const t of lab.targets) {
+    if (!targetVisuals.has(t.id)) {
+      const g = new THREE.Group();
+      const m = new THREE.Mesh(
+        new THREE.OctahedronGeometry(0.65),
+        new THREE.MeshStandardMaterial({
+          color: 0xffce73,
+          emissive: 0xf3a93c,
+          emissiveIntensity: 0.7,
+        }),
+      );
+      g.add(m);
+      const r = new THREE.Mesh(
+        new THREE.TorusGeometry(1.2, 0.06, 8, 48),
+        new THREE.MeshBasicMaterial({ color: 0xffce73 }),
+      );
+      r.rotation.x = Math.PI / 2;
+      g.add(r);
+      scene.add(g);
+      targetVisuals.set(t.id, g);
+    }
+    targetVisuals.get(t.id).position.set(t.x, 0.5, t.z);
+    labelFor(t.id, 'target');
+  }
+  for (const f of lab.fields) {
+    if (!fieldVisuals.has(f.id)) {
+      const g = new THREE.Group();
+      const disk = new THREE.Mesh(
+        new THREE.CircleGeometry(1, 64),
+        new THREE.MeshBasicMaterial({
+          transparent: true,
+          opacity: 0.1,
+          side: THREE.DoubleSide,
+          depthWrite: false,
+        }),
+      );
+      disk.rotation.x = -Math.PI / 2;
+      disk.position.y = 0.04;
+      g.add(disk);
+      const ring = new THREE.Mesh(
+        new THREE.TorusGeometry(1, 0.012, 6, 96),
+        new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.8 }),
+      );
+      ring.rotation.x = Math.PI / 2;
+      ring.position.y = 0.07;
+      g.add(ring);
+      const emitter = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.25, 0.45, 0.8, 8),
+        new THREE.MeshStandardMaterial({ roughness: 0.4, emissiveIntensity: 0.7 }),
+      );
+      emitter.position.y = 0.45;
+      g.add(emitter);
+      scene.add(g);
+      fieldVisuals.set(f.id, g);
+    }
+    const g = fieldVisuals.get(f.id);
+    g.position.set(f.x, 0, f.z);
+    g.children[0].scale.setScalar(f.r);
+    g.children[1].scale.setScalar(f.r);
+    for (const c of g.children) c.material.color.set(FIELD_TYPES[f.type].color);
+    g.children[2].material.emissive.set(FIELD_TYPES[f.type].color);
+    labelFor(f.id, 'field');
+  }
+  for (const s of lab.squads) labelFor(s.id, 'squad');
+  for (const id of history.keys()) if (!lab.agents.some((a) => a.id === id)) history.delete(id);
+}
+function renderAgents(sample) {
+  droneMesh.count = healthMesh.count = lab.agents.length;
+  const squads = new Map(lab.squads.map((s) => [s.id, s]));
+  for (let i = 0; i < lab.agents.length; i++) {
+    const a = lab.agents[i],
+      s = squads.get(a.squad);
+    dummy.position.set(a.x, a.alive ? 0.45 : 0.08, a.z);
+    dummy.rotation.set(a.alive ? 0 : Math.PI / 2, Math.atan2(a.vx, a.vz), 0);
+    dummy.scale.setScalar(a.alive ? 1 : 0.7);
+    dummy.updateMatrix();
+    droneMesh.setMatrixAt(i, dummy.matrix);
+    color.set(
+      !a.alive
+        ? '#485963'
+        : a.stun > 0
+          ? '#ffffff'
+          : a.jam > 0.3
+            ? '#d998ff'
+            : a.marked > 0
+              ? '#ffcc70'
+              : TEAM_COLORS[s.team],
+    );
+    droneMesh.setColorAt(i, color);
+    dummy.position.y = a.alive ? 1.05 : 0.08;
+    dummy.rotation.set(0, 0, 0);
+    dummy.scale.set(Math.max(0, a.hp) / 100, a.alive ? 1 : 0, 1);
+    dummy.updateMatrix();
+    healthMesh.setMatrixAt(i, dummy.matrix);
+    if (!history.has(a.id))
+      history.set(
+        a.id,
+        Array.from({ length: TRAIL_STEPS + 1 }, () => ({ x: a.x, z: a.z })),
+      );
+    const h = history.get(a.id);
+    if (sample) {
+      h.unshift({ x: a.x, z: a.z });
+      h.length = TRAIL_STEPS + 1;
+    }
+    const c = new THREE.Color(TEAM_COLORS[s.team]);
+    for (let j = 0; j < TRAIL_STEPS; j++) {
+      const k = (i * TRAIL_STEPS + j) * 6;
+      trailPositions.set([h[j].x, 0.15, h[j].z, h[j + 1].x, 0.15, h[j + 1].z], k);
+      const shade = c.clone().multiplyScalar((1 - j / TRAIL_STEPS) * 0.75 + 0.15);
+      shade.toArray(trailColors, k);
+      shade.toArray(trailColors, k + 3);
     }
   }
-  return force;
-}
-function reset() {
-  collisions = 0;
-  for (let i = 0; i < N; i++) {
-    positions[i].copy(randomPos());
-    velocities[i].set((Math.random() - 0.5) * 1.5, 0, (Math.random() - 0.5) * 1.5);
-    agents[i].position.copy(positions[i]);
+  droneMesh.instanceMatrix.needsUpdate = true;
+  if (droneMesh.instanceColor) droneMesh.instanceColor.needsUpdate = true;
+  healthMesh.instanceMatrix.needsUpdate = true;
+  trailGeo.setDrawRange(0, lab.agents.length * TRAIL_STEPS * 2);
+  trailGeo.attributes.position.needsUpdate = true;
+  trailGeo.attributes.color.needsUpdate = true;
+  const shots = lab.shots.slice(-LIMITS.agents);
+  for (let i = 0; i < shots.length; i++) {
+    const s = shots[i];
+    shotPositions.set([s.x, 0.55, s.z, s.tx, 0.55, s.tz], i * 6);
+    color.set(TEAM_COLORS[s.team]);
+    color.toArray(shotColors, i * 6);
+    color.toArray(shotColors, i * 6 + 3);
   }
-  clearTrails();
-  document.querySelector('#collisionStat').textContent = '0';
-  updateStats();
+  shotGeo.setDrawRange(0, shots.length * 2);
+  shotGeo.attributes.position.needsUpdate = true;
+  shotGeo.attributes.color.needsUpdate = true;
+  const selected = squad();
+  selectionRing.visible = !!selected;
+  if (selected) {
+    selectionRing.position.set(selected.anchor.x, 0.1, selected.anchor.z);
+    selectionRing.scale.setScalar(2.2);
+  }
 }
-document.querySelector('#reset').addEventListener('click', reset);
-const pauseBtn = document.querySelector('#pause');
-function togglePause() {
-  paused = !paused;
-  pauseBtn.textContent = paused ? 'Resume' : 'Pause';
-  pauseBtn.setAttribute('aria-pressed', String(paused));
-  const status = document.querySelector('#runState');
-  status.textContent = paused ? 'Paused' : 'Running';
-  status.classList.toggle('paused', paused);
+const projected = new THREE.Vector3();
+function placeLabel(id, x, z, text, tint) {
+  const el = labels.get(id);
+  if (!el) return;
+  projected.set(x, 1.5, z).project(camera);
+  el.hidden = projected.z > 1 || projected.z < -1;
+  if (el.hidden) return;
+  el.style.left = `${(projected.x * 0.5 + 0.5) * 100}%`;
+  el.style.top = `${(-projected.y * 0.5 + 0.5) * 100}%`;
+  el.textContent = text;
+  if (tint) el.style.borderColor = tint;
 }
-pauseBtn.addEventListener('click', togglePause);
-
-const modes = document.querySelectorAll('.mode'),
-  lesson = document.querySelector('#lesson'),
-  dev = document.querySelector('#devPanel');
-modes.forEach((b) =>
-  b.addEventListener('click', () => {
-    modes.forEach((x) => {
-      x.classList.toggle('active', x === b);
-      x.setAttribute('aria-pressed', String(x === b));
-    });
-    lesson.classList.toggle('hidden', b.dataset.mode !== 'learn');
-    dev.classList.toggle('hidden', b.dataset.mode !== 'dev');
-  }),
+function renderLabels() {
+  for (const s of lab.squads) {
+    const members = lab.members(s);
+    if (!members.length) {
+      labels.get(s.id).hidden = true;
+      continue;
+    }
+    const x = members.reduce((n, a) => n + a.x, 0) / members.length,
+      z = members.reduce((n, a) => n + a.z, 0) / members.length;
+    placeLabel(s.id, x, z, `${s.name} · ${members.length} · ${s.role}`, TEAM_COLORS[s.team]);
+  }
+  for (const t of lab.targets) placeLabel(t.id, t.x, t.z, t.name);
+  for (const f of lab.fields) {
+    placeLabel(
+      f.id,
+      f.x,
+      f.z,
+      `${FIELD_TYPES[f.type].label}${!f.enabled ? ' · off' : f.type === 'emp' ? (lab.time % 4 < 2 ? ' · pulse' : ' · idle') : ''}`,
+      FIELD_TYPES[f.type].color,
+    );
+    labels.get(f.id).hidden = !$('showFields').checked;
+  }
+}
+function updateArrows() {
+  const s = squad(),
+    t = lab.targets.find((t) => t.id === s?.target) || { x: 0, z: 0 };
+  for (const a of arrows) {
+    const dx = t.x - a.position.x,
+      dz = t.z - a.position.z,
+      d = Math.hypot(dx, dz) || 1;
+    let x =
+        (dx / d) * lab.params.attraction -
+        ((dz / d) * lab.params.vortex) / (1 + d * 0.12) +
+        lab.params.wind,
+      z = (dz / d) * lab.params.attraction + ((dx / d) * lab.params.vortex) / (1 + d * 0.12);
+    for (const f of lab.fields) {
+      if (!f.enabled || (s && !lab.applies(f, s))) continue;
+      const dx = a.position.x - f.x,
+        dz = a.position.z - f.z,
+        d = Math.hypot(dx, dz) || 1,
+        k = f.strength * 4 * Math.max(0, 1 - d / f.r);
+      if (f.type === 'attract') {
+        x -= (dx / d) * k;
+        z -= (dz / d) * k;
+      }
+      if (f.type === 'repel') {
+        x += (dx / d) * k;
+        z += (dz / d) * k;
+      }
+      if (f.type === 'vortex') {
+        x -= (dz / d) * k;
+        z += (dx / d) * k;
+      }
+    }
+    const len = Math.hypot(x, z);
+    a.setDirection(new THREE.Vector3(x, 0, z).normalize());
+    a.setLength(Math.min(2.5, 0.15 + len * 0.25), 0.2, 0.09);
+  }
+}
+function option(value, label) {
+  const o = document.createElement('option');
+  o.value = value;
+  o.textContent = label;
+  return o;
+}
+function fill(id, entries, value) {
+  const el = $(id);
+  el.replaceChildren(...entries.map(([v, l]) => option(v, l)));
+  if (entries.some(([v]) => v === value)) el.value = value;
+}
+function title(s) {
+  return s[0].toUpperCase() + s.slice(1);
+}
+fill(
+  'fieldType',
+  Object.entries(FIELD_TYPES).map(([k, v]) => [k, v.label]),
+  'radar',
 );
-
-const presets = {
-  balanced: { attraction: 3.2, vortex: 1.5, separation: 3.8, avoid: 6.2, wind: 0.6, damping: 0.85 },
-  orbit: { attraction: 2.5, vortex: 5, separation: 3.8, avoid: 8, wind: 0, damping: 0.4 },
-  gather: { attraction: 5, vortex: 0, separation: 2, avoid: 9, wind: 0, damping: 1.5 },
-  wind: { attraction: 1.8, vortex: 0.5, separation: 4, avoid: 9, wind: 2.6, damping: 0.65 },
-};
-function applyPreset(name) {
-  for (const [id, value] of Object.entries(presets[name])) {
-    ui[id].value = value;
-    document.querySelector('#' + id + 'Out').textContent = value.toFixed(id === 'damping' ? 2 : 1);
-  }
-  document.querySelector('#preset').value = name;
+fill(
+  'role',
+  Object.entries(ROLES).map(([k, v]) => [k, v.label]),
+  'scout',
+);
+fill(
+  'sensor',
+  Object.entries(SENSORS).map(([k, v]) => [k, v.label]),
+  'radar',
+);
+for (const id of ['squadFormation', 'cueFormation'])
+  fill(
+    id,
+    FORMATIONS.map((s) => [s, title(s)]),
+    'wedge',
+  );
+for (const id of ['play', 'cuePlay'])
+  fill(
+    id,
+    PLAYS.map((s) => [s, title(s)]),
+    'move',
+  );
+fill('ruleWhen', Object.entries(CONDITIONS), 'jammed');
+fill('ruleThen', Object.entries(REACTIONS), 'evade');
+function toast(text) {
+  $('toast').textContent = text;
+  toastUntil = performance.now() + 4500;
 }
-document.querySelector('#preset').addEventListener('change', (e) => applyPreset(e.target.value));
-document.querySelector('#restore').addEventListener('click', () => applyPreset('balanced'));
-const inspector = document.querySelector('#inspector'),
-  controlsToggle = document.querySelector('#controlsToggle');
+let toastUntil = 0;
+const panelTitles = {
+  squads: 'Squads & orders',
+  fields: 'Place in the arena',
+  scripts: 'Reactions & animation',
+  forces: 'Shape the flow',
+  learn: 'Learn the sandbox',
+};
+function setPane(pane) {
+  activePane = pane;
+  document
+    .querySelectorAll('[data-panel]')
+    .forEach((el) => (el.hidden = el.dataset.panel !== pane));
+  document
+    .querySelectorAll('[data-pane]')
+    .forEach((el) => el.setAttribute('aria-pressed', String(el.dataset.pane === pane)));
+  $('panelHeading').textContent = panelTitles[pane];
+}
+for (const button of document.querySelectorAll('[data-pane]'))
+  button.addEventListener('click', () => setPane(button.dataset.pane));
 function setControls(open) {
   document.body.classList.toggle('controls-open', open);
-  inspector.inert = !open;
-  controlsToggle.setAttribute('aria-expanded', String(open));
-  controlsToggle.textContent = open ? 'Hide controls' : 'Tune field';
+  $('inspector').inert = !open;
+  $('controlsToggle').setAttribute('aria-expanded', String(open));
+  $('controlsToggle').textContent = open ? 'Hide controls' : 'Command';
 }
-controlsToggle.addEventListener('click', () =>
-  setControls(!document.body.classList.contains('controls-open')),
-);
-document.querySelector('#closeControls').addEventListener('click', () => {
+$('controlsToggle').onclick = () => setControls(!document.body.classList.contains('controls-open'));
+$('closeControls').onclick = () => {
   setControls(false);
-  controlsToggle.focus();
-});
+  $('controlsToggle').focus();
+};
 setControls(matchMedia('(min-width:1000px)').matches);
+function refreshLists() {
+  if (!squad()) selectedSquad = lab.squads[0]?.id || '';
+  if (!lab.targets.some((t) => t.id === selectedTarget)) selectedTarget = lab.targets[0]?.id || '';
+  fill(
+    'squadSelect',
+    lab.squads.map((s) => [
+      s.id,
+      `${s.name} / ${title(s.team)} / ${lab.members(s, false).length} drones`,
+    ]),
+    selectedSquad,
+  );
+  fill(
+    'targetSelect',
+    lab.targets.map((t) => [t.id, t.name]),
+    selectedTarget,
+  );
+  fill(
+    'squadTarget',
+    [['', 'Home'], ...lab.targets.map((t) => [t.id, t.name])],
+    squad()?.target || '',
+  );
+  fill(
+    'escort',
+    [
+      ['', 'Choose a teammate'],
+      ...lab.squads
+        .filter((s) => s.id !== selectedSquad && s.team === squad()?.team)
+        .map((s) => [s.id, s.name]),
+    ],
+    squad()?.escort || '',
+  );
+  fill(
+    'fieldSelect',
+    [['', 'New field'], ...lab.fields.map((f) => [f.id, `${f.id} · ${FIELD_TYPES[f.type].label}`])],
+    selectedField,
+  );
+  for (const id of [
+    'role',
+    'sensor',
+    'squadFormation',
+    'play',
+    'squadTarget',
+    'escort',
+    'spacing',
+    'spin',
+    'avoidFields',
+    'adaptive',
+    'attackOrder',
+    'removeSquad',
+    'addRule',
+    'addCue',
+    'timelineToggle',
+    'timelineReset',
+    'demoTimeline',
+    'applyScript',
+  ])
+    $(id).disabled = !squad();
+  $('moveTarget').disabled = $('removeTarget').disabled = !selectedTarget;
+  $('moveField').disabled = $('removeField').disabled = !selectedField;
+  syncObjects();
+}
+const roleText = {
+  scout: 'Scouts sense farther and fly faster. They do not fire tags.',
+  guard: 'Guards tag nearby visible opponents when combat is on.',
+  striker: 'Strikers fly faster and deal more tag damage.',
+  jammer: 'Jammers disrupt opponents within 6 arena units when combat is on.',
+  medic: 'Medics heal active teammates within 5 units. They cannot revive disabled drones.',
+  relay: 'Relays support friendly links within 7 units, reducing jamming.',
+};
+function syncSquad() {
+  editingRule = -1;
+  $('addRule').textContent = 'Add reaction';
+  const s = squad();
+  if (!s) return;
+  for (const [id, key] of [
+    ['role', 'role'],
+    ['sensor', 'sensor'],
+    ['squadFormation', 'formation'],
+    ['play', 'play'],
+    ['squadTarget', 'target'],
+    ['escort', 'escort'],
+    ['spacing', 'spacing'],
+    ['spin', 'spin'],
+  ])
+    $(id).value = s[key];
+  $('avoidFields').checked = s.avoidFields;
+  $('adaptive').checked = s.adaptive;
+  $('spacingOut').textContent = s.spacing.toFixed(1);
+  $('spinOut').textContent = s.spin.toFixed(1);
+  $('roleHelp').textContent = roleText[s.role];
+  $('scriptSquadName').textContent = s.name;
+  $('timelineLoop').checked = s.timelineLoop;
+  syncScripts();
+}
+$('squadSelect').onchange = () => {
+  selectedSquad = $('squadSelect').value;
+  refreshLists();
+  syncSquad();
+};
+for (const [id, key] of [
+  ['role', 'role'],
+  ['sensor', 'sensor'],
+  ['squadFormation', 'formation'],
+  ['play', 'play'],
+  ['squadTarget', 'target'],
+  ['escort', 'escort'],
+])
+  $(id).onchange = () => {
+    if (!squad()) return;
+    squad()[key] = $(id).value;
+    if (['formation', 'play'].includes(key)) squad().timeline = false;
+    lab.log(`${squad().name}: ${key} set to ${$(id).selectedOptions[0].textContent}.`);
+    syncSquad();
+  };
+for (const id of ['spacing', 'spin'])
+  $(id).oninput = () => {
+    if (!squad()) return;
+    squad()[id] = +$(id).value;
+    squad().timeline = false;
+    $(id + 'Out').textContent = (+$(id).value).toFixed(1);
+  };
+for (const id of ['avoidFields', 'adaptive'])
+  $(id).onchange = () => {
+    if (squad()) squad()[id] = $(id).checked;
+  };
+$('combat').onchange = () => {
+  lab.combat = $('combat').checked;
+  lab.result = '';
+  lab.shots = [];
+  toast(
+    lab.combat
+      ? 'Tag combat enabled. Sensors still determine who can engage.'
+      : 'Tag combat off. Zone effects remain active.',
+  );
+};
+$('attackOrder').onclick = () => {
+  if (!squad()) return;
+  squad().play = 'attack';
+  squad().timeline = false;
+  syncSquad();
+  toast(lab.combat ? 'Attack order set.' : 'Attack order set. Turn on tag combat to engage.');
+};
+$('removeSquad').onclick = () => {
+  lab.removeSquad(selectedSquad);
+  refreshLists();
+  syncSquad();
+};
+$('loadScenario').onclick = () => {
+  lab.scenario($('scenario').value);
+  selectedSquad = lab.squads[0].id;
+  selectedTarget = lab.targets[0].id;
+  selectedField = '';
+  history.clear();
+  setPlacement(null);
+  $('combat').checked = lab.combat;
+  syncForces();
+  refreshLists();
+  syncSquad();
+  syncField();
+  toast('Scenario loaded.');
+};
+$('targetSelect').onchange = () => {
+  selectedTarget = $('targetSelect').value;
+};
+$('removeTarget').onclick = () => {
+  lab.removeTarget(selectedTarget);
+  refreshLists();
+  syncSquad();
+};
+function syncField() {
+  const f = lab.fields.find((f) => f.id === selectedField);
+  if (f) {
+    $('fieldType').value = f.type;
+    $('radius').value = f.r;
+    $('strength').value = f.strength;
+    $('fieldTeam').value = f.affects;
+    $('fieldEnabled').checked = f.enabled;
+  }
+  $('radiusOut').textContent = (+$('radius').value).toFixed(1);
+  $('strengthOut').textContent = (+$('strength').value).toFixed(2);
+  $('fieldHelp').textContent = FIELD_TYPES[$('fieldType').value].description;
+}
+$('fieldSelect').onchange = () => {
+  selectedField = $('fieldSelect').value;
+  refreshLists();
+  syncField();
+};
+for (const id of ['fieldType', 'radius', 'strength', 'fieldTeam', 'fieldEnabled'])
+  $(id).addEventListener(id === 'radius' || id === 'strength' ? 'input' : 'change', () => {
+    const f = lab.fields.find((f) => f.id === selectedField);
+    if (f)
+      Object.assign(f, {
+        type: $('fieldType').value,
+        r: +$('radius').value,
+        strength: +$('strength').value,
+        affects: $('fieldTeam').value,
+        enabled: $('fieldEnabled').checked,
+      });
+    syncField();
+    syncObjects();
+  });
+$('removeField').onclick = () => {
+  lab.removeField(selectedField);
+  selectedField = '';
+  refreshLists();
+  syncField();
+};
+const presets = {
+  balanced: DEFAULTS,
+  orbit: { ...DEFAULTS, attraction: 2.5, vortex: 5, wind: 0, damping: 0.4 },
+  gather: { ...DEFAULTS, attraction: 5, vortex: 0, wind: 0, damping: 1.5 },
+  wind: { ...DEFAULTS, attraction: 1.8, vortex: 0.5, wind: 2.6, damping: 0.65 },
+};
+function syncForces() {
+  for (const [id, value] of Object.entries(lab.params)) {
+    $(id).value = value;
+    $(id + 'Out').textContent = value.toFixed(id === 'damping' ? 2 : 1);
+  }
+}
+for (const id of Object.keys(DEFAULTS))
+  $(id).oninput = () => {
+    lab.params[id] = +$(id).value;
+    $(id + 'Out').textContent = (+$(id).value).toFixed(id === 'damping' ? 2 : 1);
+    $('preset').value = 'custom';
+  };
+$('preset').onchange = () => {
+  lab.params = { ...presets[$('preset').value] };
+  syncForces();
+};
+$('restore').onclick = () => {
+  lab.params = { ...DEFAULTS };
+  $('preset').value = 'balanced';
+  syncForces();
+};
+$('vectors').onchange = () => (arrowGroup.visible = $('vectors').checked);
+$('trails').onchange = () => (trails.visible = $('trails').checked);
+let editingRule = -1;
+function publicScript(s) {
+  return {
+    rules: s.rules.map(({ when, then, threshold, cooldown, enabled }) => ({
+      when,
+      then,
+      threshold,
+      cooldown,
+      enabled,
+    })),
+    cues: s.cues.map((c) => ({ ...c })),
+  };
+}
+function listButton(text, action) {
+  const b = document.createElement('button');
+  b.textContent = text;
+  b.onclick = action;
+  return b;
+}
+function syncScripts() {
+  const s = squad();
+  if (!s) {
+    $('ruleList').replaceChildren();
+    $('cueList').replaceChildren();
+    return;
+  }
+  $('scriptSource').value = JSON.stringify(publicScript(s), null, 2);
+  $('scriptError').textContent = '';
+  $('ruleList').replaceChildren(
+    ...s.rules.map((r, i) => {
+      const row = document.createElement('article');
+      row.classList.toggle('disabled', r.enabled === false);
+      const p = document.createElement('p');
+      p.textContent = `${i + 1}. When ${CONDITIONS[r.when].toLowerCase()}${r.when === 'hurt' ? ` (${r.threshold}%)` : ''}, ${REACTIONS[r.then].toLowerCase()}.`;
+      row.append(
+        p,
+        listButton('Edit', () => {
+          editingRule = i;
+          $('ruleWhen').value = r.when;
+          $('ruleThen').value = r.then;
+          $('ruleThreshold').value = r.threshold;
+          $('ruleCooldown').value = r.cooldown;
+          $('addRule').textContent = 'Save reaction';
+        }),
+        listButton(r.enabled === false ? 'Enable' : 'Disable', () => {
+          r.enabled = r.enabled === false;
+          r.wasTrue = false;
+          syncScripts();
+        }),
+        listButton('Up', () => {
+          if (i) {
+            [s.rules[i - 1], s.rules[i]] = [s.rules[i], s.rules[i - 1]];
+            syncScripts();
+          }
+        }),
+        listButton('Remove', () => {
+          s.rules.splice(i, 1);
+          editingRule = -1;
+          $('addRule').textContent = 'Add reaction';
+          syncScripts();
+        }),
+      );
+      return row;
+    }),
+  );
+  $('cueList').replaceChildren(
+    ...s.cues.map((c, i) => {
+      const row = document.createElement('article'),
+        p = document.createElement('p');
+      p.textContent = `${c.at}s · ${title(c.formation)} / ${c.play} · spacing ${c.spacing} · spin ${c.spin}`;
+      row.append(
+        p,
+        listButton('Edit', () => {
+          for (const [id, key] of [
+            ['cueAt', 'at'],
+            ['cueFormation', 'formation'],
+            ['cuePlay', 'play'],
+            ['cueSpacing', 'spacing'],
+            ['cueSpin', 'spin'],
+          ])
+            $(id).value = c[key];
+        }),
+        listButton('Remove', () => {
+          s.cues.splice(i, 1);
+          syncScripts();
+        }),
+      );
+      return row;
+    }),
+  );
+  s.timelineLength = Math.max(30, ...s.cues.map((c) => c.at + 6));
+  $('playhead').max = s.timelineLength;
+}
+function scriptError(error) {
+  $('scriptError').textContent = error.message;
+  toast(error.message);
+}
+$('addRule').onclick = () => {
+  const s = squad();
+  if (!s) return;
+  try {
+    const candidate = {
+      when: $('ruleWhen').value,
+      then: $('ruleThen').value,
+      threshold: +$('ruleThreshold').value,
+      cooldown: +$('ruleCooldown').value,
+      enabled: true,
+    };
+    const rules = publicScript(s).rules;
+    if (editingRule >= 0 && editingRule < rules.length) rules[editingRule] = candidate;
+    else rules.push(candidate);
+    s.rules = validateScript({ rules, cues: s.cues }).rules;
+    editingRule = -1;
+    $('addRule').textContent = 'Add reaction';
+    syncScripts();
+  } catch (e) {
+    scriptError(e);
+  }
+};
+$('addCue').onclick = () => {
+  const s = squad();
+  if (!s) return;
+  try {
+    const c = {
+      at: +$('cueAt').value,
+      formation: $('cueFormation').value,
+      play: $('cuePlay').value,
+      spacing: +$('cueSpacing').value,
+      spin: +$('cueSpin').value,
+    };
+    s.cues = validateScript({
+      rules: publicScript(s).rules,
+      cues: [...s.cues.filter((x) => x.at !== c.at), c],
+    }).cues;
+    syncScripts();
+  } catch (e) {
+    scriptError(e);
+  }
+};
+$('applyScript').onclick = () => {
+  const s = squad();
+  if (!s) return;
+  try {
+    const data = validateScript(JSON.parse($('scriptSource').value));
+    s.rules = data.rules;
+    s.cues = data.cues;
+    s.timeline = false;
+    s.timelineTime = 0;
+    s.overrideUntil = 0;
+    syncScripts();
+    toast('Script applied to ' + s.name + '.');
+  } catch (e) {
+    scriptError(e);
+  }
+};
+$('saveScript').onclick = () => {
+  if (!squad()) return;
+  try {
+    localStorage.setItem('fleet-field-script-v2', JSON.stringify(publicScript(squad())));
+    toast('Saved this squad script on this device.');
+  } catch (e) {
+    toast('This browser could not save the script. Keep a copy of the JSON text.');
+  }
+};
+$('loadScript').onclick = () => {
+  if (!squad()) return;
+  try {
+    const raw = localStorage.getItem('fleet-field-script-v2');
+    if (!raw) {
+      toast('No saved script on this device.');
+      return;
+    }
+    const data = validateScript(JSON.parse(raw));
+    Object.assign(squad(), data, { timeline: false, timelineTime: 0, overrideUntil: 0 });
+    syncScripts();
+    toast('Saved script loaded into ' + squad().name + '.');
+  } catch (e) {
+    scriptError(e);
+  }
+};
+$('demoTimeline').onclick = () => {
+  const s = squad();
+  if (!s) return;
+  s.cues = [
+    { at: 0, formation: 'ring', play: 'move', spacing: 1.2, spin: 0.4 },
+    { at: 8, formation: 'wedge', play: 'move', spacing: 1.7, spin: 0 },
+    { at: 16, formation: 'grid', play: 'move', spacing: 1.4, spin: -0.3 },
+    { at: 24, formation: 'spiral', play: 'orbit', spacing: 1.1, spin: 0.6 },
+  ];
+  s.timelineTime = 0;
+  s.timeline = false;
+  syncScripts();
+  toast('Example loaded. Press Play timeline.');
+};
+$('timelineToggle').onclick = () => {
+  const s = squad();
+  if (!s) return;
+  if (!s.cues.length) {
+    toast('Add cues or load the example first.');
+    return;
+  }
+  s.timeline = !s.timeline;
+  if (s.timelineTime >= s.timelineLength) s.timelineTime = 0;
+};
+$('timelineReset').onclick = () => {
+  const s = squad();
+  if (!s) return;
+  s.timelineTime = 0;
+  s.heading = 0;
+  s.overrideUntil = 0;
+  lab.applyTimeline(s);
+  syncSquad();
+};
+$('timelineLoop').onchange = () => {
+  if (squad()) squad().timelineLoop = $('timelineLoop').checked;
+};
+$('playhead').oninput = () => {
+  const s = squad();
+  if (!s) return;
+  s.timeline = false;
+  s.timelineTime = +$('playhead').value;
+  s.overrideUntil = 0;
+  lab.applyTimeline(s);
+  $('playheadOut').textContent = s.timelineTime.toFixed(1) + ' s';
+};
 
 let yaw = 0,
   pitch = 0.93,
   distance = 80,
   zoom = 1,
-  topView = false,
-  placing = false;
-const placeBtn = document.querySelector('#placeTarget'),
-  hint = document.querySelector('#gestureHint');
-function setPlacing(value) {
-  placing = value;
-  placeBtn.setAttribute('aria-pressed', String(value));
-  placeBtn.textContent = value ? 'Tap arena' : 'Place target';
-  canvas.classList.toggle('targeting', value);
-  hint.textContent = value
-    ? 'Tap or drag an open spot to move the target'
-    : 'Drag to orbit · Pinch or scroll to zoom';
-}
-placeBtn.addEventListener('click', () => {
-  setPlacing(!placing);
-  if (placing && innerWidth < 1000) setControls(false);
-});
+  topView = false;
+const raycaster = new THREE.Raycaster(),
+  mouse = new THREE.Vector2(),
+  plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 function updateCamera() {
   const cp = Math.cos(pitch),
     sp = Math.sin(pitch);
@@ -373,10 +986,11 @@ function updateCamera() {
     Math.cos(yaw) * cp * distance * zoom,
   );
   camera.lookAt(0, 0, 0);
+  camera.updateMatrixWorld();
 }
 function fitCamera() {
-  const vertical = THREE.MathUtils.degToRad(camera.fov / 2);
-  const horizontal = Math.atan(Math.tan(vertical) * camera.aspect);
+  const vertical = THREE.MathUtils.degToRad(camera.fov / 2),
+    horizontal = Math.atan(Math.tan(vertical) * camera.aspect);
   distance = 33 / Math.sin(Math.min(vertical, horizontal));
   updateCamera();
 }
@@ -384,59 +998,157 @@ function setTopView(value) {
   topView = value;
   pitch = value ? Math.PI / 2 - 0.001 : 0.93;
   yaw = 0;
-  document.querySelector('#viewTop').setAttribute('aria-pressed', String(value));
-  document.querySelector('#viewTop').textContent = value ? '3D view' : 'Top view';
+  $('viewTop').setAttribute('aria-pressed', String(value));
+  $('viewTop').textContent = value ? '3D view' : 'Top view';
   updateCamera();
 }
-document.querySelector('#viewTop').addEventListener('click', () => setTopView(!topView));
-document.querySelector('#viewReset').addEventListener('click', () => {
+$('viewTop').onclick = () => setTopView(!topView);
+$('viewReset').onclick = () => {
   zoom = 1;
   setTopView(false);
   fitCamera();
-});
-function moveTarget(e) {
+};
+function setPlacement(mode) {
+  placement = mode;
+  canvas.classList.toggle('targeting', !!mode);
+  $('placeTarget').textContent = mode ? 'Cancel placement' : 'Place objects';
+  $('gestureHint').textContent = mode
+    ? `Tap arena to ${mode.label}. Drag still orbits; pinch still zooms.`
+    : 'Drag to orbit · Pinch to zoom · Tap a squad to select';
+  if (mode && innerWidth < 1000) setControls(false);
+}
+$('placeTarget').onclick = () => {
+  if (placement) setPlacement(null);
+  else {
+    setPane('fields');
+    setControls(true);
+  }
+};
+$('addTarget').onclick = () => setPlacement({ kind: 'addTarget', label: 'add a target' });
+$('moveTarget').onclick = () =>
+  setPlacement({ kind: 'moveTarget', id: selectedTarget, label: 'move the selected target' });
+$('addField').onclick = () =>
+  setPlacement({
+    kind: 'addField',
+    type: $('fieldType').value,
+    r: +$('radius').value,
+    strength: +$('strength').value,
+    affects: $('fieldTeam').value,
+    label: 'place ' + FIELD_TYPES[$('fieldType').value].label.toLowerCase(),
+  });
+$('moveField').onclick = () =>
+  setPlacement({ kind: 'moveField', id: selectedField, label: 'move the selected field' });
+$('spawnSquad').onclick = () => {
+  const count = +$('spawnCount').value;
+  if (!Number.isInteger(count) || count < 4 || count > 60) {
+    toast('Choose 4–60 drones.');
+    return;
+  }
+  setPlacement({
+    kind: 'squad',
+    team: $('spawnTeam').value,
+    count,
+    role: squad()?.role || 'scout',
+    formation: squad()?.formation || 'wedge',
+    label: 'deploy the new squad',
+  });
+};
+function pointAt(e) {
   const r = canvas.getBoundingClientRect();
   mouse.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
   raycaster.setFromCamera(mouse, camera);
   const hit = new THREE.Vector3();
-  if (raycaster.ray.intersectPlane(plane, hit)) {
-    const radius = Math.hypot(hit.x, hit.z);
-    if (radius > 27) hit.multiplyScalar(27 / radius);
-    for (const o of obstacleData) {
-      const dx = hit.x - o.x,
-        dz = hit.z - o.z,
-        d = Math.hypot(dx, dz);
-      if (d < o.r + 1) {
-        hit.x = o.x + (d ? dx / d : 1) * (o.r + 1);
-        hit.z = o.z + (d ? dz / d : 0) * (o.r + 1);
-      }
+  return raycaster.ray.intersectPlane(plane, hit) ? hit : null;
+}
+function clickArena(e) {
+  const hit = pointAt(e);
+  if (!hit) return;
+  const p = clearPoint(hit.x, hit.z, 1);
+  if (placement) {
+    const mode = placement;
+    let success = true;
+    if (mode.kind === 'addTarget') {
+      const t = lab.addTarget(p.x, p.z);
+      if (t) selectedTarget = t.id;
+      else success = false;
     }
-    hit.y = 0.55;
-    target.position.copy(hit);
+    if (mode.kind === 'moveTarget') {
+      const t = lab.targets.find((t) => t.id === mode.id);
+      if (t) Object.assign(t, p);
+    }
+    if (mode.kind === 'addField') {
+      const f = lab.addField(mode.type, p.x, p.z, mode.r, mode.strength, mode.affects);
+      if (f) selectedField = f.id;
+      else success = false;
+    }
+    if (mode.kind === 'moveField') {
+      const f = lab.fields.find((f) => f.id === mode.id);
+      if (f) Object.assign(f, p);
+    }
+    if (mode.kind === 'squad') {
+      const s = lab.addSquad(mode.team, mode.count, mode.role, p.x, p.z);
+      if (s) {
+        s.formation = mode.formation;
+        selectedSquad = s.id;
+      } else success = false;
+    }
+    setPlacement(null);
+    refreshLists();
+    syncSquad();
+    syncField();
+    toast(
+      success
+        ? 'Placement complete. Open Command to edit.'
+        : 'Limit reached. Remove an item before adding another.',
+    );
+    return;
+  }
+  const field = lab.fields.find((f) => Math.hypot(hit.x - f.x, hit.z - f.z) < 1.4);
+  if (field) {
+    selectedField = field.id;
+    refreshLists();
+    syncField();
+    setPane('fields');
+    setControls(true);
+    return;
+  }
+  const a = lab.agents
+    .filter((a) => a.alive)
+    .sort((a, b) => Math.hypot(hit.x - a.x, hit.z - a.z) - Math.hypot(hit.x - b.x, hit.z - b.z))[0];
+  if (a && Math.hypot(hit.x - a.x, hit.z - a.z) < 2) {
+    selectedSquad = a.squad;
+    refreshLists();
+    syncSquad();
+    setPane('squads');
+    setControls(true);
   }
 }
 const pointers = new Map();
 let pinchDistance = 0,
-  usedPinch = false;
+  usedPinch = false,
+  dragDistance = 0;
 function span() {
   const p = [...pointers.values()];
   return Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y);
 }
 canvas.addEventListener('pointerdown', (e) => {
-  if (pointers.size === 0) usedPinch = false;
+  if (!pointers.size) {
+    usedPinch = false;
+    dragDistance = 0;
+  }
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
   canvas.setPointerCapture(e.pointerId);
   if (pointers.size === 2) {
     pinchDistance = span();
     usedPinch = true;
   }
-  if (placing && pointers.size === 1) moveTarget(e);
 });
 canvas.addEventListener('pointermove', (e) => {
   const old = pointers.get(e.pointerId);
   if (!old) return;
   const dx = e.clientX - old.x,
     dy = e.clientY - old.y;
+  dragDistance += Math.hypot(dx, dy);
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
   if (pointers.size === 2) {
     const next = span();
@@ -446,18 +1158,16 @@ canvas.addEventListener('pointermove', (e) => {
     return;
   }
   if (usedPinch) return;
-  if (placing) {
-    moveTarget(e);
-    return;
-  }
   yaw -= dx * 0.006;
   pitch = THREE.MathUtils.clamp(pitch + dy * 0.006, 0.35, Math.PI / 2 - 0.001);
   updateCamera();
 });
 function releasePointer(e) {
+  const wasTracked = pointers.has(e.pointerId);
   pointers.delete(e.pointerId);
   if (canvas.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId);
-  if (!pointers.size && placing && !usedPinch && e.type === 'pointerup') setPlacing(false);
+  if (wasTracked && !pointers.size && !usedPinch && dragDistance < 7 && e.type === 'pointerup')
+    clickArena(e);
 }
 canvas.addEventListener('pointerup', releasePointer);
 canvas.addEventListener('pointercancel', releasePointer);
@@ -471,11 +1181,26 @@ canvas.addEventListener(
   },
   { passive: false },
 );
+function reset() {
+  lab.reset();
+  history.clear();
+  renderAgents(false);
+  syncScripts();
+}
+function togglePause() {
+  paused = !paused;
+  $('pause').textContent = paused ? 'Resume' : 'Pause';
+  $('pause').setAttribute('aria-pressed', String(paused));
+  $('runState').textContent = paused ? 'Paused' : 'Running';
+  $('runState').classList.toggle('paused', paused);
+}
+$('reset').onclick = reset;
+$('pause').onclick = togglePause;
 addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
-    setPlacing(false);
+    setPlacement(null);
     setControls(false);
-    controlsToggle.focus();
+    $('controlsToggle').focus();
     return;
   }
   if (e.target.closest('input,select,button,textarea') || e.ctrlKey || e.metaKey || e.altKey)
@@ -486,97 +1211,58 @@ addEventListener('keydown', (e) => {
   }
   if (e.key.toLowerCase() === 'r') reset();
 });
-function updateStats() {
-  let speed = 0,
-    near = 0;
-  for (let i = 0; i < N; i++) {
-    speed += velocities[i].length();
-    if (positions[i].distanceTo(target.position) < 4) near++;
+function updateReadouts() {
+  const summary = lab.summary(),
+    s = squad();
+  $('activeStat').textContent = `${summary.active}/${summary.total}`;
+  $('jamStat').textContent = summary.jammed;
+  $('downStat').textContent = summary.down;
+  $('speedStat').textContent = summary.speed.toFixed(1);
+  $('sceneCount').textContent =
+    `${lab.squads.length} squads / ${lab.targets.length} targets / ${lab.fields.length} fields`;
+  $('battleResult').hidden = !summary.result;
+  $('battleResult').textContent = summary.result;
+  if (s) {
+    const members = lab.members(s),
+      all = lab.members(s, false);
+    $('squadReadout').textContent =
+      `${s.name} · ${s.state}\n${members.length}/${all.length} active · ${Math.round(members.reduce((v, a) => v + a.hp, 0) / (members.length || 1))}% avg health · ${s.aware.size} known fields`;
+    $('lastReaction').textContent = s.lastReaction;
+    $('learnLive').textContent =
+      `${s.name} is ${s.state.toLowerCase()}. It has the ${s.role} role, uses ${s.sensor} sensing and is following the ${s.play} play in ${s.formation} formation.\n${s.lastReaction}`;
+    $('timelineToggle').textContent = s.timeline ? 'Pause timeline' : 'Play timeline';
+    $('timelineToggle').setAttribute('aria-pressed', String(s.timeline));
+    if (document.activeElement !== $('playhead')) $('playhead').value = s.timelineTime;
+    $('playheadOut').textContent = s.timelineTime.toFixed(1) + ' s';
+    if (document.activeElement !== $('squadFormation')) $('squadFormation').value = s.formation;
+    if (document.activeElement !== $('play')) $('play').value = s.play;
+    $('devPanel').textContent = JSON.stringify(
+      {
+        time: +lab.time.toFixed(1),
+        selected: s.name,
+        role: s.role,
+        play: s.play,
+        formation: s.formation,
+        state: s.state,
+        knownFields: [...s.aware],
+        lastReaction: s.lastReaction,
+        forces: lab.params,
+        summary,
+      },
+      null,
+      2,
+    );
+  } else {
+    $('squadReadout').textContent = 'No squads. Deploy a new squad below.';
+    $('learnLive').textContent = 'Deploy a squad to observe its decisions.';
   }
-  document.querySelector('#speedStat').textContent = (speed / N).toFixed(2);
-  document.querySelector('#collisionStat').textContent = collisions;
-  document.querySelector('#goalStat').textContent = Math.round((near / N) * 100) + '%';
-}
-
-const clock = new THREE.Clock();
-let frames = 0,
-  lastStats = 0;
-function animate() {
-  requestAnimationFrame(animate);
-  const dt = Math.min(0.03, clock.getDelta());
-  const time = clock.elapsedTime;
-  if (!paused) targetCore.rotation.y += dt * 0.8;
-
-  if (!paused) {
-    const p = params();
-    for (let i = 0; i < N; i++) {
-      const pos = positions[i],
-        vel = velocities[i];
-      const f = fieldAt(pos, i).clone();
-      vel.addScaledVector(f, dt);
-      vel.multiplyScalar(Math.exp(-p.damping * dt));
-      const speed = vel.length();
-      if (speed > 7) vel.multiplyScalar(7 / speed);
-      pos.addScaledVector(vel, dt);
-
-      const radial = Math.hypot(pos.x, pos.z);
-      if (radial > 29) {
-        tmp.set(pos.x, 0, pos.z).normalize();
-        vel.reflect(tmp).multiplyScalar(0.7);
-        pos.x = tmp.x * 28.8;
-        pos.z = tmp.z * 28.8;
-      }
-      for (const o of obstacleData) {
-        const dx = pos.x - o.x,
-          dz = pos.z - o.z,
-          d = Math.hypot(dx, dz);
-        if (d < o.r + 0.3) {
-          collisions++;
-          const nx = dx / (d || 1),
-            nz = dz / (d || 1);
-          pos.x = o.x + nx * (o.r + 0.35);
-          pos.z = o.z + nz * (o.r + 0.35);
-          vel.x += nx * 2;
-          vel.z += nz * 2;
-        }
-      }
-      const m = agents[i];
-      m.position.copy(pos);
-      if (vel.lengthSq() > 0.01)
-        m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), vel.clone().normalize());
-    }
-    trailElapsed += dt;
-    if (trailElapsed >= 0.05) {
-      updateTrails();
-      trailElapsed = 0;
-    }
-  }
-  if (time - lastStats > 0.15) {
-    updateStats();
-    if (!dev.classList.contains('hidden'))
-      dev.textContent = JSON.stringify(
-        {
-          target: { x: +target.position.x.toFixed(2), z: +target.position.z.toFixed(2) },
-          params: params(),
-          agents: N,
-          collisions,
-        },
-        null,
-        2,
-      );
-    lastStats = time;
-  }
-
-  if (frames++ % 3 === 0 && arrowGroup.visible) {
-    for (const a of arrows) {
-      const f = fieldAt(a.position).clone();
-      f.y = 0;
-      const len = Math.min(2.2, 0.35 + f.length() * 0.2);
-      if (f.lengthSq() > 0.0001) a.setDirection(f.normalize());
-      a.setLength(len, 0.22, 0.1);
-    }
-  }
-  renderer.render(scene, camera);
+  $('eventLog').replaceChildren(
+    ...lab.events.map((e) => {
+      const p = document.createElement('p');
+      p.textContent = `${e.time.toFixed(1)}s · ${e.text}`;
+      return p;
+    }),
+  );
 }
 function resize() {
   const { width, height } = viewport.getBoundingClientRect();
@@ -587,5 +1273,47 @@ function resize() {
   fitCamera();
 }
 new ResizeObserver(resize).observe(viewport);
+refreshLists();
+syncSquad();
+syncField();
+syncForces();
 resize();
+const clock = new THREE.Clock();
+let accumulator = 0,
+  trailClock = 0,
+  uiClock = 0;
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(0.1, clock.getDelta());
+  if (!paused) {
+    accumulator += dt;
+    while (accumulator >= 1 / 60) {
+      lab.step(1 / 60);
+      accumulator -= 1 / 60;
+    }
+  } else accumulator = 0;
+  trailClock += dt;
+  uiClock += dt;
+  renderAgents(!paused && trailClock >= 0.06);
+  if (trailClock >= 0.06) trailClock = 0;
+  for (const f of lab.fields) {
+    const g = fieldVisuals.get(f.id);
+    g.visible = $('showFields').checked;
+    g.children[0].material.opacity = !f.enabled
+      ? 0.015
+      : f.type === 'emp' && lab.time % 4 >= 2
+        ? 0.025
+        : 0.11;
+    g.children[1].material.opacity = f.enabled ? 0.8 : 0.2;
+  }
+  for (const t of targetVisuals.values()) if (!paused) t.children[0].rotation.y += dt * 0.6;
+  if (uiClock > 0.2) {
+    updateReadouts();
+    if (arrowGroup.visible) updateArrows();
+    uiClock = 0;
+  }
+  renderer.render(scene, camera);
+  renderLabels();
+  if (performance.now() > toastUntil) $('toast').textContent = '';
+}
 animate();

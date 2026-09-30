@@ -4,142 +4,420 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
     <meta name="theme-color" content="#101e27" />
-    <title>Vector Field · Fleet Commander Lab</title>
-    <link rel="stylesheet" href="./style.css" />
+    <title>Swarm Field Lab · Fleet Commander</title>
+    <link rel="stylesheet" href="./style.css?v=swarm-2" />
   </head>
   <body>
     <main id="app">
       <header class="topbar">
         <div class="identity">
-          <span class="lab-number">01</span>
+          <span class="lab-number">02</span>
           <div>
-            <p class="eyebrow">FLEET COMMANDER / LAB</p>
-            <h1>Vector field</h1>
+            <p class="eyebrow">FLEET COMMANDER / SANDBOX</p>
+            <h1>Swarm field lab</h1>
           </div>
         </div>
-        <span id="runState" class="run-state" role="status">Running</span>
-        <button id="controlsToggle" aria-expanded="false" aria-controls="inspector">
-          Tune field
+        <span id="runState" class="run-state" role="status">Running</span
+        ><button id="controlsToggle" aria-expanded="false" aria-controls="inspector">
+          Command
         </button>
       </header>
       <section id="viewport" aria-label="Interactive swarm arena">
         <canvas
           id="scene"
-          aria-label="100 agents following a vector field. Use Place target to move their destination."
+          aria-label="Squads, targets and sensor zones. Use the placement controls to add objects."
           tabindex="0"
         ></canvas>
         <div class="scene-caption">
-          <span class="eyebrow">LIVE SIMULATION</span
-          ><span>100 agents <span class="muted">/</span> 4 obstacles</span>
+          <span class="eyebrow">LIVE SIMULATION</span><span id="sceneCount">Loading squads</span>
         </div>
-        <div class="view-tools" aria-label="Camera controls">
+        <div class="view-tools">
           <button id="viewTop" aria-pressed="false">Top view</button
           ><button id="viewReset">Fit arena</button>
         </div>
-        <div class="legend" aria-label="Scene legend">
-          <span class="agent-key">Agents</span><span class="target-key">Target</span
-          ><span class="obstacle-key">Obstacle</span>
+        <div id="arenaLabels" aria-hidden="true"></div>
+        <div id="battleResult" class="battle-result" role="status" hidden></div>
+        <div class="legend">
+          <span class="agent-key">Blue</span><span class="red-key">Red</span
+          ><span class="target-key">Targets</span><span class="jam-key">Jammed</span>
         </div>
-        <p id="gestureHint" class="gesture-hint">Drag to orbit · Pinch or scroll to zoom</p>
+        <p id="gestureHint" class="gesture-hint">
+          Drag to orbit · Pinch to zoom · Tap a squad to select
+        </p>
+        <div id="toast" class="toast" role="status"></div>
         <div id="renderError" class="render-error" role="alert" hidden>
-          This device could not start the 3D view. Reload the page to try again.
+          The 3D view could not start. Reload to try again.
         </div>
       </section>
-      <aside id="inspector" class="inspector" aria-label="Field inspector" inert>
+      <aside id="inspector" class="inspector" aria-label="Swarm command inspector" inert>
         <div class="inspector-heading">
           <div>
-            <p class="eyebrow">FIELD INSPECTOR</p>
-            <h2>Shape the flow</h2>
+            <p class="eyebrow">COMMAND INSPECTOR</p>
+            <h2 id="panelHeading">Squads & orders</h2>
           </div>
-          <button id="closeControls" aria-label="Close field inspector">Done</button>
+          <button id="closeControls">Done</button>
         </div>
+        <nav class="inspector-tabs" aria-label="Inspector sections">
+          <button data-pane="squads" aria-pressed="true">Squads</button
+          ><button data-pane="fields" aria-pressed="false">Place</button
+          ><button data-pane="scripts" aria-pressed="false">Scripts</button
+          ><button data-pane="forces" aria-pressed="false">Forces</button
+          ><button data-pane="learn" aria-pressed="false">Learn</button>
+        </nav>
         <div class="inspector-scroll">
-          <div class="mode-row" role="group" aria-label="Detail level">
-            <button class="mode active" data-mode="toy" aria-pressed="true">Toy</button
-            ><button class="mode" data-mode="learn" aria-pressed="false">Learn</button
-            ><button class="mode" data-mode="dev" aria-pressed="false">Dev</button>
-          </div>
-          <label class="preset-label" for="preset">Experiment</label>
-          <select id="preset">
-            <option value="balanced">Balanced swarm</option>
-            <option value="orbit">Orbital flow</option>
-            <option value="gather">Gather at target</option>
-            <option value="wind">Crosswind</option>
-            <option value="custom" disabled>Custom field</option>
-          </select>
-          <fieldset class="forces">
-            <legend>Forces <span>Change one. Watch the response.</span></legend>
-            <label for="attraction"
-              >Attraction <output id="attractionOut" for="attraction"></output
-              ><small>Pull toward the target</small
-              ><input id="attraction" type="range" min="0" max="8" value="3.2" step="0.1"
+          <section data-panel="squads">
+            <label class="control-label" for="scenario">Scenario</label>
+            <div class="inline-controls">
+              <select id="scenario">
+                <option value="sandbox">Free sandbox</option>
+                <option value="hazards">Sensor obstacle course</option>
+                <option value="skirmish">Squad skirmish</option></select
+              ><button id="loadScenario">Load</button>
+            </div>
+            <p class="help">Load replaces the arena. Reset swarm keeps your layout and orders.</p>
+            <label class="check-row"><input id="combat" type="checkbox" /> Enable tag combat</label>
+            <label class="control-label" for="squadSelect">Selected squad</label
+            ><select id="squadSelect"></select>
+            <div id="squadReadout" class="readout"></div>
+            <div class="form-grid">
+              <label>Role<select id="role"></select></label
+              ><label>Onboard sensor<select id="sensor"></select></label
+              ><label>Formation<select id="squadFormation"></select></label
+              ><label>Play / order<select id="play"></select></label>
+            </div>
+            <label class="control-label">Assigned target<select id="squadTarget"></select></label
+            ><label class="control-label">Escort squad<select id="escort"></select></label>
+            <label class="range-row"
+              >Formation spacing <output id="spacingOut"></output
+              ><input id="spacing" type="range" min=".6" max="3" step=".1" value="1.4"
             /></label>
-            <label for="vortex"
-              >Vortex <output id="vortexOut" for="vortex"></output
-              ><small>Spin around the target</small
-              ><input id="vortex" type="range" min="-6" max="6" value="1.5" step="0.1"
+            <label class="range-row"
+              >Formation spin <output id="spinOut"></output
+              ><input id="spin" type="range" min="-2" max="2" step=".1" value="0"
             /></label>
-            <label for="separation"
-              >Separation <output id="separationOut" for="separation"></output
-              ><small>Give neighboring agents room</small
-              ><input id="separation" type="range" min="0" max="8" value="3.8" step="0.1"
-            /></label>
-            <label for="avoid"
-              >Obstacle avoidance <output id="avoidOut" for="avoid"></output
-              ><small>Steer around solid objects</small
-              ><input id="avoid" type="range" min="0" max="12" value="6.2" step="0.1"
-            /></label>
-            <label for="wind"
-              >Wind X <output id="windOut" for="wind"></output><small>Push across the arena</small
-              ><input id="wind" type="range" min="-4" max="4" value="0.6" step="0.1"
-            /></label>
-            <label for="damping"
-              >Damping <output id="dampingOut" for="damping"></output
-              ><small>Slow momentum over time</small
-              ><input id="damping" type="range" min="0" max="3" value="0.85" step="0.05"
-            /></label>
-          </fieldset>
-          <fieldset class="layers">
-            <legend>View layers</legend>
-            <label><input id="vectors" type="checkbox" checked /> Field arrows</label
-            ><label><input id="trails" type="checkbox" checked /> Motion trails</label>
-          </fieldset>
-          <section id="lesson" class="lesson hidden">
-            <h3>One motion, six influences</h3>
-            <p>
-              Attraction pulls toward the amber target. Vortex adds sideways motion. Separation
-              keeps agents apart, while avoidance steers around obstacles.
-            </p>
-            <p>
-              Wind pushes everything sideways. Damping removes speed. Try setting vortex to zero,
-              then turn it up.
-            </p>
-            <code
-              >F = attraction + vortex + separation + avoidance + wind<br />v ← (v + F · dt) ·
-              exp(−damping · dt)</code
+            <label class="check-row"
+              ><input id="avoidFields" type="checkbox" checked /> Avoid known hazard fields</label
+            ><label class="check-row"
+              ><input id="adaptive" type="checkbox" checked /> Adaptive responses</label
             >
-            <p>
-              Field arrows show the shared forces. Agent-to-agent separation and velocity damping
-              are not shown in these arrows.
+            <p id="roleHelp" class="help"></p>
+            <div class="button-row">
+              <button id="attackOrder">Attack order</button
+              ><button id="removeSquad">Remove squad</button>
+            </div>
+            <details>
+              <summary>Deploy another squad</summary>
+              <div class="form-grid">
+                <label
+                  >Team<select id="spawnTeam">
+                    <option value="blue">Blue</option>
+                    <option value="red">Red</option>
+                  </select></label
+                ><label
+                  >Drone count<input id="spawnCount" type="number" min="4" max="60" value="20"
+                /></label>
+              </div>
+              <button id="spawnSquad" class="wide">Place new squad</button>
+              <p class="help">
+                Up to 8 squads / 240 drones. New squads inherit the selected role and formation.
+              </p>
+            </details>
+            <h3>Squad activity</h3>
+            <div id="eventLog" class="event-log" aria-label="Recent activity"></div>
+          </section>
+          <section data-panel="fields" hidden>
+            <h3>Targets</h3>
+            <label class="control-label">Selected target<select id="targetSelect"></select></label>
+            <div class="button-row">
+              <button id="addTarget">Add target</button><button id="moveTarget">Move</button
+              ><button id="removeTarget">Remove</button>
+            </div>
+            <p class="help">Assign targets per squad. Patrol visits every target in list order.</p>
+            <h3>Sensor & influence fields</h3>
+            <label class="control-label"
+              >Selected field<select id="fieldSelect">
+                <option value="">New field</option>
+              </select></label
+            ><label class="control-label">Field type<select id="fieldType"></select></label>
+            <p id="fieldHelp" class="help"></p>
+            <label class="range-row"
+              >Radius <output id="radiusOut"></output
+              ><input id="radius" type="range" min="2" max="10" step=".5" value="5" /></label
+            ><label class="range-row"
+              >Strength <output id="strengthOut"></output
+              ><input id="strength" type="range" min=".25" max="3" step=".25" value="1" /></label
+            ><label class="control-label"
+              >Affects<select id="fieldTeam">
+                <option value="all">Both teams</option>
+                <option value="blue">Blue only</option>
+                <option value="red">Red only</option>
+              </select></label
+            ><label class="check-row"
+              ><input id="fieldEnabled" type="checkbox" checked /> Field enabled</label
+            >
+            <div class="button-row">
+              <button id="addField">Add field</button><button id="moveField">Move</button
+              ><button id="removeField">Remove</button>
+            </div>
+            <p class="help">
+              Edits apply to the selected field immediately. Add field creates another copy. Fields
+              stay active even when tag combat is off.
+            </p>
+            <label class="check-row"
+              ><input id="showFields" type="checkbox" checked /> Show field ranges</label
+            >
+            <p class="help">20 fields / 10 targets maximum. Remove items to make room.</p>
+          </section>
+          <section data-panel="scripts" hidden>
+            <p class="help">
+              Editing <strong id="scriptSquadName"></strong>. Rules and timeline cues belong to this
+              squad.
+            </p>
+            <h3>Reaction builder</h3>
+            <label class="control-label">When<select id="ruleWhen"></select></label
+            ><label class="control-label">Then<select id="ruleThen"></select></label>
+            <div class="form-grid">
+              <label
+                >Health threshold %<input
+                  id="ruleThreshold"
+                  type="number"
+                  min="1"
+                  max="100"
+                  value="40" /></label
+              ><label
+                >Cooldown seconds<input id="ruleCooldown" type="number" min="0" max="60" value="4"
+              /></label>
+            </div>
+            <button id="addRule" class="wide">Add reaction</button>
+            <div id="ruleList" class="script-list"></div>
+            <p id="lastReaction" class="readout"></p>
+            <h3>Formation animator</h3>
+            <p class="help">
+              Cues change formation and orders at a chosen second. Spacing and spin blend between
+              cues. Reaction rules temporarily take priority.
+            </p>
+            <div class="button-row">
+              <button id="timelineToggle" aria-pressed="false">Play timeline</button
+              ><button id="timelineReset">Rewind</button
+              ><button id="demoTimeline">Load example</button>
+            </div>
+            <label class="range-row"
+              >Playhead <output id="playheadOut">0.0 s</output
+              ><input id="playhead" type="range" min="0" max="30" step=".1" value="0" /></label
+            ><label class="check-row"
+              ><input id="timelineLoop" type="checkbox" checked /> Loop sequence</label
+            >
+            <div class="form-grid">
+              <label>At second<input id="cueAt" type="number" min="0" max="60" value="0" /></label
+              ><label>Formation<select id="cueFormation"></select></label
+              ><label>Play<select id="cuePlay"></select></label
+              ><label
+                >Spacing<input
+                  id="cueSpacing"
+                  type="number"
+                  min=".6"
+                  max="3"
+                  step=".1"
+                  value="1.4" /></label
+              ><label
+                >Spin / second<input
+                  id="cueSpin"
+                  type="number"
+                  min="-2"
+                  max="2"
+                  step=".1"
+                  value="0"
+              /></label>
+            </div>
+            <button id="addCue" class="wide">Add / replace cue</button>
+            <div id="cueList" class="script-list"></div>
+            <details>
+              <summary>Edit the readable script</summary>
+              <p class="help">
+                This is a list of game instructions in JSON. It cannot run arbitrary JavaScript.
+              </p>
+              <textarea
+                id="scriptSource"
+                rows="12"
+                spellcheck="false"
+                aria-label="Squad reaction and animation script"
+              ></textarea
+              ><button id="applyScript" class="wide">Apply script</button>
+              <div class="button-row">
+                <button id="saveScript">Save on device</button
+                ><button id="loadScript">Load saved script</button>
+              </div>
+              <p class="help">
+                One saved script slot on this browser. Saving replaces that slot. Arena layouts are
+                not saved.
+              </p>
+              <p id="scriptError" role="alert" class="help"></p>
+            </details>
+          </section>
+          <section data-panel="forces" hidden>
+            <label class="control-label" for="preset">Force preset</label
+            ><select id="preset">
+              <option value="balanced">Balanced swarm</option>
+              <option value="orbit">Orbital flow</option>
+              <option value="gather">Gather at target</option>
+              <option value="wind">Crosswind</option>
+              <option value="custom" disabled>Custom field</option>
+            </select>
+            <fieldset class="forces">
+              <legend>Forces <span>Change one. Watch the response.</span></legend>
+              <label for="attraction"
+                >Attraction <output id="attractionOut" for="attraction"></output
+                ><small>Pull toward the target</small
+                ><input id="attraction" type="range" min="0" max="8" value="3.2" step="0.1"
+              /></label>
+              <label for="vortex"
+                >Vortex <output id="vortexOut" for="vortex"></output
+                ><small>Spin around the target</small
+                ><input id="vortex" type="range" min="-6" max="6" value="1.5" step="0.1"
+              /></label>
+              <label for="separation"
+                >Separation <output id="separationOut" for="separation"></output
+                ><small>Give neighboring agents room</small
+                ><input id="separation" type="range" min="0" max="8" value="3.8" step="0.1"
+              /></label>
+              <label for="avoid"
+                >Obstacle avoidance <output id="avoidOut" for="avoid"></output
+                ><small>Steer around solid objects</small
+                ><input id="avoid" type="range" min="0" max="12" value="6.2" step="0.1"
+              /></label>
+              <label for="wind"
+                >Wind X <output id="windOut" for="wind"></output><small>Push across the arena</small
+                ><input id="wind" type="range" min="-4" max="4" value="0.6" step="0.1"
+              /></label>
+              <label for="damping"
+                >Damping <output id="dampingOut" for="damping"></output
+                ><small>Slow momentum over time</small
+                ><input id="damping" type="range" min="0" max="3" value="0.85" step="0.05"
+              /></label>
+              <label for="formation"
+                >Formation pull<output id="formationOut"></output
+                ><input id="formation" type="range" min="0" max="5" step="0.1" value="2" /></label
+              ><label for="alignment"
+                >Alignment<output id="alignmentOut"></output
+                ><input id="alignment" type="range" min="0" max="3" step="0.1" value="0.7" /></label
+              ><label for="cohesion"
+                >Cohesion<output id="cohesionOut"></output
+                ><input id="cohesion" type="range" min="0" max="3" step="0.1" value="0.5" /></label
+              ><label for="hazard"
+                >Hazard avoidance<output id="hazardOut"></output
+                ><input id="hazard" type="range" min="0" max="20" step="0.5" value="9"
+              /></label>
+            </fieldset>
+            <fieldset class="layers">
+              <legend>View layers</legend>
+              <label><input id="vectors" type="checkbox" checked /> Field arrows</label
+              ><label><input id="trails" type="checkbox" checked /> Motion trails</label>
+            </fieldset>
+
+            <button id="restore" class="restore">Restore default forces</button>
+            <p class="help">
+              Shared forces affect every squad. The arrows sample the selected squad’s target and
+              local influence fields, not its full steering decision.
             </p>
           </section>
-          <pre id="devPanel" class="dev hidden" aria-label="Simulation diagnostics"></pre>
-          <button id="restore" class="restore">Restore default field</button>
+          <section data-panel="learn" hidden>
+            <h3>What is happening?</h3>
+            <p id="learnLive" class="readout"></p>
+            <h3>Explain it like I’m five</h3>
+            <p>
+              Each drone is a little runner. A <strong>target</strong> tells it where to go. A
+              <strong>formation</strong> gives it a place beside its friends. A
+              <strong>play</strong> tells the whole team what job to do.
+            </p>
+            <details open>
+              <summary>Sensors: the team’s eyes and ears</summary>
+              <p>
+                Radar notices nearby drones, even behind obstacles. Optical needs a clear view.
+                Thermal sees moving drones farther away. Acoustic hears fast drones. RF notices
+                drones whose radio link is working.
+              </p>
+              <p>
+                These are simplified game rules. A placeable sensor marks drones inside its circle;
+                an onboard sensor helps a squad notice enemies and discover field emitters. Orange
+                drones are detected; purple drones are jammed; grey drones are disabled.
+              </p>
+            </details>
+            <details>
+              <summary>Fields: special patches on the floor</summary>
+              <p>
+                Jamming makes orders hard to hear. EMP freezes movement while its pulse is on.
+                Damage drains health; elimination disables on entry. Repair restores health but does
+                not revive disabled drones. Attract, repel and vortex fields change motion.
+              </p>
+              <p>
+                Field avoidance is steering, not a force shield. A large, overlapping field or too
+                little room can still catch drones. Adaptive squads give known danger more space,
+                spread out near it and retreat at low health.
+              </p>
+            </details>
+            <details>
+              <summary>Roles: different jobs</summary>
+              <p>
+                Scouts see farther and move quickly. Guards and strikers can tag opponents when
+                combat is enabled. Jammers disrupt nearby opponents. Medics heal nearby teammates.
+                Relays help nearby teammates keep receiving orders in jamming.
+              </p>
+              <p>
+                Escort follows a friendly squad. Patrol visits your targets. Pincer approaches a
+                detected enemy from two sides. Retreat heads for a repair field, or home. Hold stays
+                near the squad’s spawn point.
+              </p>
+            </details>
+            <details open>
+              <summary>Reactions: “if this, do that”</summary>
+              <p>
+                A rule is a tiny promise: <strong>when jammed → spread out</strong>. Rules run from
+                top to bottom. The first newly true rule wins, and its condition must clear before
+                it can fire again. The cooldown prevents immediate repeats.
+              </p>
+              <p>
+                Only the health rule uses the health threshold. Reactions take priority over
+                animation cues for their cooldown duration (at least two seconds). Attack orders
+                still require the combat switch to fire tags.
+              </p>
+              <p>
+                “Adaptive” means predictable situation-based rules here, not a trained AI model. The
+                activity log and squad status tell you why behavior changed.
+              </p>
+            </details>
+            <details>
+              <summary>Animator: a dance with a clock</summary>
+              <p>
+                A cue says “at 0 seconds, make a ring; at 8 seconds, make a wedge.” Play runs the
+                clock. The playhead lets you inspect a moment and pauses the sequence. Drones fly
+                toward the new places instead of teleporting. Rewind starts the sequence again;
+                Reset swarm also revives drones.
+              </p>
+              <p>
+                Spacing and spin slide between cue values. Role, sensor and reaction rules stay as
+                you set them. Load example replaces the selected squad’s animation only.
+              </p>
+            </details>
+            <details>
+              <summary>Developer readout</summary>
+              <pre id="devPanel" class="dev"></pre>
+            </details>
+          </section>
         </div>
       </aside>
       <footer class="commandbar">
         <div class="stats" aria-label="Live telemetry">
-          <div><span id="speedStat">0.00</span><small>avg speed</small></div>
-          <div><span id="collisionStat">0</span><small>contacts</small></div>
-          <div><span id="goalStat">0%</span><small>near target</small></div>
+          <div><span id="activeStat">0</span><small>active / total</small></div>
+          <div><span id="jamStat">0</span><small>jammed</small></div>
+          <div><span id="downStat">0</span><small>disabled</small></div>
+          <div><span id="speedStat">0</span><small>avg speed</small></div>
         </div>
         <div class="actions">
-          <button id="placeTarget" aria-pressed="false">Place target</button
-          ><button id="reset">Reset swarm</button
+          <button id="placeTarget">Place objects</button><button id="reset">Reset swarm</button
           ><button id="pause" class="primary" aria-pressed="false">Pause</button>
         </div>
       </footer>
     </main>
-    <script type="module" src="./main.js"></script>
+    <script type="module" src="./main.js?v=swarm-2"></script>
   </body>
 </html>
