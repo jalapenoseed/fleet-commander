@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>Vector Field Playground</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <main id="app">
+    <canvas id="scene"></canvas>
+    <section class="hud">
+      <header>
+        <div>
+          <p class="eyebrow">FLEET COMMANDER LAB 01</p>
+          <h1>Vector Field Playground</h1>
+          <p class="lede">Drag the attractor. Watch 100 agents solve the field.</p>
+        </div>
+        <div class="stats">
+          <div><span id="speedStat">0.00</span><small>avg speed</small></div>
+          <div><span id="collisionStat">0</span><small>collisions</small></div>
+          <div><span id="goalStat">0%</span><small>near target</small></div>
+        </div>
+      </header>
+
+      <aside class="panel">
+        <div class="mode-row">
+          <button class="mode active" data-mode="toy">Toy</button>
+          <button class="mode" data-mode="learn">Learn</button>
+          <button class="mode" data-mode="dev">Dev</button>
+        </div>
+
+        <label>Attraction <output id="attractionOut"></output>
+          <input id="attraction" type="range" min="0" max="8" value="3.2" step="0.1" />
+        </label>
+        <label>Vortex <output id="vortexOut"></output>
+          <input id="vortex" type="range" min="-6" max="6" value="1.5" step="0.1" />
+        </label>
+        <label>Separation <output id="separationOut"></output>
+          <input id="separation" type="range" min="0" max="8" value="3.8" step="0.1" />
+        </label>
+        <label>Obstacle avoid <output id="avoidOut"></output>
+          <input id="avoid" type="range" min="0" max="12" value="6.2" step="0.1" />
+        </label>
+        <label>Wind X <output id="windOut"></output>
+          <input id="wind" type="range" min="-4" max="4" value="0.6" step="0.1" />
+        </label>
+        <label>Damping <output id="dampingOut"></output>
+          <input id="damping" type="range" min="0" max="3" value="0.85" step="0.05" />
+        </label>
+
+        <div class="toggle-row">
+          <label class="check"><input id="vectors" type="checkbox" checked /> field vectors</label>
+          <label class="check"><input id="trails" type="checkbox" checked /> trails</label>
+        </div>
+
+        <div class="actions">
+          <button id="reset">Reset swarm</button>
+          <button id="pause">Pause</button>
+        </div>
+
+        <div id="lesson" class="lesson hidden">
+          <strong>What you are seeing</strong>
+          <p><code>F = attraction + vortex + separation + avoidance + wind − damping</code></p>
+          <p>Each arrow samples the same vector field used by the agents. Change one term and watch the resulting trajectory change.</p>
+        </div>
+        <pre id="devPanel" class="dev hidden"></pre>
+      </aside>
+
+      <footer>Pointer: move target · Drag: orbit camera · Wheel: zoom · R: reset · Space: pause</footer>
+    </section>
+  </main>
+  <script type="module" src="./main.js"></script>
+</body>
+</html>
