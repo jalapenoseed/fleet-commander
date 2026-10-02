@@ -973,6 +973,39 @@ export class GameView {
     return null;
   }
 
+  // Screen-space pick: tests the building's base, middle and top, so tall towers can be tapped
+  // anywhere on their silhouette even with the camera tilted low.
+  structureAtScreen(sx, sy, slop = 22) {
+    let best = null,
+      bd = Infinity;
+    for (const s of this.world.structures) {
+      if (s.team !== this.playerTeam && this.fogOn && !this.seenStructs.has(s.id)) continue;
+      const r = STRUCTURES[s.kind].radius,
+        gy = this.height(s.x, s.z);
+      const mid = this.project(s.x, gy + r * 0.8, s.z);
+      if (mid.behind) continue;
+      const edge = this.project(s.x + r, gy + r * 0.8, s.z);
+      const pr = Math.max(slop, Math.hypot(edge.x - mid.x, edge.y - mid.y) + 8);
+      for (const h of [0, 0.8, 1.8]) {
+        const p = h === 0.8 ? mid : this.project(s.x, gy + r * h, s.z);
+        const d = Math.hypot(p.x - sx, p.y - sy);
+        if (d < pr && d < bd) {
+          bd = d;
+          best = s;
+        }
+      }
+    }
+    return best;
+  }
+
+  wellAtScreen(sx, sy, slop = 30) {
+    for (const w of this.world.wells) {
+      const p = this.project(w.x, this.height(w.x, w.z) + 1, w.z);
+      if (!p.behind && Math.hypot(p.x - sx, p.y - sy) < slop) return w;
+    }
+    return null;
+  }
+
   ping(x, z, color = '#7dffb0') {
     this.effects.burst({ x, y: this.height(x, z) + 0.4, z }, 2.2, color, this.effects.time, 0.5, 0);
   }

@@ -1524,3 +1524,82 @@ body.touch #touch-bar {
 body.touch.no-campads #touch-bar {
   bottom: calc(198px + env(safe-area-inset-bottom, 0px));
 }
+
+/* ---------- quick stances + guide ---------- */
+.btn.danger {
+  border-color: #ff7a60;
+  background: rgba(255, 122, 96, 0.18);
+}
+.btn-row.quick .btn {
+  flex: 1;
+  min-height: 34px;
+}
+.coach-pulse {
+  animation: coach-pulse 1.2s ease-in-out infinite;
+}
+@keyframes coach-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 210, 122, 0.9);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(255, 210, 122, 0);
+  }
+}
+#guide {
+  position: fixed;
+  top: calc(56px + env(safe-area-inset-top, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(440px, calc(100vw - 24px));
+  z-index: 6;
+}
+#hud #guide[hidden] {
+  display: none !important;
+}
+#guide .pbody {
+  padding: 8px 12px 10px;
+}
+.guide-step {
+  font-size: 13px;
+  line-height: 1.4;
+}
+.guide-step b {
+  color: var(--gold);
+}
+.guide-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  font: 600 10px var(--mono);
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+.guide-meta .spacer {
+  flex: 1;
+}
+.guide-dots i {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 3px;
+  border-radius: 50%;
+  background: rgba(160, 220, 255, 0.25);
+}
+.guide-dots i.done {
+  background: var(--gold);
+}
+@media (max-width: 760px) {
+  /* Sits just above the Select/All bar; divided by the UI zoom because zoom scales offsets too. */
+  #guide {
+    top: auto;
+    bottom: calc((384px + env(safe-area-inset-bottom, 0px)) / var(--ui-zoom, 1));
+  }
+  body.touch.no-campads #guide {
+    bottom: calc((252px + env(safe-area-inset-bottom, 0px)) / var(--ui-zoom, 1));
+  }
+}
+body.piloting #guide {
+  display: none;
+}

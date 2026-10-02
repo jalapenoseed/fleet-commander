@@ -25,6 +25,7 @@ import { PilotController } from './ui/pilot.js';
 import { Designer } from './ui/designer.js';
 import { PanelManager } from './ui/panels.js';
 import { CamPads } from './ui/campads.js';
+import { Guide } from './ui/guide.js';
 
 const $ = (id) => document.getElementById(id);
 const BUILD_KEYS = {
@@ -154,6 +155,7 @@ class Game {
         { id: 'abilities', title: 'Abilities' },
         { id: 'objective', title: 'Objective' },
         { id: 'alerts', title: 'Alerts' },
+        { id: 'guide', title: 'Guide', onClose: () => game?.guide?.close() },
         {
           id: 'script',
           title: 'Reaction script',
@@ -175,6 +177,17 @@ class Game {
     campads ||= new CamPads(this);
     campads.game = this;
     panels.extras = [
+      {
+        label: 'First-match guide',
+        get: () => Guide.wanted(),
+        set: (v) => {
+          Guide.setWanted(v);
+          if (v && game?.guide) {
+            game.guide.active = true;
+            game.guide.el.hidden = false;
+          } else game?.guide?.close();
+        },
+      },
       {
         label: 'Camera thumb pads (touch)',
         get: () => campads.enabled,
@@ -198,6 +211,7 @@ class Game {
     this.ended = false;
     this.pilot = new PilotController(this);
     this.mouseFire = false;
+    this.guide = new Guide(this, $('guide'));
     this.buildCommandPanel();
     this.bindInput();
     if (this.scenario?.forcePilot && !this.spectator) {
@@ -240,6 +254,7 @@ class Game {
   destroy() {
     cancelAnimationFrame(this.raf);
     this.pilot.stop();
+    this.guide?.close();
     this.abort.abort();
     this.view.renderer.dispose();
     $('hud').hidden = true;
@@ -250,6 +265,8 @@ class Game {
 
   issue(cmd) {
     if (this.spectator) return null;
+    if (cmd.type === 'order' || cmd.type === 'produce') this.coachDone(cmd.type);
+    else if (cmd.type === 'build') this.coachDone('build', cmd.kind);
     return this.session.issue({ ...cmd, team: this.player });
   }
 
@@ -706,7 +723,7 @@ class Game {
             const i = this.view.droneAt(e.clientX, e.clientY);
             const now = performance.now();
             if (i >= 0 && lastClick.i === i && now - lastClick.t < 350) this.selectRoleOnScreen(i);
-            else this.clickSelect(i, p, d.shift);
+            else this.clickSelect(i, p, d.shift, e.clientX, e.clientY);
             lastClick = { t: now, i };
           }
         } else if (d.button === 2 && !d.moved) {
@@ -944,8 +961,12 @@ class Game {
       return;
     }
     this.lastTap = null;
-    if (this.selectedUids().length) return this.contextOrder(x, y);
-    this.clickSelect(-1, p, false);
+    const s = this.view.structureAtScreen(x, y);
+    const has = this.selectedUids().length;
+    // Tapping a building inspects it, except an enemy one while drones are selected (= attack it).
+    if (s && !(has && s.team !== this.player)) return this.inspect(s);
+    if (has) return this.contextOrder(x, y);
+    this.clickSelect(-1, p, false, x, y);
   }
 
   fireAbility(p) {
@@ -1063,7 +1084,7 @@ class Game {
     this.lastRecall = { digit, t: now };
   }
 
-  clickSelect(i, p, add) {
+  clickSelect(i, p, add, sx, sy) {
     const w = this.world;
     if (!add) this.view.selected = new Set();
     this.selStruct = null;
@@ -1072,13 +1093,65 @@ class Game {
       for (const m of sq?.members || [i]) this.view.selected.add(w.uid[m]);
       return;
     }
-    if (p) {
-      const s = this.view.structureAt(p.x, p.z);
-      if (s) {
-        this.view.selected = new Set();
-        this.selStruct = s.id;
-      }
-    }
+    const s =
+      (sx !== undefined && this.view.structureAtScreen(sx, sy)) ||
+      (p && this.view.structureAt(p.x, p.z));
+    if (s) this.inspect(s);
+    else if (sx !== undefined) this.explainWell(sx, sy);
+  }
+
+  // Show a building (yours or a visible enemy one) in the Squad panel.
+  inspect(s) {
+    this.view.selected = new Set();
+    this.selStruct = s.id;
+    this.revealSelection();
+  }
+
+  explainWell(sx, sy) {
+    const well = this.view.wellAtScreen(sx, sy);
+    if (!well) return false;
+    const mine = well.owner >= 0 && this.world.structMap.get(well.owner)?.team === this.player;
+    this.alert(
+      mine
+        ? 'Gold well: your Extractor is mining it (+5 energy/s)'
+        : well.owner >= 0
+          ? 'Gold well held by the enemy: destroy its Extractor to take it'
+          : 'Gold well: build an Extractor on it (⚒ → Build → Extractor) for +5 energy/s',
+      'info',
+    );
+    return true;
+  }
+
+  // The Squad panel is where selections show up; if it was minimized or closed, bring it back.
+  revealSelection() {
+    const st = panels?.ps('selection');
+    if (st?.closed) panels.setClosed('selection', false);
+    if (st?.min) panels.setMin('selection', false);
+  }
+
+  coachDone(id, detail) {
+    this.guide?.mark(id, detail);
+  }
+
+  enemyCore() {
+    return this.world.structures.find(
+      (s) => s.kind === 'core' && s.team !== this.player && s.hp > 0,
+    );
+  }
+
+  // One-tap stances for the selected drones.
+  defendBase() {
+    const core = this.core();
+    if (!core) return;
+    this.order('orbit', core.x, core.z);
+    this.coachDone?.('defend');
+  }
+
+  attackCore() {
+    const ec = this.enemyCore();
+    if (!ec) return;
+    this.order('attack', ec.x, ec.z);
+    this.coachDone?.('attack');
   }
 
   selectRoleOnScreen(i) {
@@ -1113,7 +1186,7 @@ class Game {
     }
     const i = this.view.droneAt(sx, sy);
     const enemyDrone = i >= 0 && w.team[i] !== this.player;
-    const s = this.view.structureAt(p.x, p.z);
+    const s = this.view.structureAtScreen(sx, sy) || this.view.structureAt(p.x, p.z);
     const enemyStruct = s && s.team !== this.player;
     if (enemyDrone) this.order('attack', w.px[i], w.pz[i]);
     else if (enemyStruct) this.order('attack', s.x, s.z);
@@ -1172,6 +1245,7 @@ class Game {
       .map((kind) => {
         const b = document.createElement('button');
         b.className = 'cmd';
+        b.dataset.kind = kind;
         b.dataset.tip = structTip(kind);
         const key = keyFor[kind] ? `<kbd>${keyFor[kind].toUpperCase()}</kbd>` : '';
         b.innerHTML = `<span>${STRUCTURES[kind].label.replace(' Field', '').replace(' Tower', '')}${key}</span><span class="cost">${STRUCTURES[kind].cost}</span>`;
@@ -1267,6 +1341,7 @@ class Game {
       if (w.alive[i] && (this.spectator || w.team[i] === this.player)) n++;
     $('dronecount').textContent = n;
     $('clock').textContent = fmtTime(w.tick);
+    this.guide?.update();
     const st = this.scenario?.status(w);
     $('objective').hidden = !st;
     if (st) {
@@ -1374,11 +1449,16 @@ class Game {
           )
         : '');
     if (key === this.selKey) return;
+    const had = this.hadSelection;
+    this.hadSelection = squads.length > 0 || this.selStruct !== null;
+    if (this.hadSelection && !had) this.revealSelection();
     this.selKey = key;
     if (squads.length) return this.renderSquadPanel(el, squads);
     const s = this.selStruct !== null && w.structMap.get(this.selStruct);
     if (s) return this.renderStructurePanel(el, s);
-    el.innerHTML = `<p class="empty">Drag a box over your drones to select them, or click one to grab its squad. Right-click to move · <kbd>A</kbd> attack-move · <kbd>G</kbd> script · build Extractors (<kbd>Z</kbd>) on gold wells, Relays (<kbd>X</kbd>) for bandwidth.</p>`;
+    el.innerHTML = this.touch
+      ? `<p class="empty">Tap a drone (or <b>All</b>) to select. Then tap the ground to move, an enemy to attack, or use 🛡 Defend / ⚔ Attack here. Tap any building to see what it does. Build and produce with ⚒.</p>`
+      : `<p class="empty">Drag a box over your drones to select them, or click one to grab its squad. Right-click to move · <kbd>A</kbd> attack-move · <kbd>G</kbd> script · click any building to see what it does · build Extractors (<kbd>Z</kbd>) on gold wells, Relays (<kbd>X</kbd>) for bandwidth.</p>`;
   }
 
   renderSquadPanel(el, squads) {
@@ -1438,6 +1518,10 @@ class Game {
         <button class="btn primary" id="btn-script" ${squads.length > 1 ? 'disabled' : ''} data-tip="<b>Reaction script</b>Give this squad when→then rules so it adapts on its own.">Script <kbd>G</kbd></button>
       </div>
       <div class="chips">${chips}</div>
+      <div class="btn-row quick">
+        <button class="btn primary" id="btn-defend" data-tip="<b>Defend base</b>Circle your Core and fight anything that comes into range.">🛡 Defend base</button>
+        <button class="btn danger" id="btn-attack-core" data-tip="<b>Attack</b>Fly to the enemy Core, fighting everything on the way. Destroy it to win.">⚔ Attack enemy core</button>
+      </div>
       <div class="btn-row"><span class="label">Play</span>${playBtns}</div>
       <div class="btn-row"><span class="label">Formation</span>${formBtns}</div>
       <div class="btn-row"><span class="label">Altitude</span>${['Low', 'Cruise', 'High']
@@ -1465,6 +1549,8 @@ class Game {
         }),
     );
     el.querySelector('#btn-fly').onclick = () => this.startPilot();
+    el.querySelector('#btn-defend').onclick = () => this.defendBase();
+    el.querySelector('#btn-attack-core').onclick = () => this.attackCore();
   }
 
   renderStructurePanel(el, s) {
@@ -1488,7 +1574,7 @@ class Game {
       </div>
       <p class="empty">${esc(def.blurb)}</p>
       ${own && def.research ? `<div class="btn-row"><span class="label">Project</span>${queue || '<span class="empty">idle — pick a project in the Research tab</span>'}${s.queue.length ? '<button class="btn" id="btn-cancel">Cancel</button>' : ''}</div>` : ''}
-      ${own && def.produces ? `<div class="btn-row"><span class="label">Queue</span>${queue || '<span class="empty">empty — use Produce (bottom right) to build here</span>'}${s.queue.length ? '<button class="btn" id="btn-cancel">Cancel last</button>' : ''}</div><p class="empty">Right-click the ground to set the rally point for new drones.</p>` : ''}`;
+      ${own && def.produces ? `<div class="btn-row"><span class="label">Queue</span>${queue || '<span class="empty">empty — ⚒ → Produce to build drones here</span>'}${s.queue.length ? '<button class="btn" id="btn-cancel">Cancel last</button>' : ''}</div><p class="empty">${this.touch ? 'New drones gather by your Core; select them and give orders like any squad.' : 'Right-click the ground to set the rally point for new drones.'}</p>` : ''}`;
     el.querySelector('#btn-cancel')?.addEventListener('click', () =>
       this.issue({ type: 'cancel', structure: s.id }),
     );

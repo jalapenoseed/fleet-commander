@@ -43,7 +43,8 @@ export class ScenePostFX {
       },
       vertexShader,
       fragmentShader: `varying vec2 vUv;uniform sampler2D image;uniform vec2 direction;uniform float threshold;
- vec3 sampleBright(vec2 uv){vec3 c=texture2D(image,uv).rgb;float l=max(c.r,max(c.g,c.b));float soft=clamp(l-threshold+.5,0.,1.);float contribution=max(l-threshold,soft*soft*.25)/max(l,.0001);return threshold>0.?c*contribution:c;}
+ vec3 safe(vec3 c){c=min(max(c,vec3(0.)),vec3(64.));float l=c.r+c.g+c.b;return (l>=0.&&l<=192.)?c:vec3(0.);}
+ vec3 sampleBright(vec2 uv){vec3 c=safe(texture2D(image,uv).rgb);float l=max(c.r,max(c.g,c.b));float soft=clamp(l-threshold+.5,0.,1.);float contribution=max(l-threshold,soft*soft*.25)/max(l,.0001);return threshold>0.?c*contribution:c;}
  void main(){vec3 c=sampleBright(vUv)*.227027;c+=(sampleBright(vUv+direction*1.384615)+sampleBright(vUv-direction*1.384615))*.316216;c+=(sampleBright(vUv+direction*3.230769)+sampleBright(vUv-direction*3.230769))*.070270;gl_FragColor=vec4(c,1.);}`,
     });
     this.composite = new T.ShaderMaterial({
@@ -58,8 +59,11 @@ export class ScenePostFX {
       },
       vertexShader,
       fragmentShader: `varying vec2 vUv;uniform sampler2D image;uniform sampler2D bloom;uniform sampler2D bloomWide;uniform sampler2D bloomVeil;uniform float strength;
- void main(){vec3 glow=texture2D(bloom,vUv).rgb*.55+texture2D(bloomWide,vUv).rgb*.30+texture2D(bloomVeil,vUv).rgb*.15;
- vec3 c=texture2D(image,vUv).rgb+glow*strength;float vignette=1.-.08*pow(length((vUv-.5)*1.25),2.);gl_FragColor=vec4(c*vignette,1.);
+ // Half-float buffers can hold NaN/Inf from a single bad fragment; the blur would smear it into
+ // big black blocks (seen on iPhones), so every read is clamped and invalid values dropped.
+ vec3 safe(vec3 c){c=min(max(c,vec3(0.)),vec3(64.));float l=c.r+c.g+c.b;return (l>=0.&&l<=192.)?c:vec3(0.);}
+ void main(){vec3 glow=safe(texture2D(bloom,vUv).rgb)*.55+safe(texture2D(bloomWide,vUv).rgb)*.30+safe(texture2D(bloomVeil,vUv).rgb)*.15;
+ vec3 c=safe(texture2D(image,vUv).rgb)+glow*strength;float vignette=1.-.08*pow(length((vUv-.5)*1.25),2.);gl_FragColor=vec4(c*vignette,1.);
  #include <tonemapping_fragment>
  // Preserve bright LED hue while keeping the filmic luminance shoulder.
  float peak=max(c.r,max(c.g,c.b));vec3 hue=c/max(peak,.0001);float mappedPeak=max(gl_FragColor.r,max(gl_FragColor.g,gl_FragColor.b));

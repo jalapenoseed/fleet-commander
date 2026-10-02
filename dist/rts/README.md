@@ -142,6 +142,15 @@ Every panel (Squad, Command, Map, Abilities, Objective, Alerts, Reaction script,
 
 The **☷ Panels** button in the top bar reopens closed panels, sets the interface size (Small / Normal / Large), minimizes everything, hides all panels (also the `` ` `` key) or resets the layout. The layout is saved in this browser, separately for phones and larger screens.
 
+## First match
+
+Skirmish opens with a **Guide** card that walks through one step at a time and ticks each one off as you do it: select drones, move them, build an Extractor on a gold well, produce drones, build a Relay, defend, attack. The button to press pulses. Close it with **×**, or turn it back on from the **☷ Panels** menu.
+
+- **Tap (or click) any building** to see what it does in the Squad panel. Yours or a visible enemy one. With drones selected, tapping an enemy building attacks it.
+- **Tap a gold well** to see who holds it and how to claim it.
+- **🛡 Defend base** sends the selected drones to circle your Core and fight anything in range. **⚔ Attack enemy core** attack-moves them to the enemy Core.
+- Selecting something reopens the Squad panel if it was minimized or closed.
+
 ## Touch camera
 
 On phones and tablets the screen has three input layers, stacked top to bottom:
