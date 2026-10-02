@@ -1249,3 +1249,203 @@ h3.sub {
 body.piloting #designer {
   display: none !important;
 }
+
+/* ---------- movable HUD windows ---------- */
+:root {
+  --ui-zoom: 1;
+}
+#hud .win {
+  zoom: var(--ui-zoom);
+  display: flex;
+  flex-direction: column;
+}
+#hud .win > .pbody {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.pbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: -6px -6px 6px;
+  padding: 2px 4px 2px 8px;
+  border-radius: 8px 8px 0 0;
+  background: rgba(255, 255, 255, 0.04);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  pointer-events: auto;
+  flex: none;
+}
+.pbar:active {
+  cursor: grabbing;
+}
+.ptitle {
+  flex: 1;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pbtn {
+  width: 24px;
+  height: 22px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font: 600 14px var(--font);
+  cursor: pointer;
+  line-height: 1;
+}
+.pbtn:hover,
+.pbtn:focus-visible {
+  background: rgba(63, 217, 255, 0.18);
+  color: var(--text);
+}
+.presize {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 18px;
+  height: 18px;
+  cursor: nwse-resize;
+  touch-action: none;
+  background: linear-gradient(
+    135deg,
+    transparent 50%,
+    var(--line-strong) 50%,
+    var(--line-strong) 60%,
+    transparent 60%,
+    transparent 70%,
+    var(--line-strong) 70%,
+    var(--line-strong) 80%,
+    transparent 80%
+  );
+  border-bottom-right-radius: 10px;
+}
+#hud .win.min {
+  height: auto !important;
+  min-height: 0 !important;
+  width: auto;
+  min-width: 140px;
+}
+#hud .win.min > .pbody,
+#hud .win.min > .presize {
+  display: none;
+}
+#hud .win.min > .pbar {
+  margin-bottom: -6px;
+}
+#hud .win.closed,
+body.hud-hidden #hud .win:not(#script):not(#designer),
+body.hud-hidden #cmd-toggle,
+body.hud-hidden #touch-bar {
+  display: none !important;
+}
+/* Panels that had no padding of their own get a little so the bar sits right. */
+#minimap-wrap,
+#abilities,
+#alerts,
+#objective {
+  padding: 6px;
+  border-radius: 12px;
+}
+#abilities,
+#alerts,
+#objective {
+  background: var(--panel);
+  border: 1px solid var(--line);
+}
+#abilities {
+  flex-direction: column !important;
+}
+#abilities > .pbody {
+  display: flex;
+  gap: 6px;
+}
+#alerts > .pbody {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  pointer-events: none;
+  max-height: 40vh;
+}
+#alerts.win {
+  pointer-events: auto;
+  min-width: 200px;
+}
+#hud #alerts.win:not(:has(li)) {
+  display: none;
+}
+#objective.win {
+  align-items: stretch;
+}
+#objective > .pbody {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+#minimap-wrap > .pbody {
+  overflow: hidden;
+}
+#selection {
+  overflow: visible;
+}
+#panels-menu {
+  position: fixed;
+  top: calc(46px + env(safe-area-inset-top, 0px));
+  right: 12px;
+  z-index: 30;
+  width: 240px;
+  padding: 10px 12px;
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+}
+#panels-menu[hidden] {
+  display: none;
+}
+#panels-menu label {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  cursor: pointer;
+}
+#panels-menu .menu-sec {
+  margin-top: 4px;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+#panels-menu .seg {
+  display: flex;
+  gap: 4px;
+}
+#panels-menu .seg .btn {
+  flex: 1;
+}
+#hud #selection.win.min {
+  right: auto;
+}
+@media (max-width: 760px) {
+  #topbar {
+    flex-wrap: nowrap;
+  }
+  .speed button[data-speed='4'] {
+    display: none;
+  }
+  #topbar .icon-btn {
+    width: 30px;
+    flex: none;
+  }
+  .res b {
+    font-size: 14px;
+  }
+}

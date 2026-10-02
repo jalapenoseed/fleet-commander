@@ -131,6 +131,17 @@ The HUD shows a pitch ladder and horizon, heading, speed, altitude, vertical spe
 
 Pilot input travels as quantized `stick` commands (1/32 steps, sent only on change), so it replays exactly and works over lockstep. In multiplayer it will carry the input delay; see NETWORK.md.
 
+## HUD panels
+
+Every panel (Squad, Command, Map, Abilities, Objective, Alerts, Reaction script, Drone designer) is a window:
+
+- **Move:** drag its title bar.
+- **Minimize:** **–**, or double-click the title bar.
+- **Close:** **×**.
+- **Resize:** drag the bottom-right corner (Squad, Command and the editors).
+
+The **☷ Panels** button in the top bar reopens closed panels, sets the interface size (Small / Normal / Large), minimizes everything, hides all panels (also the `` ` `` key) or resets the layout. The layout is saved in this browser, separately for phones and larger screens.
+
 ## Controls
 
 | Action        | Input                                                                                                                                    |

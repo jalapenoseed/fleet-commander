@@ -23,6 +23,7 @@ import { Minimap } from './ui/minimap.js';
 import { ScriptEditor } from './ui/script-editor.js';
 import { PilotController } from './ui/pilot.js';
 import { Designer } from './ui/designer.js';
+import { PanelManager } from './ui/panels.js';
 
 const $ = (id) => document.getElementById(id);
 const BUILD_KEYS = {
@@ -132,7 +133,8 @@ class Game {
     this.minimap = new Minimap($('minimap'), this.world, this.view, {
       onOrder: (x, z) => this.selectedUids().length && this.order(this.targetPlay || 'move', x, z),
     });
-    this.script = new ScriptEditor($('script'), {
+    this.script = new ScriptEditor($('script-body'), {
+      win: $('script'),
       onApply: (sq, rules, extra = {}) => {
         this.issue({ type: 'rules', squad: sq.id, rules });
         if (extra.formation)
@@ -141,7 +143,34 @@ class Game {
           this.issue({ type: 'altitude', squad: sq.id, level: extra.altitude });
       },
     });
-    this.designer = new Designer($('designer'), this);
+    this.designer = new Designer($('designer-body'), this, $('designer'));
+    // Movable / minimizable / closable HUD windows (created once, shared by every match).
+    panels ||= new PanelManager(
+      [
+        { id: 'selection', title: 'Squad', resizable: true },
+        { id: 'commands', title: 'Command', resizable: true },
+        { id: 'minimap-wrap', title: 'Map' },
+        { id: 'abilities', title: 'Abilities' },
+        { id: 'objective', title: 'Objective' },
+        { id: 'alerts', title: 'Alerts' },
+        {
+          id: 'script',
+          title: 'Reaction script',
+          resizable: true,
+          onClose: () => game?.script.close(),
+        },
+        {
+          id: 'designer',
+          title: 'Drone designer',
+          resizable: true,
+          onClose: () => game?.designer.close(),
+        },
+      ],
+      $('btn-panels'),
+      $('panels-menu'),
+    );
+    panels.restoreHidden();
+    if (matchMedia('(pointer: coarse)').matches) this.enableTouch();
     this.speed = 1;
     this.acc = 0;
     this.last = performance.now();
@@ -916,6 +945,7 @@ class Game {
       return this.togglePause();
     }
     if (this.ended || !$('pause').hidden) return;
+    if (e.code === 'Backquote') return panels.setHidden(!panels.state.hideAll);
     const fkey = /^F([1-3])$/.exec(e.key)?.[1];
     if (fkey && !this.spectator) {
       e.preventDefault();
@@ -1083,8 +1113,8 @@ class Game {
     const li = document.createElement('li');
     li.textContent = text;
     if (kind) li.className = kind;
-    $('alerts').prepend(li);
-    while ($('alerts').children.length > 5) $('alerts').lastChild.remove();
+    $('alerts-body').prepend(li);
+    while ($('alerts-body').children.length > 5) $('alerts-body').lastChild.remove();
     setTimeout(() => li.remove(), 5500);
   }
 
@@ -1131,9 +1161,9 @@ class Game {
     for (const tab of document.querySelectorAll('#commands .tab'))
       tab.onclick = () => this.showTab(tab.dataset.tab);
     $('cmd-toggle').onclick = () => document.body.classList.toggle('cmd-open');
-    const ab = $('abilities');
+    const ab = $('abilities-body');
     ab.textContent = '';
-    ab.hidden = this.spectator;
+    $('abilities').hidden = this.spectator;
     this.abilityButtons = ABILITY_KEYS.map((key, k) => {
       const d = ABILITIES[key];
       const b = document.createElement('button');
@@ -1281,7 +1311,7 @@ class Game {
   }
 
   renderSelection() {
-    const el = $('selection'),
+    const el = $('selection-body'),
       w = this.world;
     if (this.spectator) {
       const rows = w.teams.map((t, i) => {
@@ -1462,6 +1492,7 @@ function start(opts) {
 }
 
 let game = null;
+let panels = null;
 for (const b of document.querySelectorAll('[data-start]'))
   b.onclick = () => start({ mode: b.dataset.start });
 

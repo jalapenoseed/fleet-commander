@@ -147,13 +147,17 @@
         <button class="icon-btn" id="btn-fog" title="Toggle fog of war (spectator)" hidden>
           ◐
         </button>
+        <button class="icon-btn" id="btn-panels" title="Panels: show, hide, resize, reset">
+          ☷
+        </button>
         <button class="icon-btn" id="btn-menu" title="Menu (Esc)">☰</button>
       </header>
       <div id="objective" hidden><b id="obj-title"></b><span id="obj-lines"></span></div>
-      <ol id="alerts"></ol>
+      <div id="panels-menu" class="panel" hidden></div>
+      <div id="alerts"><ol id="alerts-body" class="pbody"></ol></div>
       <div id="minimap-wrap"><canvas id="minimap" width="220" height="220"></canvas></div>
 
-      <section id="selection" class="panel"></section>
+      <section id="selection" class="panel"><div id="selection-body" class="pbody"></div></section>
 
       <section id="commands" class="panel">
         <div class="tabs" role="tablist">
@@ -166,7 +170,7 @@
         <div class="grid research" id="research-grid" data-pane="research" hidden></div>
         <p class="pane-hint" id="pane-hint"></p>
       </section>
-      <div id="abilities"></div>
+      <div id="abilities"><div id="abilities-body" class="pbody"></div></div>
       <button id="cmd-toggle" class="fab" title="Build, produce and research">⚒</button>
       <div id="touch-bar">
         <button class="fab small" id="touch-box" title="Drag to box-select">▢ Select</button>
@@ -187,8 +191,12 @@
       </div>
 
       <canvas id="pilot-hud" hidden></canvas>
-      <aside id="script" class="panel drawer" hidden></aside>
-      <aside id="designer" class="panel drawer" hidden></aside>
+      <aside id="script" class="panel drawer" hidden>
+        <div id="script-body" class="pbody"></div>
+      </aside>
+      <aside id="designer" class="panel drawer" hidden>
+        <div id="designer-body" class="pbody"></div>
+      </aside>
       <div id="tooltip" hidden></div>
       <div id="mode-hint" hidden></div>
     </div>

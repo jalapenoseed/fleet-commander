@@ -40,8 +40,9 @@ const ROWS = [
 ];
 
 export class Designer {
-  constructor(root, game) {
+  constructor(root, game, win = root) {
     this.root = root;
+    this.win = win;
     this.game = game;
     this.spec = {
       name: 'Hornet',
@@ -54,12 +55,12 @@ export class Designer {
   }
 
   open() {
-    this.root.hidden = false;
+    this.win.hidden = false;
     this.render();
   }
 
   close() {
-    this.root.hidden = true;
+    this.win.hidden = true;
   }
 
   register(spec = this.spec) {
@@ -141,7 +142,7 @@ export class Designer {
         spec[b.dataset.part] = b.dataset.value;
         this.render();
       };
-    r.querySelector('[data-act="close"]').onclick = () => this.close();
+    r.querySelector('[data-act="close"]')?.addEventListener('click', () => this.close());
     r.querySelector('[data-act="register"]').onclick = () => this.register();
     r.querySelector('[data-act="save"]').onclick = () => {
       const list = load().filter((d) => d.name !== spec.name);

@@ -85,8 +85,9 @@ export const PRESETS = {
 };
 
 export class ScriptEditor {
-  constructor(root, { onApply }) {
+  constructor(root, { onApply, win = root }) {
     this.root = root;
+    this.win = win;
     this.onApply = onApply;
     this.rules = [];
     this.squad = null;
@@ -99,11 +100,11 @@ export class ScriptEditor {
     this.altitude = squad.altitude ?? 1;
     this.error = '';
     this.render();
-    this.root.hidden = false;
+    this.win.hidden = false;
   }
 
   close() {
-    this.root.hidden = true;
+    this.win.hidden = true;
     this.squad = null;
   }
 
