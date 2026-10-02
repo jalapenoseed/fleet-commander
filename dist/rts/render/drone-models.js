@@ -284,12 +284,84 @@ export const ROLE_SCALE = {
   wasp: 1.0,
 };
 
+// Visible extras for designer parts, added on top of the frame's base shape.
+const ACCESSORIES = {
+  rail(parts, glow) {
+    parts.push(
+      part(new T.CylinderGeometry(0.06, 0.08, 1.6, 6), C.metal, {
+        y: -0.3,
+        z: 0.75,
+        rx: Math.PI / 2,
+      }),
+    );
+    glow.push(part(new T.SphereGeometry(0.06, 6, 4), 0xffffff, { y: -0.3, z: 1.56 }));
+  },
+  missile(parts, glow) {
+    for (const x of [0.3, -0.3]) {
+      parts.push(part(new T.BoxGeometry(0.14, 0.14, 0.5), C.dark, { x, y: -0.25, z: 0.1 }));
+      glow.push(
+        part(new T.CylinderGeometry(0.04, 0.04, 0.04, 6), 0xffffff, {
+          x,
+          y: -0.25,
+          z: 0.36,
+          rx: Math.PI / 2,
+        }),
+      );
+    }
+  },
+  flak(parts) {
+    parts.push(part(new T.BoxGeometry(0.12, 0.12, 0.6), C.dark, { y: -0.22, z: 0.4 }));
+  },
+  pulse(parts, glow) {
+    glow.push(part(new T.SphereGeometry(0.05, 6, 4), 0xffffff, { y: -0.12, z: 0.5 }));
+  },
+  extended(parts, glow) {
+    parts.push(part(new T.CylinderGeometry(0.02, 0.02, 0.4, 4), C.metal, { y: 0.35 }));
+    glow.push(part(new T.SphereGeometry(0.05, 6, 4), 0xffffff, { y: 0.56 }));
+  },
+  longrange(parts, glow) {
+    parts.push(part(new T.CylinderGeometry(0.025, 0.035, 0.9, 4), C.metal, { y: 0.55 }));
+    glow.push(part(new T.OctahedronGeometry(0.08, 0), 0xffffff, { y: 1.02 }));
+  },
+  battery(parts) {
+    parts.push(part(new T.BoxGeometry(0.4, 0.14, 0.3), C.plate, { y: -0.28, z: -0.3 }));
+  },
+  armor(parts) {
+    parts.push(
+      part(new T.BoxGeometry(0.7, 0.06, 0.8), C.plate, { y: 0.2 }),
+      part(new T.BoxGeometry(0.7, 0.06, 0.8), C.plate, { y: -0.25 }),
+    );
+  },
+  jammer(parts, glow) {
+    glow.push(part(new T.TorusGeometry(0.38, 0.025, 4, 16), 0xffffff, { y: 0.5, rx: Math.PI / 2 }));
+  },
+  medic(parts, glow) {
+    glow.push(
+      part(new T.BoxGeometry(0.3, 0.05, 0.08), 0xffffff, { y: 0.26 }),
+      part(new T.BoxGeometry(0.08, 0.05, 0.3), 0xffffff, { y: 0.26 }),
+    );
+  },
+  relay(parts, glow) {
+    parts.push(part(new T.CylinderGeometry(0.03, 0.04, 0.7, 4), C.metal, { y: 0.45, x: 0.2 }));
+    glow.push(part(new T.OctahedronGeometry(0.07, 0), 0xffffff, { y: 0.82, x: 0.2 }));
+  },
+  shield(parts, glow) {
+    glow.push(part(new T.TorusGeometry(0.6, 0.03, 4, 24), 0xffffff, { rx: Math.PI / 2 }));
+  },
+};
+
+// role: a built-in role key, or a designer spec { model, weapon, sensor, module }.
 export function buildAirframe(role) {
   const parts = [],
     glow = [],
     rotors = [];
-  BUILDERS[role](parts, glow, rotors);
-  const s = ROLE_SCALE[role];
+  const design = typeof role === 'object' ? role : null;
+  const base = design ? design.model : role;
+  BUILDERS[base](parts, glow, rotors);
+  if (design)
+    for (const p of [design.weapon, design.sensor, design.module])
+      ACCESSORIES[p]?.(parts, glow, rotors);
+  const s = ROLE_SCALE[base];
   const out = {
     hull: mergeGeometries(parts),
     glow: mergeGeometries(glow),

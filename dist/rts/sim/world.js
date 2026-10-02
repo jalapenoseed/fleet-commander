@@ -31,6 +31,7 @@ import {
   F_STUN,
 } from './systems.js';
 import { rockHeight } from './maps.js';
+import { buildDesign, MAX_DESIGNS } from './designs.js';
 
 export { F_STORM, F_STUN };
 import { RULE_PERIOD, DEFAULT_RULES, runRules, validateRules } from './rules.js';
@@ -192,6 +193,7 @@ export class World {
     this.uidMap = new Map();
     this.nextUid = 1;
     this.structures = [];
+    this.fieldStructs = [];
     this.structMap = new Map();
     this.nextStruct = 0;
     this.squads = [];
@@ -398,6 +400,8 @@ export class World {
     const def = STRUCTURES[kind];
     if (!def || kind === 'core') return { ok: false, reason: 'Unknown structure' };
     const team = this.teams[t];
+    if (def.requires && !team.tech.has(def.requires))
+      return { ok: false, reason: `Research ${TECH[def.requires].label} first` };
     if (team.energy < def.cost) return { ok: false, reason: 'Not enough energy' };
     if (Math.abs(x) > this.half - 4 || Math.abs(z) > this.half - 4)
       return { ok: false, reason: 'Too close to the edge' };
@@ -440,6 +444,20 @@ export class World {
       }
       case 'ability':
         return useAbility(this, cmd);
+      case 'design': {
+        if (this.roles.length >= 250) return false;
+        if (this.roles.filter((r) => r.owner === cmd.team).length >= MAX_DESIGNS) return false;
+        let role;
+        try {
+          role = buildDesign(cmd.spec || {}, cmd.team, this.roles.length);
+        } catch {
+          return false;
+        }
+        this.roles.push(role);
+        for (let t = 0; t < this.teams.length; t++) this.refreshStats(t);
+        this.events.push({ k: 'designed', team: cmd.team, role: this.roles.length - 1 });
+        return true;
+      }
       case 'altitude': {
         const sq = this.squadMap.get(cmd.squad);
         if (!sq || sq.team !== cmd.team || ![0, 1, 2].includes(cmd.level)) return false;
@@ -655,6 +673,9 @@ export class World {
     this.opitch.set(this.pitch.subarray(0, N));
     this.oroll.set(this.roll.subarray(0, N));
     this.economy();
+    this.fieldStructs = this.structures.filter(
+      (s) => s.alive && s.progress >= 1 && STRUCTURES[s.kind].field,
+    );
     this.grid.build(this.alive, this.px, this.pz, N);
     this.auras();
     stormEffects(this);
@@ -1399,6 +1420,7 @@ export class World {
       }
       // Fly: attitude -> thrust -> velocity, with the airframe's tilt/yaw/climb limits.
       const impact = flightStep(this, i, ax, az, faceX, faceZ, jammed);
+      if (this.fieldStructs.length) this.fieldForces(i);
       if (impact > 5) this.crash(i, (impact - 5) * 8);
       // Battery: hover cost, plus extra thrust when tilted (1/cos tilt) and when climbing.
       const tilt = len(this.pitch[i], this.roll[i]);
@@ -1442,6 +1464,35 @@ export class World {
           }
         }
       }
+    }
+  }
+
+  // Field-equation structures push enemy drones around: a vortex adds a swirl (tangential speed
+  // that grows toward the center, like v = k / r) plus a gentle inward pull; a barrier pushes
+  // straight out, strongest at the center. Drones flying above FIELD_CEILING are unaffected.
+  fieldForces(i) {
+    for (const s of this.fieldStructs) {
+      if (s.team === this.team[i] || this.py[i] >= FIELD_CEILING) continue;
+      const f = STRUCTURES[s.kind].field;
+      const dx = this.px[i] - s.x,
+        dz = this.pz[i] - s.z,
+        d = len(dx, dz);
+      if (d >= f.radius || d < 0.3) continue;
+      const nx = dx / d,
+        nz = dz / d,
+        k = 1 - d / f.radius;
+      let ax, az;
+      if (f.kind === 'vortex') {
+        const swirl = f.strength * (0.35 + k),
+          pull = f.strength * 0.35 * k;
+        ax = -nz * swirl - nx * pull;
+        az = nx * swirl - nz * pull;
+      } else {
+        ax = nx * f.strength * k;
+        az = nz * f.strength * k;
+      }
+      this.vx[i] += ax * DT;
+      this.vz[i] += az * DT;
     }
   }
 

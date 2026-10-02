@@ -227,6 +227,40 @@ Object.assign(BUILD, {
     spin.push({ obj: coil, rate: 2, bob: 0.3 });
     add(g, new T.TorusGeometry(1.9, 0.05, 4, 6), glow, 0, 0.32).rotation.x = Math.PI / 2;
   },
+  vortex(g, glow, spin) {
+    add(g, new T.CylinderGeometry(1.4, 1.7, 0.5, 8), M.base, 0, 0.25);
+    add(g, new T.CylinderGeometry(0.25, 0.4, 2.4, 6), M.plate, 0, 1.6);
+    for (let k = 0; k < 3; k++) {
+      const ring = add(
+        g,
+        new T.TorusGeometry(1.1 - k * 0.25, 0.05, 4, 24),
+        glowMaterial('#86e3d9', 3),
+        0,
+        1.4 + k * 0.6,
+      );
+      ring.rotation.x = Math.PI / 2 + k * 0.3;
+      ring.castShadow = false;
+      spin.push({ obj: ring, rate: 2.5 + k, axis: 'z' });
+    }
+  },
+  barrier(g, glow, spin) {
+    add(g, new T.CylinderGeometry(1.2, 1.4, 0.4, 6), M.base, 0, 0.2);
+    for (let k = 0; k < 4; k++) {
+      const a = (k / 4) * Math.PI * 2;
+      const fin = add(
+        g,
+        new T.BoxGeometry(0.15, 2.6, 0.7),
+        M.plate,
+        Math.cos(a) * 0.7,
+        1.5,
+        Math.sin(a) * 0.7,
+      );
+      fin.rotation.y = -a;
+    }
+    const core = add(g, new T.SphereGeometry(0.35, 10, 8), glowMaterial('#fca480', 3.5), 0, 2.9);
+    core.castShadow = false;
+    spin.push({ obj: core, rate: 2, pulse: true });
+  },
   lab(g, glow, spin) {
     add(g, new T.BoxGeometry(4, 0.4, 3.4), M.base, 0, 0.2);
     add(g, new T.CylinderGeometry(1.3, 1.5, 1.6, 8), M.plate, -0.7, 1.2);

@@ -4,6 +4,57 @@
 import { CONDITIONS, ACTIONS, MAX_RULES, validateRules, explainRule } from '../sim/rules.js';
 import { FORMATIONS } from '../sim/defs.js';
 
+// Swarm brains: a named bundle of reaction rules + formation + altitude band, kept in this browser.
+const BRAIN_KEY = 'fc-rts-brains';
+export const BRAIN_PRESETS = {
+  Wolfpack: {
+    formation: 'wedge',
+    altitude: 1,
+    rules: [
+      { when: 'enemyNear', value: 20, then: 'attack', cooldown: 2 },
+      { when: 'hurt', value: 30, then: 'retreat', cooldown: 10 },
+    ],
+  },
+  Ghost: {
+    formation: 'column',
+    altitude: 0,
+    rules: [
+      { when: 'detected', then: 'evade', cooldown: 3 },
+      { when: 'battery', value: 35, then: 'retreat', cooldown: 10 },
+    ],
+  },
+  'Sky guard': {
+    formation: 'ring',
+    altitude: 2,
+    rules: [
+      { when: 'outnumbered', value: 2, then: 'regroup', cooldown: 5 },
+      { when: 'hurt', value: 35, then: 'retreat', cooldown: 8 },
+    ],
+  },
+  'Siege line': {
+    formation: 'line',
+    altitude: 1,
+    rules: [
+      { when: 'threat', value: 1.8, then: 'evade', cooldown: 4 },
+      { when: 'enemyNear', value: 12, then: 'hold', cooldown: 2 },
+    ],
+  },
+};
+const loadBrains = () => {
+  try {
+    return JSON.parse(localStorage.getItem(BRAIN_KEY)) || {};
+  } catch {
+    return {};
+  }
+};
+const saveBrains = (b) => {
+  try {
+    localStorage.setItem(BRAIN_KEY, JSON.stringify(b));
+  } catch {
+    // Storage unavailable; brains just won't persist.
+  }
+};
+
 const el = (tag, attrs = {}, ...kids) => {
   const e = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs)) {
@@ -44,6 +95,8 @@ export class ScriptEditor {
   open(squad) {
     this.squad = squad;
     this.rules = squad.rules.map((r) => ({ ...r }));
+    this.formation = squad.formation;
+    this.altitude = squad.altitude ?? 1;
     this.error = '';
     this.render();
     this.root.hidden = false;
@@ -57,9 +110,9 @@ export class ScriptEditor {
   apply() {
     try {
       const rules = validateRules(this.rules);
-      this.onApply(this.squad, rules);
+      this.onApply(this.squad, rules, { formation: this.formation, altitude: this.altitude });
       this.error = '';
-      this.flash = 'Applied — the squad now runs this script.';
+      this.flash = 'Applied: the squad now runs this brain.';
     } catch (e) {
       this.error = e.message;
     }
@@ -238,6 +291,69 @@ export class ScriptEditor {
       );
     }
     r.append(list);
+    // Swarm brain: formation + altitude travel with the rules.
+    const brains = { ...BRAIN_PRESETS, ...loadBrains() };
+    r.append(
+      el(
+        'div',
+        { class: 'row brain-row' },
+        el('span', { class: 'kw' }, 'FORMATION'),
+        select(FORMATIONS, this.formation, (v) => (this.formation = v)),
+        el('span', { class: 'kw' }, 'ALTITUDE'),
+        select(
+          ['0', '1', '2'],
+          String(this.altitude),
+          (v) => (this.altitude = Number(v)),
+          (v) => ['Low', 'Cruise', 'High'][v],
+        ),
+      ),
+      el(
+        'div',
+        { class: 'row brain-row' },
+        el(
+          'select',
+          {
+            onchange: (e) => {
+              const b = brains[e.target.value];
+              if (!b) return;
+              this.rules = b.rules.map((x) => ({ enabled: true, cooldown: 4, ...x }));
+              this.formation = b.formation;
+              this.altitude = b.altitude;
+              this.flash = `Loaded the ${e.target.value} brain. Apply to use it.`;
+              this.render();
+            },
+          },
+          el('option', { value: '' }, 'Load swarm brain…'),
+          Object.keys(brains).map((k) => el('option', { value: k }, k)),
+        ),
+        el('input', { id: 'brain-name', placeholder: 'Brain name', maxlength: 24 }),
+        el(
+          'button',
+          {
+            class: 'btn',
+            onclick: () => {
+              const name = r.querySelector('#brain-name').value.trim();
+              if (!name) return;
+              try {
+                const all = loadBrains();
+                all[name] = {
+                  rules: validateRules(this.rules),
+                  formation: this.formation,
+                  altitude: this.altitude,
+                };
+                saveBrains(all);
+                this.flash = `Saved brain "${name}".`;
+                this.error = '';
+              } catch (e) {
+                this.error = e.message;
+              }
+              this.render();
+            },
+          },
+          'Save brain',
+        ),
+      ),
+    );
     const presets = el(
       'select',
       {

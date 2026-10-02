@@ -314,6 +314,30 @@ Object.assign(STRUCTURES, {
     sensor: 10,
     charge: { radius: 8, rate: 0.09 },
   },
+  vortex: {
+    label: 'Vortex Trap',
+    blurb:
+      'Field equation: enemies inside are swept into a whirlpool (v ∝ 1/r) and pulled to the center.',
+    cost: 140,
+    hp: 400,
+    build: 10,
+    radius: 1.6,
+    sensor: 10,
+    requires: 'fieldProjector',
+    field: { kind: 'vortex', radius: 12, strength: 16 },
+  },
+  barrier: {
+    label: 'Flow Barrier',
+    blurb:
+      'Field equation: a radial outflow that shoves enemy drones away. Builds a wall of force.',
+    cost: 120,
+    hp: 400,
+    build: 9,
+    radius: 1.4,
+    sensor: 10,
+    requires: 'fieldProjector',
+    field: { kind: 'barrier', radius: 10, strength: 40 },
+  },
   lab: {
     label: 'Research Lab',
     blurb: 'Researches new airframes and upgrades. One project at a time per lab.',

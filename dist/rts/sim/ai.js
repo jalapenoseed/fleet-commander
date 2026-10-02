@@ -28,6 +28,7 @@ const RESEARCH = {
     'tier3',
     'motors',
     'jamRange',
+    'fieldProjector',
     'intrusion',
     'cloak',
   ],
@@ -234,6 +235,22 @@ export class AIPlayer {
         7,
       );
       if (spot) return build('turret', spot);
+    }
+    if (
+      world.teams[t].tech.has('fieldProjector') &&
+      !this.own(world, 'vortex').length &&
+      want('vortex')
+    ) {
+      const toward = len(core.x, core.z) || 1;
+      const spot = this.findSpot(
+        world,
+        'vortex',
+        core.x - (core.x / toward) * 14,
+        core.z - (core.z / toward) * 14,
+        0,
+        8,
+      );
+      if (spot) return build('vortex', spot);
     }
     if (secs > 200 && L.defenses > 1 && !this.own(world, 'jammer').length && want('jammer')) {
       const spot = this.findSpot(world, 'jammer', core.x * 0.85, core.z * 0.85, 2, 10);

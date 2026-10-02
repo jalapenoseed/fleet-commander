@@ -8,7 +8,16 @@ import { rockHeight } from '../sim/maps.js';
 
 export const MAX_FIELDS = 40;
 export const MAX_POWER = 24;
-export const FIELD_KIND = { radar: 0, jammer: 1, turret: 2, repair: 3, storm: 4, emp: 5 };
+export const FIELD_KIND = {
+  radar: 0,
+  jammer: 1,
+  turret: 2,
+  repair: 3,
+  storm: 4,
+  emp: 5,
+  vortex: 6,
+  barrier: 7,
+};
 
 function hash(x, z) {
   const s = Math.sin(x * 127.1 + z * 311.7) * 43758.5453;
@@ -192,8 +201,15 @@ export function buildTerrain(map, height) {
             float bolt = step(0.985, h21(vec2(floor(uTime * 3.0), f.x)));
             col += vec3(0.5, 0.6, 0.9) * bolt * (1.0 - smoothstep(0.0, r, d)) * 0.6;
             continue;
-          } else { // EMP warning: fast-pulsing ring closing in
+          } else if (kind < 5.5) { // EMP warning: fast-pulsing ring closing in
             fill = 0.12 * (0.5 + 0.5 * sin(uTime * 18.0));
+          } else if (kind < 6.5) { // vortex: spiral streamlines turning faster near the center
+            float ang = atan(dv.y, dv.x);
+            float spiral = sin(ang * 4.0 + log(d + 0.5) * 6.0 - uTime * (2.0 + 6.0 / (d + 1.0)));
+            fill = 0.05 + 0.25 * pow(0.5 + 0.5 * spiral, 6.0) * (1.0 - d / r);
+          } else { // barrier: radial streamlines flowing outward
+            float ang = atan(dv.y, dv.x);
+            fill = 0.05 + 0.22 * pow(0.5 + 0.5 * sin(ang * 16.0), 10.0) * (0.5 + 0.5 * sin(d * 1.4 - uTime * 6.0));
           }
           float m = (1.0 - smoothstep(r - 0.2, r, d));
           col += fc * (fill * m + rim * 0.6) * strength;

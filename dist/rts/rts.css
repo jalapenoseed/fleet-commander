@@ -1186,3 +1186,66 @@ body.piloting #abilities,
 body.no-economy #abilities {
   display: none;
 }
+
+/* ---------- designer ---------- */
+.design-stats {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 14px;
+  margin: 10px 0;
+  font-size: 12px;
+}
+.design-stats dt {
+  color: var(--muted);
+}
+.design-stats dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+.learn-line {
+  font-size: 12px;
+  color: var(--green);
+  margin: 6px 0 10px;
+}
+h3.sub {
+  margin: 16px 0 6px;
+  font-size: 13px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.library {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 6px;
+}
+.library li {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.library li span {
+  flex: 1;
+  min-width: 0;
+}
+.library small {
+  color: var(--muted);
+}
+#designer input,
+.brain-row input {
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 5px 8px;
+}
+.brain-row {
+  margin-top: 8px;
+}
+#designer .btn-row .label {
+  width: 60px;
+}
+body.piloting #designer {
+  display: none !important;
+}

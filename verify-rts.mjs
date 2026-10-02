@@ -557,6 +557,78 @@ test('storms jam and slow; salvage pays the collector; abilities and hacking wor
   assert.equal(h.team[prey], 0, 'hacked to team 0');
 });
 
+test('designer: parts become a team-owned airframe with tier gating', () => {
+  const w = new World({ seed: 1 });
+  w.teams[0].energy = 9999;
+  const spec = {
+    name: 'Lancehawk',
+    frame: 'medium',
+    weapon: 'rail',
+    sensor: 'longrange',
+    module: 'armor',
+  };
+  assert.equal(
+    w.apply({ type: 'design', team: 0, spec: { ...spec, frame: 'light' } }),
+    false,
+    'rail needs medium+',
+  );
+  assert.equal(
+    w.apply({ type: 'design', team: 0, spec: { ...spec, weapon: 'none', module: 'none' } }),
+    false,
+    'needs a purpose',
+  );
+  assert.equal(w.apply({ type: 'design', team: 0, spec }), true);
+  const r = w.roles.length - 1,
+    d = w.roles[r];
+  assert.equal(d.label, 'Lancehawk');
+  assert.equal(d.tier, 2);
+  assert.ok(d.hp > 90 && d.speed < 8, 'armor plates: tougher and slower');
+  assert.equal(w.apply({ type: 'produce', team: 0, role: r }), false, 'tier 2 locked');
+  w.teams[0].tech.add('tier2');
+  w.refreshStats(0);
+  assert.equal(w.apply({ type: 'produce', team: 0, role: r }), true);
+  w.teams[1].tech.add('tier2');
+  w.refreshStats(1);
+  assert.equal(
+    w.apply({ type: 'produce', team: 1, role: r }),
+    false,
+    'designs belong to their team',
+  );
+  for (let k = 0; k < 20 * 12; k++) w.step();
+  assert.equal(w.stats(0).roles[r], 2, 'a pack of medium-frame designs flew out');
+});
+
+test('field equations: vortex swirls and barrier repels enemies, not allies or high fliers', () => {
+  const w = new World({ seed: 1 });
+  w.addStructure(1, 'vortex', 0, 0, true);
+  w.addStructure(1, 'barrier', 40, 0, true);
+  const sq = w.createSquad(0);
+  sq.rules = [];
+  const v = w.spawnDrone(0, ROLE_INDEX.assault, 6, 0, sq),
+    b = w.spawnDrone(0, ROLE_INDEX.assault, 43, 0, sq),
+    hi = w.spawnDrone(0, ROLE_INDEX.assault, 0, 6, sq),
+    ally = w.spawnDrone(1, ROLE_INDEX.assault, 0, -6, w.createSquad(1));
+  w.py[hi] = 20;
+  w.altBand[hi] = 2;
+  sq.order = { play: 'hold', x: 0, z: 0, x0: 0, z0: 0 };
+  w.step();
+  for (const i of [v, b, hi, ally]) {
+    w.vx[i] = w.vz[i] = 0;
+    w.px[i] = w.ox[i];
+    w.pz[i] = w.oz[i];
+  }
+  w.fieldStructs = w.structures.filter((s) => s.kind === 'vortex' || s.kind === 'barrier');
+  for (const i of [v, b, hi, ally]) w.fieldForces(i);
+  assert.ok(
+    Math.abs(w.vz[v]) > Math.abs(w.vx[v]) && w.vx[v] < 0,
+    'vortex: mostly tangential, slightly inward',
+  );
+  assert.ok(w.vx[b] > 0.5, 'barrier pushes outward');
+  assert.equal(w.vx[hi] + w.vz[hi], 0, 'high flier untouched');
+  assert.equal(w.vx[ally] + w.vz[ally], 0, 'own team untouched');
+  assert.equal(w.canPlace(0, 'vortex', -48, 44).reason, 'Research Field Projector first');
+});
+
 test('lockstep: identical inputs give identical hashes, different inputs diverge', () => {
   const run = (extra) => {
     const s = new Session({ seed: 9, ai: { 1: 'normal' } });
@@ -583,6 +655,19 @@ test('replay re-simulates a recorded match to the same hash', () => {
       s.issue({ type: 'order', team: 0, uids, play: 'pincer', x: 10, z: -10 });
     }
     if (t === 40) s.issue({ type: 'produce', team: 0, role: 'assault' });
+    if (t === 45)
+      s.issue({
+        type: 'design',
+        team: 0,
+        spec: {
+          name: 'Wisp',
+          frame: 'light',
+          weapon: 'pulse',
+          sensor: 'extended',
+          module: 'battery',
+        },
+      });
+    if (t === 50) s.issue({ type: 'produce', team: 0, role: s.world.roles.length - 1 });
     const pilotUid = s.world.uid[0];
     if (t === 60) s.issue({ type: 'pilot', team: 0, uid: pilotUid, on: true });
     if (t >= 61 && t < 200 && t % 7 === 0)

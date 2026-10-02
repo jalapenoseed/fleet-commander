@@ -22,6 +22,7 @@ import { GameView } from './render/view.js';
 import { Minimap } from './ui/minimap.js';
 import { ScriptEditor } from './ui/script-editor.js';
 import { PilotController } from './ui/pilot.js';
+import { Designer } from './ui/designer.js';
 
 const $ = (id) => document.getElementById(id);
 const BUILD_KEYS = {
@@ -132,8 +133,15 @@ class Game {
       onOrder: (x, z) => this.selectedUids().length && this.order(this.targetPlay || 'move', x, z),
     });
     this.script = new ScriptEditor($('script'), {
-      onApply: (sq, rules) => this.issue({ type: 'rules', squad: sq.id, rules }),
+      onApply: (sq, rules, extra = {}) => {
+        this.issue({ type: 'rules', squad: sq.id, rules });
+        if (extra.formation)
+          this.issue({ type: 'formation', squad: sq.id, formation: extra.formation });
+        if (extra.altitude !== undefined)
+          this.issue({ type: 'altitude', squad: sq.id, level: extra.altitude });
+      },
     });
+    this.designer = new Designer($('designer'), this);
     this.speed = 1;
     this.acc = 0;
     this.last = performance.now();
@@ -198,6 +206,7 @@ class Game {
     $('hud').hidden = true;
     $('objective').hidden = true;
     this.script.close();
+    this.designer?.close();
   }
 
   issue(cmd) {
@@ -299,6 +308,8 @@ class Game {
       this.lastAlert = { x: e.x, z: e.z };
     } else if (e.k === 'scenario') {
       this.alert(e.text, e.alert ? '' : 'good');
+    } else if (e.k === 'designed' && mine) {
+      this.alert(`Design registered: ${this.world.roles[e.role].label}`, 'good');
     } else if (e.k === 'researched' && mine) {
       this.alert(`Research complete: ${TECH[e.tech].label}`, 'good');
       this.buildProduceButtons();
@@ -901,6 +912,7 @@ class Game {
       if (this.placing) return this.setPlacing(null);
       if (this.targetPlay || this.targetAbility) return this.setTargeting(null);
       if (!$('script').hidden) return this.script.close();
+      if (!$('designer').hidden) return this.designer.close();
       return this.togglePause();
     }
     if (this.ended || !$('pause').hidden) return;
@@ -935,6 +947,7 @@ class Game {
     if (this.spectator) return;
     if (BUILD_KEYS[k]) return this.setPlacing(BUILD_KEYS[k]);
     if (PLAY_KEYS[k]) return this.setTargeting(PLAY_KEYS[k]);
+    if (k === 'y') return $('designer').hidden ? this.designer.open() : this.designer.close();
     if (k === 'h') return this.immediatePlay('hold');
     if (k === 'r') return this.immediatePlay('retreat');
     if (k === 'f') return this.cycleFormation();
@@ -1138,6 +1151,13 @@ class Game {
     const pg = $('produce-grid');
     pg.textContent = '';
     const stats = this.world.roleStats[this.player];
+    const db = document.createElement('button');
+    db.className = 'cmd';
+    db.dataset.tip =
+      '<b>Drone Designer (Y)</b>Build your own airframe from a frame, weapon, sensor and module.';
+    db.innerHTML = '<span>＋ Design<kbd>Y</kbd></span><span class="cost">new airframe</span>';
+    db.onclick = () => this.designer.open();
+    pg.append(db);
     this.produceButtons = this.producible().map((role, k) => {
       const r = stats[role];
       const b = document.createElement('button');
@@ -1191,7 +1211,10 @@ class Game {
     }
     if (!this.spectator) {
       for (const { b, kind } of this.buildButtons) {
-        b.disabled = t.energy < STRUCTURES[kind].cost;
+        const req = STRUCTURES[kind].requires;
+        const locked = req && !t.tech.has(req);
+        b.classList.toggle('locked', !!locked);
+        b.disabled = locked || t.energy < STRUCTURES[kind].cost;
         b.classList.toggle('on', this.placing === kind);
       }
       const free = t.bwCap - t.bwUsed;

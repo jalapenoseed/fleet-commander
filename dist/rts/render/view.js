@@ -710,6 +710,15 @@ export class GameView {
       if (def.jam) push(s.x, s.z, def.jam, FIELD_KIND.jammer, '#c58cff', k);
       if (def.zone) push(s.x, s.z, def.zone.radius, FIELD_KIND.turret, '#ff4a3a', k);
       if (def.heal) push(s.x, s.z, def.heal.radius, FIELD_KIND.repair, '#4dffa6', k);
+      if (def.field)
+        push(
+          s.x,
+          s.z,
+          def.field.radius,
+          def.field.kind === 'vortex' ? FIELD_KIND.vortex : FIELD_KIND.barrier,
+          def.field.kind === 'vortex' ? '#86e3d9' : '#fca480',
+          k,
+        );
       if (def.charge && s.kind !== 'core')
         push(s.x, s.z, def.charge.radius, FIELD_KIND.repair, '#8ff0ff', 0.7 * k);
     }

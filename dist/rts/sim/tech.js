@@ -66,6 +66,13 @@ export const TECH = {
     time: 40,
     requires: ['tier2'],
   },
+  fieldProjector: {
+    label: 'Field Projector',
+    blurb: 'Unlocks the Vortex Trap and Flow Barrier: the vector-field lab, weaponized.',
+    cost: 220,
+    time: 40,
+    requires: ['tier2'],
+  },
   intrusion: {
     label: 'Intrusion Suite',
     blurb: 'Jammer drones hack jammed enemy drones they stay within 6 m of for 4 s (not carriers).',

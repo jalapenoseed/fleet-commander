@@ -17,6 +17,20 @@ Open `/rts/` on the dev server (for example `http://localhost:5173/rts/`). `?aut
 npm run test:rts   # sim, determinism, replay, AI and performance checks (Node only)
 ```
 
+## Identity: your swarm, your designs
+
+- **Drone Designer** (`Y`, or **＋ Design** in the Produce tab):
+  - Pick a **frame** (light, medium or heavy: hull, speed, tilt and turn rate, pack size), a **weapon** (pulse, flak, missile, or rail on medium and heavy frames), a **sensor** (standard, extended, long-range) and a **module** (battery pack, armor plates, jammer, repair kit, relay antenna, shield emitter).
+  - The panel shows live stats and a plain-English summary of the tradeoffs.
+  - **Register** a design to add it to this match's Produce tab (up to 8 per player); it inherits your research. **Save** keeps it in this browser's library.
+  - Designs are lockstep commands, so they replay and will sync in multiplayer. Each design is drawn as its frame plus visible part accessories.
+- **Field equations** (research _Field Projector_, tier 2) turn the vector-field lab into structures. Both only affect enemies below 14 m.
+  - **Vortex Trap:** enemies inside are swept into a whirlpool (tangential speed rising toward the center, ~1/r) and pulled inward.
+  - **Flow Barrier:** a radial outflow that shoves enemies away.
+- **Swarm Brains** in the script editor bundle reaction rules with a formation and an altitude band.
+  - Load a preset (_Wolfpack_, _Ghost_, _Sky guard_, _Siege line_) or save your own by name.
+  - Applying a brain sets all three on the squad.
+
 ## Systems: a strategic map
 
 - **Line of sight:** rocks block sensors for anything flying lower than the rock top. High altitude sees over them; ambushes hide behind them.
@@ -170,5 +184,5 @@ main.js     input, HUD and the fixed-timestep loop (20 Hz sim, interpolated rend
 2. **Multiplayer transport.** The lockstep core is ready, but no network layer exists yet; see [NETWORK.md](NETWORK.md).
 3. **Sim in a Web Worker.** The sim is already isolated; moving it off the main thread is mostly plumbing.
 4. Line-of-sight sensors (the lab has them), terrain height in the sim, more maps and 2v2.
-5. Operations (campaign) and Challenges built from Training scenarios; Autonomous Arena brain upload/sharing.
+5. Operations campaign with a persistent fleet and veterancy (Wave 5); Arena ladder for uploaded swarm brains (Wave 6).
 6. GPU visual QA on real devices. Cloud screenshots use SwiftShader, which is correct but slow (about 1 fps).
