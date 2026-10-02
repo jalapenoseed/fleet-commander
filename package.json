@@ -7,10 +7,11 @@
     "dev": "vite --config vite.config.js",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "node verify-next-update.mjs && node verify-simulation-lab.mjs && node verify-labs.mjs && node verify-combat-ai.mjs && node verify-arena-audio.mjs && node verify-combat.mjs && node verify-camera-input.mjs && node verify-swarm-lighting.mjs && node verify-graphics.mjs && node verify-director.mjs && node verify-director-ui.mjs && node verify-fleet-commander.mjs && node verify-fleet-commander-ui.mjs && node verify-standalone.mjs",
+    "test": "node verify-rts.mjs && node verify-next-update.mjs && node verify-simulation-lab.mjs && node verify-labs.mjs && node verify-combat-ai.mjs && node verify-arena-audio.mjs && node verify-combat.mjs && node verify-camera-input.mjs && node verify-swarm-lighting.mjs && node verify-graphics.mjs && node verify-director.mjs && node verify-director-ui.mjs && node verify-fleet-commander.mjs && node verify-fleet-commander-ui.mjs && node verify-standalone.mjs",
     "test:shaders": "node scripts/export-graphics-shaders.mjs && python scripts/check-graphics-shaders.py",
     "test:sports": "node verify-sports.mjs && node verify-sports-ui.mjs",
-    "test:vector": "node verify-vector-field.mjs && node verify-swarm-field.mjs"
+    "test:vector": "node verify-vector-field.mjs && node verify-swarm-field.mjs",
+    "test:rts": "node verify-rts.mjs"
   },
   "devDependencies": {
     "@dimforge/rapier3d-compat": "0.20.0",

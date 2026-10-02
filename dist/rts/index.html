@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Fleet Commander — Working Model</title>
+    <link rel="icon" href="../favicon.svg" />
+    <link rel="stylesheet" href="./rts.css?v=1" />
+  </head>
+  <body>
+    <canvas id="view"></canvas>
+    <div id="box" hidden></div>
+
+    <section id="menu" class="screen">
+      <div class="menu-card">
+        <div class="eyebrow">Working model · build 1</div>
+        <h1>FLEET<span>COMMANDER</span></h1>
+        <p class="tag">
+          You don't fly the drones. You design the forces, rules and information that make a swarm
+          fly itself.
+        </p>
+        <div class="menu-grid">
+          <button class="menu-btn primary" data-start="skirmish">
+            <strong>Skirmish</strong><small>You vs the AI on Delta Basin</small>
+          </button>
+          <button class="menu-btn" data-start="spectate">
+            <strong>Autonomous Arena</strong
+            ><small>Watch two AI swarms fight with the auto-director</small>
+          </button>
+          <label class="menu-btn file">
+            <strong>Load replay</strong
+            ><small>Re-simulate a saved match from its command log</small>
+            <input type="file" id="replay-file" accept=".json,application/json" hidden />
+          </label>
+        </div>
+        <div class="menu-opts">
+          <label
+            >Opponent
+            <select id="opt-diff">
+              <option value="easy">Recruit</option>
+              <option value="normal" selected>Veteran</option>
+              <option value="hard">Ace</option>
+            </select>
+          </label>
+          <label
+            >Graphics
+            <select id="opt-quality">
+              <option value="low">Performance</option>
+              <option value="balanced" selected>Balanced</option>
+              <option value="high">Cinema</option>
+            </select>
+          </label>
+          <label>Seed <input id="opt-seed" type="number" value="1" min="1" max="999999" /></label>
+        </div>
+        <details class="howto">
+          <summary>How to play</summary>
+          <ul>
+            <li>
+              <b>Select:</b> drag a box, or click a drone to grab its squad. Shift adds.
+              Double-click selects that role on screen.
+            </li>
+            <li>
+              <b>Order:</b> right-click to move. Right-click an enemy to attack. Keys:
+              <kbd>A</kbd> attack-move, <kbd>P</kbd> pincer, <kbd>T</kbd> patrol,
+              <kbd>O</kbd> orbit, then click; <kbd>H</kbd> hold, <kbd>R</kbd> retreat,
+              <kbd>F</kbd> cycle formation.
+            </li>
+            <li>
+              <b>Groups:</b> <kbd>Ctrl</kbd>+<kbd>1–9</kbd> to assign, <kbd>1–9</kbd> to recall
+              (twice to jump the camera).
+            </li>
+            <li>
+              <b>Economy:</b> build Extractors on gold wells for energy. Relay Towers add command
+              bandwidth (your unit cap) and extend where you can build.
+            </li>
+            <li>
+              <b>Scripts:</b> press <kbd>G</kbd> (or the Script button) to give a squad reaction
+              rules — it fights for itself.
+            </li>
+            <li>
+              <b>Camera:</b> arrow keys, screen edges or right-drag to pan, wheel to zoom,
+              <kbd>Q</kbd>/<kbd>E</kbd> or middle-drag to rotate, <kbd>Space</kbd> jumps to the last
+              alert, <kbd>Home</kbd> to your core.
+            </li>
+            <li>
+              <b>Build:</b> <kbd>Z</kbd> extractor · <kbd>X</kbd> relay · <kbd>C</kbd> fabricator ·
+              <kbd>V</kbd> radar · <kbd>B</kbd> jammer · <kbd>N</kbd> kill zone ·
+              <kbd>M</kbd> repair. Produce: <kbd>Shift</kbd>+<kbd>1–6</kbd>.
+            </li>
+            <li>
+              <b>Counters:</b> interceptors shred scouts and support · scout swarms sting assault ·
+              assault breaks interceptors and buildings.
+            </li>
+          </ul>
+        </details>
+      </div>
+    </section>
+
+    <div id="hud" hidden>
+      <header id="topbar">
+        <div class="res" title="Energy (income per second)">
+          <i class="dot energy"></i><b id="energy">0</b><small id="income">+0/s</small>
+        </div>
+        <div
+          class="res"
+          title="Command bandwidth: drones alive or queued / capacity. Build Relay Towers for more."
+        >
+          <i class="dot bw"></i><b id="bandwidth">0/0</b><small>bandwidth</small>
+        </div>
+        <div class="res">
+          <i class="dot drones"></i><b id="dronecount">0</b><small>drones</small>
+        </div>
+        <span class="spacer"></span>
+        <div class="clock" id="clock">00:00</div>
+        <div class="speed" id="speed">
+          <button data-speed="0" title="Pause">❚❚</button>
+          <button data-speed="1" class="on" title="Normal speed">1×</button>
+          <button data-speed="2" title="Fast">2×</button>
+          <button data-speed="4" title="Faster">4×</button>
+        </div>
+        <button class="icon-btn" id="btn-director" title="Auto-director camera" hidden>🎥</button>
+        <button class="icon-btn" id="btn-fog" title="Toggle fog of war (spectator)" hidden>
+          ◐
+        </button>
+        <button class="icon-btn" id="btn-menu" title="Menu (Esc)">☰</button>
+      </header>
+      <ol id="alerts"></ol>
+      <div id="minimap-wrap"><canvas id="minimap" width="220" height="220"></canvas></div>
+
+      <section id="selection" class="panel"></section>
+
+      <section id="commands" class="panel">
+        <div class="cmd-title">Build</div>
+        <div class="grid" id="build-grid"></div>
+        <div class="cmd-title">Produce <small>(shift = ×5)</small></div>
+        <div class="grid" id="produce-grid"></div>
+      </section>
+
+      <aside id="script" class="panel drawer" hidden></aside>
+      <div id="tooltip" hidden></div>
+      <div id="mode-hint" hidden></div>
+    </div>
+
+    <section id="pause" class="screen" hidden>
+      <div class="menu-card small">
+        <h2>Paused</h2>
+        <div class="menu-grid one">
+          <button class="menu-btn" id="btn-resume"><strong>Resume</strong></button>
+          <button class="menu-btn" id="btn-save-replay">
+            <strong>Download replay</strong><small>Command log + seed; re-simulates exactly</small>
+          </button>
+          <button class="menu-btn" id="btn-surrender"><strong>Surrender</strong></button>
+          <button class="menu-btn" id="btn-quit"><strong>Main menu</strong></button>
+        </div>
+      </div>
+    </section>
+
+    <section id="end" class="screen" hidden>
+      <div class="menu-card small">
+        <div class="eyebrow" id="end-eyebrow"></div>
+        <h2 id="end-title"></h2>
+        <dl id="end-stats"></dl>
+        <div class="menu-grid one">
+          <button class="menu-btn" id="btn-end-replay"><strong>Download replay</strong></button>
+          <button class="menu-btn primary" id="btn-end-menu"><strong>Main menu</strong></button>
+        </div>
+      </div>
+    </section>
+
+    <script type="module" src="./main.js?v=1"></script>
+  </body>
+</html>

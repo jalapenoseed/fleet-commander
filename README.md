@@ -4,6 +4,10 @@ A standalone drone swarm game and flight lab, branched from GRIDRUNNER v7.40 at 
 
 Branch: `fleet-commander-standalone`. Open `dist/index.html` through the Vite server or the hosted Site. `commander.html` redirects to the root.
 
+## Working model: RTS (`/rts/`)
+
+The `working-model` branch adds a new RTS iteration in `dist/rts/`: a deterministic lockstep simulation with energy, bandwidth, production, structures and fields, fog of war, an AI opponent, an Autonomous Arena spectator mode, reaction scripts with Learn explanations, verifiable replays, and rebuilt lightweight drone models. Run `npm run dev` and open `/rts/`; `npm run test:rts` runs its checks. See [dist/rts/README.md](dist/rts/README.md) and [dist/rts/NETWORK.md](dist/rts/NETWORK.md).
+
 ## Play
 
 - Build **0–10,000** individually simulated aircraft. Zero clears the field; 5,000 and 10,000 are experimental stress-test sizes.
