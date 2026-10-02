@@ -19,6 +19,11 @@ import {
   PLAYS,
 } from './defs.js';
 import { RULE_PERIOD, DEFAULT_RULES, runRules, validateRules } from './rules.js';
+import { flightStep, quantize, F_PILOT, F_FIRE, COS_CONE } from './flight.js';
+
+export { F_PILOT, F_FIRE };
+// Ground fields (jammer and kill zones, repair) only reach drones below this altitude.
+export const FIELD_CEILING = 14;
 
 export const VIS_CELL = 4;
 const SENSE_RADIUS = 18;
@@ -132,6 +137,18 @@ export class World {
     this.tz = new Float64Array(N);
     this.hp = new Float64Array(N);
     this.cd = new Float64Array(N);
+    // Flight state: altitude, climb rate and attitude (yaw/pitch/roll in radians) + previous tick.
+    this.py = new Float64Array(N);
+    this.vy = new Float64Array(N);
+    this.yaw = new Float64Array(N);
+    this.yawRate = new Float64Array(N);
+    this.pitch = new Float64Array(N);
+    this.roll = new Float64Array(N);
+    this.opy = new Float64Array(N);
+    this.oyaw = new Float64Array(N);
+    this.opitch = new Float64Array(N);
+    this.oroll = new Float64Array(N);
+    this.stick = new Float64Array(N * 4); // pilot input: throttle, yaw, pitch, roll
     this.count = 0; // slot high-water mark
     this.free = [];
     this.uidMap = new Map();
@@ -178,6 +195,7 @@ export class World {
       losses: 0,
       spent: 0,
       lastAlert: -1e9,
+      pilot: 0, // uid of the drone this team's player is flying, 0 if none
     };
     this.teams.push(team);
     this.addStructure(t, 'core', start.x, start.z, true);
@@ -213,6 +231,10 @@ export class World {
     this.px[i] = this.ox[i] = this.tx[i] = x;
     this.pz[i] = this.oz[i] = this.tz[i] = z;
     this.vx[i] = this.vz[i] = 0;
+    this.py[i] = this.opy[i] = 0.6; // takes off from the pad and climbs to cruise altitude
+    this.vy[i] = this.pitch[i] = this.roll[i] = this.opitch[i] = this.oroll[i] = 0;
+    this.yaw[i] = this.oyaw[i] = this.yawRate[i] = 0;
+    this.stick.fill(0, i * 4, i * 4 + 4);
     this.hp[i] = r.hp;
     this.cd[i] = 0;
     this.target[i] = 0;
@@ -390,6 +412,21 @@ export class World {
         team.rallyX = clamp(cmd.x, -this.half + 2, this.half - 2);
         team.rallyZ = clamp(cmd.z, -this.half + 2, this.half - 2);
         return true;
+      case 'pilot':
+        return this.cmdPilot(cmd);
+      case 'stick': {
+        const i = this.uidMap.get(cmd.uid);
+        if (i === undefined || this.team[i] !== cmd.team || !(this.flags[i] & F_PILOT))
+          return false;
+        const o = i * 4;
+        this.stick[o] = quantize(cmd.t);
+        this.stick[o + 1] = quantize(cmd.y);
+        this.stick[o + 2] = quantize(cmd.p);
+        this.stick[o + 3] = quantize(cmd.r);
+        if (cmd.fire) this.flags[i] |= F_FIRE;
+        else this.flags[i] &= ~F_FIRE;
+        return true;
+      }
       case 'surrender':
         this.defeat(cmd.team);
         return true;
@@ -447,6 +484,30 @@ export class World {
     return true;
   }
 
+  // Take (on: true) or release manual control of one drone. One piloted drone per team.
+  cmdPilot(cmd) {
+    const team = this.teams[cmd.team];
+    const release = (u) => {
+      const j = this.uidMap.get(u);
+      if (j !== undefined) {
+        this.flags[j] &= ~(F_PILOT | F_FIRE);
+        this.stick.fill(0, j * 4, j * 4 + 4);
+      }
+      team.pilot = 0;
+    };
+    if (!cmd.on) {
+      if (team.pilot) release(team.pilot);
+      return true;
+    }
+    const i = this.uidMap.get(cmd.uid);
+    if (i === undefined || !this.alive[i] || this.team[i] !== cmd.team) return false;
+    if (team.pilot && team.pilot !== cmd.uid) release(team.pilot);
+    this.flags[i] |= F_PILOT;
+    this.stick.fill(0, i * 4, i * 4 + 4);
+    team.pilot = cmd.uid;
+    return true;
+  }
+
   cmdProduce(cmd) {
     const role = typeof cmd.role === 'number' ? cmd.role : ROLE_INDEX[cmd.role];
     const r = ROLES[role];
@@ -489,6 +550,10 @@ export class World {
     const N = this.count;
     this.ox.set(this.px.subarray(0, N));
     this.oz.set(this.pz.subarray(0, N));
+    this.opy.set(this.py.subarray(0, N));
+    this.oyaw.set(this.yaw.subarray(0, N));
+    this.opitch.set(this.pitch.subarray(0, N));
+    this.oroll.set(this.roll.subarray(0, N));
     this.economy();
     this.grid.build(this.alive, this.px, this.pz, N);
     this.auras();
@@ -563,9 +628,11 @@ export class World {
     const { alive, team, role, flags, px, pz, hp, grid, scratch } = this;
     const N = this.count;
     for (let i = 0; i < N; i++) flags[i] &= ~(F_JAMMED | F_DETECTED | F_COUNTER);
-    const jamAround = (t, x, z, r) => {
+    const py = this.py;
+    const jamAround = (t, x, z, r, ceiling = 1e9) => {
       const k = grid.query(x, z, r, px, pz, scratch);
-      for (let j = 0; j < k; j++) if (team[scratch[j]] !== t) flags[scratch[j]] |= F_JAMMED;
+      for (let j = 0; j < k; j++)
+        if (team[scratch[j]] !== t && py[scratch[j]] < ceiling) flags[scratch[j]] |= F_JAMMED;
     };
     // Jamming sources, then counter-jamming from relay drones.
     for (let i = 0; i < N; i++) {
@@ -576,7 +643,7 @@ export class World {
     for (const s of this.structures) {
       if (!s.alive || s.progress < 1) continue;
       const def = STRUCTURES[s.kind];
-      if (def.jam) jamAround(s.team, s.x, s.z, def.jam);
+      if (def.jam) jamAround(s.team, s.x, s.z, def.jam, FIELD_CEILING);
       if (def.detect) {
         const k = grid.query(s.x, s.z, def.detect, px, pz, scratch);
         for (let j = 0; j < k; j++)
@@ -607,14 +674,16 @@ export class World {
         const k = grid.query(s.x, s.z, def.heal.radius, px, pz, scratch);
         for (let j = 0; j < k; j++) {
           const o = scratch[j];
-          if (team[o] === s.team) hp[o] = Math.min(ROLES[role[o]].hp, hp[o] + def.heal.rate * DT);
+          if (team[o] === s.team && py[o] < FIELD_CEILING)
+            hp[o] = Math.min(ROLES[role[o]].hp, hp[o] + def.heal.rate * DT);
         }
       }
       if (def.zone) {
         const k = grid.query(s.x, s.z, def.zone.radius, px, pz, scratch);
         for (let j = 0; j < k; j++) {
           const o = scratch[j];
-          if (team[o] !== s.team) this.damageDrone(o, def.zone.dps * DT, s.team);
+          if (team[o] !== s.team && py[o] < FIELD_CEILING)
+            this.damageDrone(o, def.zone.dps * DT, s.team);
         }
       }
     }
@@ -781,6 +850,7 @@ export class World {
       lag = 0,
       minSpeed = 1e9;
     for (const i of sq.members) {
+      if (this.flags[i] & F_PILOT) continue;
       if (this.flags[i] & F_ENGAGED) engaged++;
       lag += len(this.tx[i] - this.px[i], this.tz[i] - this.pz[i]);
       const sp = ROLES[this.role[i]].speed;
@@ -956,12 +1026,24 @@ export class World {
       if (!alive[i]) continue;
       const r = ROLES[role[i]],
         w = r.weapon,
-        jammed = flags[i] & F_JAMMED;
+        jammed = flags[i] & F_JAMMED,
+        piloted = flags[i] & F_PILOT;
       flags[i] &= ~F_ENGAGED;
       if (cd[i] > 0) cd[i] -= DT;
       let goalX = tx[i],
-        goalZ = tz[i];
-      if (w && mode[i] !== M_PASSIVE) {
+        goalZ = tz[i],
+        faceX = 0,
+        faceZ = 0;
+      // Nose direction; weapons only fire inside the airframe's cone around it.
+      const hx = dsin(this.yaw[i]),
+        hz = dcos(this.yaw[i]);
+      if (piloted) {
+        target[i] = 0;
+        if (w && flags[i] & F_FIRE && cd[i] <= 0) {
+          const tgt = this.aimTarget(i, w.range, hx, hz);
+          if (tgt) this.fire(i, tgt, w, jammed);
+        }
+      } else if (w && mode[i] !== M_PASSIVE) {
         const sensor = r.sensor * (jammed ? 0.6 : 1);
         const acquireR = mode[i] === M_CHASE ? Math.min(sensor, 16) : w.range;
         let tgt = this.resolveTarget(target[i]);
@@ -976,6 +1058,8 @@ export class World {
             dz = tgt.z - pz[i],
             d = len(dx, dz) || 1,
             reach = w.range + tgt.r;
+          faceX = dx;
+          faceZ = dz;
           if (mode[i] === M_CHASE) {
             flags[i] |= F_ENGAGED;
             if (d > reach * 0.85) {
@@ -986,58 +1070,60 @@ export class World {
               goalZ = pz[i];
             }
           }
-          if (d <= reach && cd[i] <= 0) this.fire(i, tgt, w, jammed);
+          const facing = (dx * hx + dz * hz) / d >= COS_CONE[role[i]];
+          if (d <= reach && cd[i] <= 0 && facing) this.fire(i, tgt, w, jammed);
         }
       } else if (mode[i] === M_PASSIVE) target[i] = 0;
-      // Steering: arrive at goal + separation + terrain avoidance.
-      let dx = goalX - px[i],
-        dz = goalZ - pz[i];
-      const d = len(dx, dz);
-      const maxSpeed = r.speed * (jammed ? 0.65 : 1);
-      const want = Math.min(maxSpeed, d * 1.8);
-      let ax = d > 1e-6 ? (dx / d) * want : 0,
+      // Desired velocity: arrive at goal + separation + terrain avoidance (autopilot only).
+      let ax = 0,
+        az = 0;
+      if (!piloted) {
+        const dx = goalX - px[i],
+          dz = goalZ - pz[i];
+        const d = len(dx, dz);
+        const want = Math.min(r.speed * (jammed ? 0.65 : 1), d * 1.8);
+        ax = d > 1e-6 ? (dx / d) * want : 0;
         az = d > 1e-6 ? (dz / d) * want : 0;
-      const k = grid.query(px[i], pz[i], SEPARATION, px, pz, scratch);
-      for (let j = 0; j < k; j++) {
-        const o = scratch[j];
-        if (o === i) continue;
-        let ex = px[i] - px[o],
-          ez = pz[i] - pz[o],
-          e = len(ex, ez);
-        if (e < 1e-6) {
-          ex = (i < o ? 1 : -1) * 0.01;
-          ez = 0;
-          e = 0.01;
-        }
-        const push = ((SEPARATION - e) / SEPARATION) * 9;
-        ax += (ex / e) * push;
-        az += (ez / e) * push;
-      }
-      for (const o of obstacles) {
-        const ex = px[i] - o.x,
-          ez = pz[i] - o.z,
-          e = len(ex, ez) || 1,
-          gap = e - o.r;
-        if (gap < 3) {
-          const push = (3 - gap) * 4;
+        const k = grid.query(px[i], pz[i], SEPARATION, px, pz, scratch);
+        for (let j = 0; j < k; j++) {
+          const o = scratch[j];
+          if (o === i) continue;
+          let ex = px[i] - px[o],
+            ez = pz[i] - pz[o],
+            e = len(ex, ez);
+          if (e < 1e-6) {
+            ex = (i < o ? 1 : -1) * 0.01;
+            ez = 0;
+            e = 0.01;
+          }
+          const push = ((SEPARATION - e) / SEPARATION) * 12;
           ax += (ex / e) * push;
           az += (ez / e) * push;
-          // Slide around the rock rather than stalling head-on against it.
-          const side = ex * dz - ez * dx > 0 ? 1 : -1;
-          ax += (-ez / e) * side * push * 0.6;
-          az += (ex / e) * side * push * 0.6;
+        }
+        for (const o of obstacles) {
+          const ex = px[i] - o.x,
+            ez = pz[i] - o.z,
+            e = len(ex, ez) || 1,
+            gap = e - o.r;
+          if (gap < 3) {
+            const push = (3 - gap) * 4;
+            ax += (ex / e) * push;
+            az += (ez / e) * push;
+            // Slide around the rock rather than stalling head-on against it.
+            const side = ex * dz - ez * dx > 0 ? 1 : -1;
+            ax += (-ez / e) * side * push * 0.6;
+            az += (ex / e) * side * push * 0.6;
+          }
+        }
+        if (!faceX && !faceZ && ax * ax + az * az > 1) {
+          faceX = ax;
+          faceZ = az;
         }
       }
-      // Velocity control toward the desired velocity, limited by acceleration.
-      let cx = (ax - vx[i]) * 5,
-        cz = (az - vz[i]) * 5;
-      const c = len(cx, cz);
-      if (c > r.accel) {
-        cx = (cx / c) * r.accel;
-        cz = (cz / c) * r.accel;
-      }
-      vx[i] += cx * DT;
-      vz[i] += cz * DT;
+      // Fly: attitude -> thrust -> velocity, with the airframe's tilt/yaw/climb limits.
+      const impact = flightStep(this, i, ax, az, faceX, faceZ, jammed);
+      if (impact > 5) this.crash(i, (impact - 5) * 8);
+      const maxSpeed = r.speed * (piloted ? 1.25 : 1.1) * (jammed ? 0.65 : 1);
       const s = len(vx[i], vz[i]);
       if (s > maxSpeed) {
         vx[i] = (vx[i] / s) * maxSpeed;
@@ -1052,9 +1138,59 @@ export class World {
         if (e < o.r + 0.3 && e > 1e-6) {
           px[i] = o.x + (ex / e) * (o.r + 0.3);
           pz[i] = o.z + (ez / e) * (o.r + 0.3);
+          // Hitting rock: lose the inward velocity; pilots take damage at speed.
+          const nx = ex / e,
+            nz = ez / e,
+            inward = -(vx[i] * nx + vz[i] * nz);
+          if (inward > 0) {
+            vx[i] += nx * inward * 1.3;
+            vz[i] += nz * inward * 1.3;
+            if (piloted && inward > 5) this.crash(i, (inward - 5) * 6);
+          }
         }
       }
     }
+  }
+
+  crash(i, damage) {
+    this.hp[i] -= damage;
+    this.events.push({ k: 'crash', i, team: this.team[i], x: this.px[i], z: this.pz[i], damage });
+  }
+
+  // Pilot aim assist: the enemy closest to the nose within range and a ~25° cone.
+  aimTarget(i, range, hx, hz) {
+    const t = this.team[i],
+      x = this.px[i],
+      z = this.pz[i];
+    let best = null,
+      bestDot = 0.9;
+    const k = this.grid.query(x, z, range, this.px, this.pz, this.scratch2);
+    for (let j = 0; j < k; j++) {
+      const o = this.scratch2[j];
+      if (this.team[o] === t || !this.visible(t, this.px[o], this.pz[o])) continue;
+      const dx = this.px[o] - x,
+        dz = this.pz[o] - z,
+        d = len(dx, dz) || 1,
+        dot = (dx * hx + dz * hz) / d;
+      if (dot > bestDot) {
+        bestDot = dot;
+        best = { x: this.px[o], z: this.pz[o], r: 0, drone: o };
+      }
+    }
+    for (const s of this.structures) {
+      if (!s.alive || s.team === t) continue;
+      const dx = s.x - x,
+        dz = s.z - z,
+        d = len(dx, dz) || 1,
+        rad = STRUCTURES[s.kind].radius;
+      if (d - rad > range) continue;
+      const dot = (dx * hx + dz * hz) / d;
+      if (dot > bestDot) {
+        bestDot = dot;
+        best = { x: s.x, z: s.z, r: rad, struct: s };
+      }
+    }
+    return best;
   }
 
   fire(i, tgt, w, jammed) {
@@ -1146,6 +1282,7 @@ export class World {
         role: this.role[i],
         x: this.px[i],
         z: this.pz[i],
+        py: this.py[i],
         vx: this.vx[i],
         vz: this.vz[i],
       });
@@ -1154,6 +1291,19 @@ export class World {
         sq.members.splice(sq.members.indexOf(i), 1);
         if (!sq.members.length) pruned = true;
       }
+      const team = this.teams[this.team[i]];
+      if (team.pilot === this.uid[i]) {
+        team.pilot = 0;
+        this.events.push({
+          k: 'pilotLost',
+          team: this.team[i],
+          uid: this.uid[i],
+          squad: this.squadOf[i],
+          x: this.px[i],
+          z: this.pz[i],
+        });
+      }
+      this.flags[i] = 0;
       this.uidMap.delete(this.uid[i]);
       this.free.push(i);
     }
@@ -1204,7 +1354,10 @@ export class World {
     for (const team of this.teams) team.vis.fill(0);
     for (let i = 0; i < this.count; i++) {
       if (!this.alive[i]) continue;
-      const r = ROLES[this.role[i]].sensor * (this.flags[i] & F_JAMMED ? 0.6 : 1);
+      const role = ROLES[this.role[i]];
+      // Flying higher than cruise altitude extends sight (up to +40%); skimming low reduces it.
+      const lift = clamp((this.py[i] - role.flight.alt) * 0.03, -0.3, 0.4);
+      const r = role.sensor * (1 + lift) * (this.flags[i] & F_JAMMED ? 0.6 : 1);
       stamp(this.teams[this.team[i]].vis, this.px[i], this.pz[i], r);
     }
     for (const s of this.structures) {
@@ -1226,6 +1379,10 @@ export class World {
     h.array(this.alive, N).array(this.team, N).array(this.role, N).array(this.uid, N);
     h.array(this.px, N).array(this.pz, N).array(this.vx, N).array(this.vz, N);
     h.array(this.hp, N).array(this.cd, N).array(this.target, N);
+    h.array(this.py, N).array(this.vy, N).array(this.yaw, N).array(this.pitch, N);
+    h.array(this.roll, N)
+      .array(this.stick, N * 4)
+      .array(this.flags, N);
     for (const t of this.teams) h.num(t.energy).num(t.bwUsed).num(t.kills);
     for (const s of this.structures) h.num(s.id).num(s.hp).num(s.progress).num(s.queue.length);
     for (const sq of this.squads) h.num(sq.id).num(sq.ax).num(sq.az).num(sq.members.length);

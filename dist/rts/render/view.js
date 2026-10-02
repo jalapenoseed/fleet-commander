@@ -4,8 +4,8 @@
 import * as T from '../../three.js?v=0.9.0';
 import { ScenePostFX } from '../../scene-postfx.js?v=0.9.0';
 import { ROLES, STRUCTURES, TEAM_COLORS } from '../sim/defs.js';
-import { VIS_CELL, F_JAMMED } from '../sim/world.js';
-import { buildAirframe, rotorMaterial, ROLE_ALTITUDE, ROLE_SCALE } from './drone-models.js';
+import { VIS_CELL, F_JAMMED, F_PILOT } from '../sim/world.js';
+import { buildAirframe, rotorMaterial, ROLE_SCALE } from './drone-models.js';
 import {
   makeHeight,
   buildTerrain,
@@ -30,6 +30,11 @@ const tmpM = new T.Matrix4(),
   tmpP = new T.Vector3(),
   tmpS = new T.Vector3(),
   tmpC = new T.Color();
+
+// FPV camera mount: turned to face the nose (+z) and tilted up 22° like a racing quad's camera.
+const FPV_MOUNT = new T.Quaternion()
+  .setFromAxisAngle(new T.Vector3(0, 1, 0), Math.PI)
+  .multiply(new T.Quaternion().setFromAxisAngle(new T.Vector3(1, 0, 0), 0.38));
 
 function angleLerp(a, b, k) {
   let d = b - a;
@@ -94,9 +99,6 @@ export class GameView {
     this.effects = new Effects(this.scene);
     this.postfx = new ScenePostFX(this.renderer);
     this.r = {
-      yaw: new Float32Array(world.cap),
-      bank: new Float32Array(world.cap),
-      pitch: new Float32Array(world.cap),
       flash: new Float32Array(world.cap),
       lastHp: new Float32Array(world.cap),
       uid: new Int32Array(world.cap),
@@ -298,7 +300,7 @@ export class GameView {
         if (!this.seesPoint(e.x, e.z)) continue;
         const gy = this.height(e.x, e.z);
         this.effects.explode(
-          { x: e.x, y: gy + ROLE_ALTITUDE[ROLES[e.role].key], z: e.z },
+          { x: e.x, y: gy + e.py, z: e.z },
           gy,
           this.teamColor(e.team),
           e.role === 2 ? 1.4 : 1,
@@ -349,11 +351,12 @@ export class GameView {
     this.terrain.uniforms.uFogScale.value = n / 64;
   }
 
-  droneY(i, x, z) {
-    const role = ROLES[this.world.role[i]].key;
-    return (
-      this.height(x, z) + ROLE_ALTITUDE[role] + Math.sin(this.time * 2.1 + this.r.phase[i]) * 0.18
-    );
+  // Altitude comes from the sim's flight model; a small hover bob is added for life.
+  droneY(i, x, z, alpha = 1) {
+    const w = this.world;
+    const py = w.opy[i] + (w.py[i] - w.opy[i]) * alpha;
+    const bob = w.flags[i] & F_PILOT ? 0 : Math.sin(this.time * 2.1 + this.r.phase[i]) * 0.08;
+    return this.height(x, z) + py + bob;
   }
 
   // ---------- per frame ----------
@@ -362,13 +365,12 @@ export class GameView {
     this.time += dt;
     const w = this.world,
       r = this.r;
-    this.updateCamera(dt);
+    this.updateCamera(dt, alpha);
     const counts = new Array(ROLES.length).fill(0);
     let rings = 0,
       bars = 0,
       pools = 0;
     const teamCol = TEAM_COLORS.map((c) => new T.Color(c));
-    const smooth = 1 - Math.exp(-dt * 7);
     for (let i = 0; i < w.count; i++) {
       if (!w.alive[i]) continue;
       const t = w.team[i];
@@ -379,32 +381,24 @@ export class GameView {
         def = ROLES[role];
       if (r.uid[i] !== w.uid[i]) {
         r.uid[i] = w.uid[i];
-        r.yaw[i] = Math.atan2(w.vx[i], w.vz[i]) || 0;
-        r.bank[i] = r.pitch[i] = r.flash[i] = 0;
+        r.flash[i] = 0;
         r.lastHp[i] = w.hp[i];
       }
-      const vx = w.vx[i],
-        vz = w.vz[i],
-        speed = Math.hypot(vx, vz);
-      const prevYaw = r.yaw[i];
-      if (speed > 0.4) r.yaw[i] = angleLerp(r.yaw[i], Math.atan2(vx, vz), smooth);
-      let yawRate = r.yaw[i] - prevYaw;
-      if (yawRate > Math.PI) yawRate -= Math.PI * 2;
-      if (yawRate < -Math.PI) yawRate += Math.PI * 2;
-      yawRate /= Math.max(dt, 1e-3);
-      r.bank[i] += (Math.max(-0.7, Math.min(0.7, -yawRate * speed * 0.06)) - r.bank[i]) * smooth;
-      r.pitch[i] += (Math.min(0.35, (speed / def.speed) * 0.3) - r.pitch[i]) * smooth;
       if (w.hp[i] < r.lastHp[i] - 0.01) r.flash[i] = 1;
       r.lastHp[i] = w.hp[i];
       r.flash[i] = Math.max(0, r.flash[i] - dt * 5);
-      const y = this.droneY(i, x, z);
-      tmpE.set(r.pitch[i], r.yaw[i], r.bank[i]);
+      const y = this.droneY(i, x, z, alpha);
+      // Attitude straight from the flight model: +pitch = nose down, +roll = right side down.
+      const pose = this.pose(i, alpha);
+      if (this.follow?.mode === 'fpv' && this.follow.uid === w.uid[i]) continue;
+      tmpE.set(pose.pitch, pose.yaw, pose.roll);
       tmpQ.setFromEuler(tmpE);
       tmpP.set(x, y, z);
       tmpS.setScalar(1);
       tmpM.compose(tmpP, tmpQ, tmpS);
       const k = counts[role]++;
       const dm = this.droneMeshes[role];
+      dm.rotor.setMatrixAt(k, tmpM);
       dm.hull.setMatrixAt(k, tmpM);
       dm.glow.setMatrixAt(k, tmpM);
       dm.rotor.setMatrixAt(k, tmpM);
@@ -427,7 +421,7 @@ export class GameView {
       tmpC.copy(teamCol[t]).multiplyScalar(0.22 + r.flash[i] * 0.5);
       this.pools.setColorAt(pools++, tmpC);
       tmpP.set(x, y, z);
-      const sel = t === this.playerTeam && this.selected.has(w.uid[i]);
+      const sel = t === this.playerTeam && this.selected.has(w.uid[i]) && !(w.flags[i] & F_PILOT);
       if (sel) {
         tmpS.setScalar(ROLE_SCALE[def.key] * 0.9);
         tmpM.compose(tmpP.set(x, y - 0.45, z), tmpQ.identity(), tmpS);
@@ -594,7 +588,67 @@ export class GameView {
 
   // ---------- camera & picking ----------
 
-  updateCamera(dt) {
+  pose(i, alpha) {
+    const w = this.world;
+    return {
+      yaw: angleLerp(w.oyaw[i], w.yaw[i], alpha),
+      pitch: w.opitch[i] + (w.pitch[i] - w.opitch[i]) * alpha,
+      roll: w.oroll[i] + (w.roll[i] - w.oroll[i]) * alpha,
+    };
+  }
+
+  // Camera bolted to a piloted drone: 'fpv' sits on the nose with the classic FPV up-tilt,
+  // 'chase' trails behind and above.
+  followCamera(dt, alpha) {
+    const w = this.world,
+      f = this.follow,
+      i = w.uidMap.get(f.uid);
+    if (i === undefined) return false;
+    const x = w.ox[i] + (w.px[i] - w.ox[i]) * alpha,
+      z = w.oz[i] + (w.pz[i] - w.oz[i]) * alpha,
+      y = this.droneY(i, x, z, alpha),
+      p = this.pose(i, alpha);
+    const fov = f.mode === 'fpv' ? 100 : 68;
+    if (this.camera.fov !== fov) {
+      this.camera.fov = fov;
+      this.camera.updateProjectionMatrix();
+    }
+    tmpE.set(p.pitch, p.yaw, p.roll);
+    const body = new T.Quaternion().setFromEuler(tmpE);
+    const fwd = new T.Vector3(0, 0, 1).applyQuaternion(body);
+    if (f.mode === 'fpv') {
+      const cam = body.clone().multiply(FPV_MOUNT);
+      this.camera.quaternion.copy(cam);
+      this.camera.position.set(x, y + 0.15, z).addScaledVector(fwd, 0.45);
+    } else {
+      const hx = Math.sin(p.yaw),
+        hz = Math.cos(p.yaw);
+      const want = new T.Vector3(x - hx * 7, y + 2.6, z - hz * 7);
+      want.y = Math.max(want.y, this.height(want.x, want.z) + 1);
+      const k = 1 - Math.exp(-dt * 8);
+      if (!this.chasePos) this.chasePos = want.clone();
+      this.chasePos.lerp(want, k);
+      this.camera.position.copy(this.chasePos);
+      this.camera.lookAt(x + hx * 5, y + 0.6, z + hz * 5);
+    }
+    this.cam.x = this.cam.tx = x;
+    this.cam.z = this.cam.tz = z;
+    this.sun.target.position.set(x, 0, z);
+    this.sun.position.set(x - 70, 90, z - 80);
+    return true;
+  }
+
+  setFollow(uid, mode = 'fpv') {
+    this.follow = uid ? { uid, mode } : null;
+    this.chasePos = null;
+    if (!uid) {
+      this.camera.fov = 40;
+      this.camera.updateProjectionMatrix();
+    }
+  }
+
+  updateCamera(dt, alpha = 1) {
+    if (this.follow && this.followCamera(dt, alpha)) return;
     const c = this.cam,
       k = 1 - Math.exp(-dt * 10);
     const lim = this.world.half + 10;

@@ -2,6 +2,7 @@
 // Everything here is plain data so it can be tuned, shown in Learn mode and saved as JSON.
 
 export const TICK_RATE = 20;
+export const GRAVITY = 9.81;
 export const DT = 1 / TICK_RATE;
 export const MAX_DRONES = 4096;
 export const START_ENERGY = 250;
@@ -17,11 +18,14 @@ export const WEAPONS = {
   missile: { label: 'Missile', vs: [0.6, 1.0, 1.2, 2.0] },
 };
 
+// flight: cruise altitude (m), max tilt (rad), tilt rate and yaw rate (rad/s), climb rate (m/s)
+// and the weapon cone (rad either side of the nose a drone must face to fire).
 // cost and bw are per drone; one production order builds a pack of drones in `build` seconds.
 export const ROLES = [
   {
     key: 'scout',
     label: 'Scout',
+    flight: { alt: 4.2, tilt: 1.1, tiltRate: 9, yawRate: 6, climb: 6, cone: 0.7 },
     blurb: 'Fast, cheap, long sight. Swarms of them sting heavy targets.',
     cost: 15,
     bw: 1,
@@ -37,6 +41,7 @@ export const ROLES = [
   {
     key: 'interceptor',
     label: 'Interceptor',
+    flight: { alt: 3.8, tilt: 1.05, tiltRate: 8, yawRate: 5, climb: 6, cone: 0.55 },
     blurb: 'Flak hunter. Shreds scouts and support drones; weak against armor.',
     cost: 25,
     bw: 1,
@@ -52,6 +57,7 @@ export const ROLES = [
   {
     key: 'assault',
     label: 'Assault',
+    flight: { alt: 3.0, tilt: 0.75, tiltRate: 3.5, yawRate: 2.2, climb: 3, cone: 0.9 },
     blurb: 'Armored missile carrier. Breaks interceptors and structures.',
     cost: 45,
     bw: 2,
@@ -67,6 +73,7 @@ export const ROLES = [
   {
     key: 'jammer',
     label: 'Jammer',
+    flight: { alt: 3.4, tilt: 0.85, tiltRate: 5, yawRate: 3.5, climb: 4, cone: 3.2 },
     blurb: 'Enemies nearby slow down, fire slower and see less.',
     cost: 40,
     bw: 2,
@@ -82,6 +89,7 @@ export const ROLES = [
   {
     key: 'medic',
     label: 'Medic',
+    flight: { alt: 3.6, tilt: 0.85, tiltRate: 5, yawRate: 3.5, climb: 4, cone: 3.2 },
     blurb: 'Repairs damaged allies in a small radius.',
     cost: 35,
     bw: 2,
@@ -97,6 +105,7 @@ export const ROLES = [
   {
     key: 'relay',
     label: 'Relay',
+    flight: { alt: 4.6, tilt: 0.85, tiltRate: 5, yawRate: 3.5, climb: 4, cone: 3.2 },
     blurb: 'Huge sight radius and cancels enemy jamming around it.',
     cost: 35,
     bw: 2,

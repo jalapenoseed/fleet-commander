@@ -74,6 +74,15 @@
               bandwidth (your unit cap) and extend where you can build.
             </li>
             <li>
+              <b>Fly a drone:</b> select drones and press <kbd>Enter</kbd>. Left stick:
+              <kbd>W</kbd>/<kbd>S</kbd> throttle (climb/sink), <kbd>A</kbd>/<kbd>D</kbd> yaw (turn
+              the nose). Right stick: <kbd>I</kbd>/<kbd>K</kbd> or <kbd>↑</kbd>/<kbd>↓</kbd> pitch
+              (tilt forward/back), <kbd>J</kbd>/<kbd>L</kbd> or <kbd>←</kbd>/<kbd>→</kbd> roll (tilt
+              sideways). <kbd>Space</kbd>/click fires at what your nose points at,
+              <kbd>Tab</kbd> FPV/chase camera, <kbd>Enter</kbd> hands control back. A gamepad works
+              too (Mode 2). If your drone goes down you jump into the nearest squadmate.
+            </li>
+            <li>
               <b>Scripts:</b> press <kbd>G</kbd> (or the Script button) to give a squad reaction
               rules — it fights for itself.
             </li>
@@ -136,6 +145,7 @@
         <div class="grid" id="produce-grid"></div>
       </section>
 
+      <canvas id="pilot-hud" hidden></canvas>
       <aside id="script" class="panel drawer" hidden></aside>
       <div id="tooltip" hidden></div>
       <div id="mode-hint" hidden></div>

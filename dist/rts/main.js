@@ -19,6 +19,7 @@ import { DIFFICULTY } from './sim/ai.js';
 import { GameView } from './render/view.js';
 import { Minimap } from './ui/minimap.js';
 import { ScriptEditor } from './ui/script-editor.js';
+import { PilotController } from './ui/pilot.js';
 
 const $ = (id) => document.getElementById(id);
 const BUILD_KEYS = {
@@ -109,6 +110,8 @@ class Game {
     this.mouse = { x: innerWidth / 2, y: innerHeight / 2, inside: false };
     this.hudTick = 0;
     this.ended = false;
+    this.pilot = new PilotController(this);
+    this.mouseFire = false;
     this.buildCommandPanel();
     this.bindInput();
     $('hud').hidden = false;
@@ -135,6 +138,7 @@ class Game {
 
   destroy() {
     cancelAnimationFrame(this.raf);
+    this.pilot.stop();
     this.abort.abort();
     this.view.renderer.dispose();
     $('hud').hidden = true;
@@ -153,6 +157,7 @@ class Game {
     const dt = Math.max(0, Math.min(0.1, (now - this.last) / 1000));
     this.last = now;
     this.handleHeldKeys(dt);
+    this.pilot.update(dt);
     if (!this.ended) {
       this.acc += dt * this.speed;
       let steps = 0;
@@ -165,6 +170,7 @@ class Game {
     }
     if (this.director) this.updateDirector(dt);
     this.view.frame(Math.min(1, this.acc / DT), dt);
+    this.pilot.draw(Math.min(1, this.acc / DT));
     if (++this.hudTick % 6 === 0) this.updateHud();
     this.minimap.draw();
   }
@@ -199,6 +205,22 @@ class Game {
       a.x += (e.x1 - a.x) * k;
       a.z += (e.z1 - a.z) * k;
       a.w = Math.min(60, a.w + 0.5);
+    } else if (e.k === 'pilotLost' && mine && this.pilot.active) {
+      const next = this.successor(e);
+      if (next) {
+        this.pilot.transfer(next);
+        const i = this.world.uidMap.get(next);
+        this.alert(
+          `Drone lost — taking over a ${ROLES[this.world.role[i]].label.toLowerCase()}`,
+          'info',
+        );
+      } else {
+        this.pilot.stop();
+        this.alert('Drone lost — no drones left to fly');
+      }
+    } else if (e.k === 'crash' && e.team === this.player && this.pilot.active) {
+      const i = this.world.uidMap.get(this.pilot.uid);
+      if (i === e.i) this.alert(`Impact! −${Math.round(e.damage)} hp`);
     } else if (e.k === 'victory') this.finish(e.team);
   }
 
@@ -212,6 +234,51 @@ class Game {
     c.tz += (a.z - c.tz) * k;
     c.tdist += (Math.max(38, 70 - a.w * 0.5) - c.tdist) * k;
     c.tyaw += dt * 0.05;
+  }
+
+  // Survivor cam: when the flown drone dies, jump into the nearest squadmate, else any drone.
+  successor(e) {
+    const w = this.world;
+    let best = 0,
+      bd = 1e9;
+    for (const sameSquad of [true, false]) {
+      for (let i = 0; i < w.count; i++) {
+        if (!w.alive[i] || w.team[i] !== this.player) continue;
+        if (sameSquad && w.squadOf[i] !== e.squad) continue;
+        const d = Math.hypot(w.px[i] - e.x, w.pz[i] - e.z);
+        if (d < bd) {
+          bd = d;
+          best = w.uid[i];
+        }
+      }
+      if (best) return best;
+    }
+    return 0;
+  }
+
+  startPilot() {
+    if (this.spectator) return;
+    const w = this.world,
+      c = this.view.cam;
+    let best = 0,
+      bd = 1e9;
+    for (const u of this.selectedUids()) {
+      const i = w.uidMap.get(u);
+      const d = Math.hypot(w.px[i] - c.x, w.pz[i] - c.z) - (ROLES[w.role[i]].weapon ? 5 : 0);
+      if (d < bd) {
+        bd = d;
+        best = u;
+      }
+    }
+    if (!best) return this.alert('Select a drone first, then press Enter to fly it', 'info');
+    this.setPlacing(null);
+    this.setTargeting(null);
+    this.pilot.start(best);
+    const i = w.uidMap.get(best);
+    this.alert(
+      `Flying a ${ROLES[w.role[i]].label.toLowerCase()} — W/S throttle · A/D yaw · I/K pitch · J/L roll`,
+      'info',
+    );
   }
 
   finish(winner) {
@@ -364,6 +431,10 @@ class Game {
       'pointerdown',
       (e) => {
         canvas.setPointerCapture(e.pointerId);
+        if (this.pilot.active) {
+          if (e.button === 0) this.mouseFire = true;
+          return;
+        }
         down = { x: e.clientX, y: e.clientY, button: e.button, moved: false, shift: e.shiftKey };
       },
       opt,
@@ -406,6 +477,7 @@ class Game {
     addEventListener(
       'pointerup',
       (e) => {
+        if (e.button === 0) this.mouseFire = false;
         if (!down) return;
         const d = down;
         down = null;
@@ -457,7 +529,14 @@ class Game {
     );
     document.addEventListener('mouseleave', () => (this.mouse.inside = false), opt);
     addEventListener('blur', () => this.keys.clear(), opt);
-    addEventListener('resize', () => this.view.resize(), opt);
+    addEventListener(
+      'resize',
+      () => {
+        this.view.resize();
+        if (this.pilot.active) this.pilot.resize();
+      },
+      opt,
+    );
     addEventListener('keydown', (e) => this.onKey(e), opt);
     addEventListener('keyup', (e) => this.keys.delete(e.key.toLowerCase()), opt);
     // Tooltips for anything with data-tip.
@@ -495,6 +574,11 @@ class Game {
     if (e.target.closest?.('input, textarea, select')) return;
     const k = e.key.toLowerCase();
     this.keys.add(k);
+    if (this.pilot.active && $('pause').hidden) {
+      if (this.pilot.onKey(e)) return;
+    }
+    if (k === 'enter' && !this.pilot.active && $('pause').hidden && !this.ended)
+      return this.startPilot();
     if (k === 'escape') {
       if (this.placing) return this.setPlacing(null);
       if (this.targetPlay) return this.setTargeting(null);
@@ -538,6 +622,7 @@ class Game {
   }
 
   handleHeldKeys(dt) {
+    if (this.pilot.active) return;
     const c = this.view.cam,
       s = c.dist * 0.9 * dt;
     let dx = 0,
@@ -829,6 +914,7 @@ class Game {
         <span class="meta">${this.selectedUids().length} drones · ${Math.round((hp / max) * 100)}% hp${squads.length > 1 ? ' · orders will merge them into one squad' : ''}</span>
         ${rule ? `<span class="chip firing">⚡ Rule ${sq.reaction.index + 1}: ${ACTIONS[rule.then].label}</span>` : ''}
         <span class="spacer"></span>
+        <button class="btn" id="btn-fly" data-tip="<b>Fly it yourself</b>Take the sticks of one drone: throttle, yaw, pitch and roll. Its squad keeps fighting on autopilot.">Fly ✈ <kbd>Enter</kbd></button>
         <button class="btn primary" id="btn-script" ${squads.length > 1 ? 'disabled' : ''} data-tip="<b>Reaction script</b>Give this squad when→then rules so it adapts on its own.">Script <kbd>G</kbd></button>
       </div>
       <div class="chips">${chips}</div>
@@ -845,6 +931,7 @@ class Game {
         }),
     );
     el.querySelector('#btn-script').onclick = () => this.script.open(sq);
+    el.querySelector('#btn-fly').onclick = () => this.startPilot();
   }
 
   renderStructurePanel(el, s) {

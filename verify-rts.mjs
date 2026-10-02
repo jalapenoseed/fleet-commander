@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { World, formationOffset } from './dist/rts/sim/world.js';
 import { Session, runReplay } from './dist/rts/sim/lockstep.js';
-import { dsin, dcos, Rng } from './dist/rts/sim/dmath.js';
+import { dsin, dcos, datan2, Rng } from './dist/rts/sim/dmath.js';
+import { F_PILOT } from './dist/rts/sim/flight.js';
 import { validateRules, explainRule, CONDITIONS, ACTIONS, runRules } from './dist/rts/sim/rules.js';
 import { ROLES, STRUCTURES, FORMATIONS, ROLE_INDEX } from './dist/rts/sim/defs.js';
 import { MAPS } from './dist/rts/sim/maps.js';
@@ -33,6 +34,12 @@ test('deterministic trig matches Math within 1e-8', () => {
     assert.ok(Math.abs(dsin(x) - Math.sin(x)) < 1e-8, `sin ${x}`);
     assert.ok(Math.abs(dcos(x) - Math.cos(x)) < 1e-8, `cos ${x}`);
   }
+});
+
+test('deterministic atan2 matches Math.atan2 within 2e-5', () => {
+  for (let y = -3; y <= 3; y += 0.173)
+    for (let x = -3; x <= 3; x += 0.137)
+      assert.ok(Math.abs(datan2(y, x) - Math.atan2(y, x)) < 2e-5);
 });
 
 test('seeded RNG is reproducible', () => {
@@ -185,6 +192,104 @@ test('reaction rules: validation, priority, hysteresis and cooldown', () => {
   assert.ok(Object.keys(CONDITIONS).length >= 6 && Object.keys(ACTIONS).length >= 6);
 });
 
+test('flight: autopilot cruises at role altitude with calm hover attitude', () => {
+  const w = new World({ seed: 1 });
+  for (let k = 0; k < 400; k++) w.step();
+  for (let i = 0; i < w.count; i++) {
+    if (!w.alive[i]) continue;
+    const f = ROLES[w.role[i]].flight;
+    assert.ok(Math.abs(w.py[i] - f.alt) < 0.3, 'altitude');
+    assert.ok(Math.hypot(w.pitch[i], w.roll[i]) < 0.25, 'hover tilt');
+  }
+});
+
+test('flight: pilot sticks map to pitch, roll, yaw and throttle from the pilot seat', () => {
+  const w = new World({ seed: 1 });
+  for (let k = 0; k < 100; k++) w.step();
+  const i = 0,
+    u = w.uid[i];
+  assert.equal(w.apply({ type: 'stick', team: 0, uid: u, p: 1 }), false, 'needs pilot first');
+  assert.equal(w.apply({ type: 'pilot', team: 1, uid: u, on: true }), false, 'own drones only');
+  const fly = (st, ticks = 20) => {
+    w.step([
+      { type: 'pilot', team: 0, uid: u, on: true },
+      { type: 'stick', team: 0, uid: u, t: 0, y: 0, p: 0, r: 0, ...st },
+    ]);
+    const x = w.px[i],
+      z = w.pz[i],
+      yaw = w.yaw[i],
+      alt = w.py[i];
+    const fx = Math.sin(yaw),
+      fz = Math.cos(yaw);
+    for (let k = 0; k < ticks; k++) w.step();
+    const dx = w.px[i] - x,
+      dz = w.pz[i] - z;
+    const out = {
+      fwd: dx * fx + dz * fz,
+      right: -dx * fz + dz * fx,
+      dyaw: w.yaw[i] - yaw,
+      climb: w.py[i] - alt,
+    };
+    w.step([{ type: 'stick', team: 0, uid: u, t: 0, y: 0, p: 0, r: 0 }]);
+    for (let k = 0; k < 60; k++) w.step();
+    return out;
+  };
+  const pitch = fly({ p: 1 });
+  assert.ok(pitch.fwd > 4 && Math.abs(pitch.right) < 0.5, 'pitch forward flies forward');
+  const back = fly({ p: -1 });
+  assert.ok(back.fwd < -4, 'pitch back flies backward');
+  const roll = fly({ r: 1 });
+  assert.ok(roll.right > 4 && Math.abs(roll.fwd) < 0.5, 'roll right slides right');
+  const yaw = fly({ y: 0.25 });
+  assert.ok(yaw.dyaw < -1 && Math.abs(yaw.fwd) < 0.5, 'yaw right turns in place');
+  const up = fly({ t: 1 });
+  assert.ok(up.climb > 5, 'throttle climbs');
+  const down = fly({ t: -1 }, 60);
+  assert.ok(w.py[i] < 2 && down.climb < -5, 'throttle down descends');
+  assert.equal(w.teams[0].pilot, u);
+  w.step([{ type: 'pilot', team: 0, on: false }]);
+  assert.equal(w.flags[i] & F_PILOT, 0);
+  assert.equal(w.teams[0].pilot, 0);
+});
+
+test('flight: heavy airframes turn slower; weapons need the nose on target', () => {
+  const yawRates = ROLES.map((r) => r.flight.yawRate);
+  assert.ok(yawRates[ROLE_INDEX.scout] > yawRates[ROLE_INDEX.assault]);
+  const w = new World({ seed: 1 });
+  const a = w.createSquad(0),
+    b = w.createSquad(1);
+  const shooter = w.spawnDrone(0, ROLE_INDEX.interceptor, 0, 0, a);
+  w.spawnDrone(1, ROLE_INDEX.scout, 0, -6, b); // directly behind the shooter's nose (yaw 0 = +z)
+  a.order = { play: 'hold', x: 0, z: 0, x0: 0, z0: 0 };
+  b.order = { play: 'hold', x: 0, z: -6, x0: 0, z0: -6 };
+  b.rules = [];
+  w.updateVisibility();
+  w.step();
+  assert.equal(
+    w.events.filter((e) => e.k === 'shot' && e.team === 0).length,
+    0,
+    'no shot while facing away',
+  );
+  let shots = 0;
+  for (let k = 0; k < 40; k++) {
+    w.step();
+    shots += w.events.filter((e) => e.k === 'shot' && e.team === 0).length;
+  }
+  assert.ok(shots > 0, 'turns to face and fires');
+  assert.ok(Math.abs(Math.abs(w.yaw[shooter]) - Math.PI) < 0.6, 'nose turned toward the target');
+});
+
+test('flight: piloted drone loss reports a pilot handoff event', () => {
+  const w = new World({ seed: 1 });
+  const u = w.uid[0];
+  w.step([{ type: 'pilot', team: 0, uid: u, on: true }]);
+  w.hp[0] = -1;
+  w.step();
+  const e = w.events.find((x) => x.k === 'pilotLost');
+  assert.ok(e && e.uid === u && e.team === 0);
+  assert.equal(w.teams[0].pilot, 0);
+});
+
 test('lockstep: identical inputs give identical hashes, different inputs diverge', () => {
   const run = (extra) => {
     const s = new Session({ seed: 9, ai: { 1: 'normal' } });
@@ -211,6 +316,19 @@ test('replay re-simulates a recorded match to the same hash', () => {
       s.issue({ type: 'order', team: 0, uids, play: 'pincer', x: 10, z: -10 });
     }
     if (t === 40) s.issue({ type: 'produce', team: 0, role: 'assault' });
+    const pilotUid = s.world.uid[0];
+    if (t === 60) s.issue({ type: 'pilot', team: 0, uid: pilotUid, on: true });
+    if (t >= 61 && t < 200 && t % 7 === 0)
+      s.issue({
+        type: 'stick',
+        team: 0,
+        uid: pilotUid,
+        t: 0.5,
+        y: (t % 3) - 1,
+        p: 1,
+        r: -0.25,
+        fire: t % 2 === 0,
+      });
     if (t === 400)
       s.issue({
         type: 'rules',

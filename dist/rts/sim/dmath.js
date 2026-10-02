@@ -25,6 +25,24 @@ export function dsin(x) {
 
 export const dcos = (x) => dsin(x + HALF_PI);
 
+export const dtan = (x) => dsin(x) / dcos(x);
+
+// Polynomial atan2, max error ~1e-5 rad; uses only exact operations.
+export function datan2(y, x) {
+  const ax = Math.abs(x),
+    ay = Math.abs(y);
+  if (ax === 0 && ay === 0) return 0;
+  const a = Math.min(ax, ay) / Math.max(ax, ay),
+    s = a * a;
+  let r = ((((0.0208351 * s - 0.085133) * s + 0.180141) * s - 0.3302995) * s + 0.999866) * a;
+  if (ay > ax) r = HALF_PI - r;
+  if (x < 0) r = PI - r;
+  return y < 0 ? -r : r;
+}
+
+// Wrap an angle to [-pi, pi).
+export const wrapAngle = (a) => a - TAU * Math.floor((a + PI) / TAU);
+
 export const clamp = (x, a, b) => (x < a ? a : x > b ? b : x);
 
 export const len = (x, z) => Math.sqrt(x * x + z * z);

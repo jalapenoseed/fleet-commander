@@ -197,15 +197,6 @@ export const ROLE_SCALE = {
   medic: 1.25,
   relay: 1.3,
 };
-// Cruise altitude above terrain per role, so mixed squads layer instead of clipping.
-export const ROLE_ALTITUDE = {
-  scout: 4.2,
-  interceptor: 3.8,
-  assault: 3.0,
-  jammer: 3.4,
-  medic: 3.6,
-  relay: 4.6,
-};
 
 export function buildAirframe(role) {
   const parts = [],

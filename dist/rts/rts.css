@@ -744,3 +744,21 @@ dl#end-stats dd {
     bottom: 12px;
   }
 }
+
+/* ---------- piloting ---------- */
+#pilot-hud {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 4;
+}
+body.piloting #selection,
+body.piloting #commands,
+body.piloting #script {
+  display: none !important;
+}
+body.piloting #view {
+  cursor: crosshair;
+}
