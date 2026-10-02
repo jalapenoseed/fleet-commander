@@ -70,6 +70,7 @@ export class GameView {
       dist: 84,
       yaw: 0,
       pitch: 0.95,
+      tpitch: 0.95, // camera tilt: ~1.45 looks straight down, ~0.2 looks out at the horizon
       tx: 0,
       tz: 0,
       tdist: 84,
@@ -865,19 +866,23 @@ export class GameView {
     const lim = this.world.half + 10;
     c.tx = Math.max(-lim, Math.min(lim, c.tx));
     c.tz = Math.max(-lim, Math.min(lim, c.tz));
-    c.tdist = Math.max(18, Math.min(170, c.tdist));
+    c.tdist = Math.max(10, Math.min(170, c.tdist));
+    c.tpitch = Math.max(0.18, Math.min(1.45, c.tpitch ?? 0.95));
     c.x += (c.tx - c.x) * k;
     c.z += (c.tz - c.z) * k;
     c.dist += (c.tdist - c.dist) * k;
     c.yaw = angleLerp(c.yaw, c.tyaw, k);
-    const pitch = c.pitch + (1 - c.dist / 170) * -0.25;
+    c.pitch += (c.tpitch - c.pitch) * k;
+    const pitch = c.pitch;
     const gy = this.height(c.x, c.z);
-    this.camera.position.set(
-      c.x + Math.sin(c.yaw) * Math.cos(pitch) * c.dist,
-      gy + Math.sin(pitch) * c.dist,
-      c.z + Math.cos(c.yaw) * Math.cos(pitch) * c.dist,
-    );
-    this.camera.lookAt(c.x, gy, c.z);
+    // At low tilt, aim a little above the ground so the horizon and terrain stay in view.
+    const aimY = gy + (1 - Math.min(1, pitch / 0.9)) * 4;
+    const px = c.x + Math.sin(c.yaw) * Math.cos(pitch) * c.dist,
+      pz = c.z + Math.cos(c.yaw) * Math.cos(pitch) * c.dist;
+    // Never dip the camera into hills or rocks' bases.
+    const py = Math.max(aimY + Math.sin(pitch) * c.dist, this.height(px, pz) + 2);
+    this.camera.position.set(px, py, pz);
+    this.camera.lookAt(c.x, aimY, c.z);
     this.sun.target.position.set(c.x, 0, c.z);
     this.sun.position.set(c.x - 70, 90, c.z - 80);
   }

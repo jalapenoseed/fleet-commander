@@ -1449,3 +1449,78 @@ body.hud-hidden #touch-bar {
     font-size: 14px;
   }
 }
+
+/* ---------- touch camera pads ---------- */
+#campads {
+  display: none;
+}
+body.touch:not(.piloting):not(.no-campads) #campads {
+  display: block;
+}
+.campad {
+  position: fixed;
+  bottom: calc(196px + env(safe-area-inset-bottom, 0px));
+  width: 112px;
+  height: 112px;
+  border-radius: 50%;
+  border: 1px solid rgba(160, 220, 255, 0.35);
+  background: radial-gradient(circle, rgba(63, 217, 255, 0.1), rgba(10, 18, 26, 0.25));
+  touch-action: none;
+  z-index: 4;
+}
+#pad-move {
+  left: 12px;
+}
+#pad-look {
+  right: 12px;
+}
+.campad span {
+  position: absolute;
+  top: -18px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font: 600 10px var(--mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(200, 235, 255, 0.7);
+  pointer-events: none;
+}
+.campad i {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 44px;
+  height: 44px;
+  margin: -22px 0 0 -22px;
+  border-radius: 50%;
+  background: rgba(63, 217, 255, 0.3);
+  border: 1px solid rgba(160, 230, 255, 0.8);
+  pointer-events: none;
+}
+.pad-btns {
+  position: fixed;
+  right: 132px;
+  bottom: calc(196px + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  z-index: 4;
+}
+.pad-btns .fab.small {
+  width: 40px;
+  height: 34px;
+  padding: 0;
+  font-size: 16px;
+}
+#pad-center.on {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+/* Keep the select/all/clear bar above the move pad. */
+body.touch #touch-bar {
+  bottom: calc(330px + env(safe-area-inset-bottom, 0px));
+}
+body.touch.no-campads #touch-bar {
+  bottom: calc(198px + env(safe-area-inset-bottom, 0px));
+}

@@ -104,8 +104,16 @@
             </li>
             <li>
               <b>Camera:</b> arrow keys, screen edges or right-drag to pan, wheel to zoom,
-              <kbd>Q</kbd>/<kbd>E</kbd> or middle-drag to rotate, <kbd>Space</kbd> jumps to the last
-              alert, <kbd>Home</kbd> to your core.
+              <kbd>Q</kbd>/<kbd>E</kbd> or middle-drag to rotate (drag up/down or
+              <kbd>PgUp</kbd>/<kbd>PgDn</kbd> to tilt), <kbd>Space</kbd> jumps to the last alert,
+              <kbd>Home</kbd> to your core.
+            </li>
+            <li>
+              <b>Touch camera:</b> the left thumb pad moves the camera, the right one turns and
+              tilts it (push up to look out over the terrain). Hold ＋/－ to zoom; ◎ jumps to your
+              selection, double-tap it to follow. On the map itself: drag to pan (flick for
+              momentum), pinch to zoom, twist to rotate, slide two fingers up/down to tilt. The pads
+              can be switched off in the ☷ Panels menu.
             </li>
             <li>
               <b>Build:</b> <kbd>Z</kbd> extractor · <kbd>X</kbd> relay · <kbd>C</kbd> fabricator ·
@@ -178,6 +186,21 @@
         <button class="fab small" id="touch-clear" title="Clear selection">✕</button>
       </div>
 
+      <div id="campads">
+        <div class="campad" id="pad-move"><span>move</span><i></i></div>
+        <div class="campad" id="pad-look"><span>turn · tilt</span><i></i></div>
+        <div class="pad-btns">
+          <button class="fab small" id="pad-zoom-in" title="Zoom in (hold)">＋</button>
+          <button class="fab small" id="pad-zoom-out" title="Zoom out (hold)">－</button>
+          <button
+            class="fab small"
+            id="pad-center"
+            title="Tap: jump to selection · double-tap: follow it"
+          >
+            ◎
+          </button>
+        </div>
+      </div>
       <div id="pilot-touch">
         <div class="stick-zone" id="stick-left">
           <span class="stick-label">throttle · yaw</span><i></i>

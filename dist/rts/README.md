@@ -142,6 +142,16 @@ Every panel (Squad, Command, Map, Abilities, Objective, Alerts, Reaction script,
 
 The **☷ Panels** button in the top bar reopens closed panels, sets the interface size (Small / Normal / Large), minimizes everything, hides all panels (also the `` ` `` key) or resets the layout. The layout is saved in this browser, separately for phones and larger screens.
 
+## Touch camera
+
+On phones and tablets the screen has three input layers, stacked top to bottom:
+
+1. **HUD:** panels and buttons take their own touches.
+2. **Thumb pads:** the left pad moves the camera. The right pad turns it (left/right) and tilts it (up/down); push up to look out across the terrain at a low angle. Hold **＋/－** to zoom. **◎** jumps to the selection, and double-tapping it follows the selection. Each pad tracks its own finger, so you can steer with one thumb while tapping the world with the other.
+3. **World:** tap to select or order, long-press to attack-move. Drag empty ground to pan (flick for momentum), pinch to zoom, twist to rotate, and slide two fingers up or down to tilt.
+
+Turn the pads off in the **☷ Panels** menu. On desktop, middle-drag up/down or PgUp/PgDn tilts the camera.
+
 ## Controls
 
 | Action        | Input                                                                                                                                    |

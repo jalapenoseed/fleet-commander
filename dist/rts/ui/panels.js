@@ -209,6 +209,7 @@ export class PanelManager {
       .join('');
     this.menu.innerHTML = `
       <div class="menu-sec">Show panels</div>${rows}
+      ${(this.extras || []).map((x, k) => `<label><input type="checkbox" data-x="${k}" ${x.get() ? 'checked' : ''} /> ${x.label}</label>`).join('')}
       <div class="menu-sec">Interface size</div>
       <div class="seg">${Object.keys(SCALES)
         .map(
@@ -222,6 +223,8 @@ export class PanelManager {
       <p class="hint">Drag a panel's title bar to move it, its corner to resize. Double-click a title bar to minimize.</p>`;
     for (const c of this.menu.querySelectorAll('[data-p]'))
       c.onchange = () => this.setClosed(c.dataset.p, !c.checked);
+    for (const c of this.menu.querySelectorAll('[data-x]'))
+      c.onchange = () => this.extras[Number(c.dataset.x)].set(c.checked);
     for (const b of this.menu.querySelectorAll('[data-scale]'))
       b.onclick = () => {
         this.state.scale = b.dataset.scale;

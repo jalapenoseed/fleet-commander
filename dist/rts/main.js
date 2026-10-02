@@ -24,6 +24,7 @@ import { ScriptEditor } from './ui/script-editor.js';
 import { PilotController } from './ui/pilot.js';
 import { Designer } from './ui/designer.js';
 import { PanelManager } from './ui/panels.js';
+import { CamPads } from './ui/campads.js';
 
 const $ = (id) => document.getElementById(id);
 const BUILD_KEYS = {
@@ -171,6 +172,15 @@ class Game {
     );
     panels.restoreHidden();
     if (matchMedia('(pointer: coarse)').matches) this.enableTouch();
+    campads ||= new CamPads(this);
+    campads.game = this;
+    panels.extras = [
+      {
+        label: 'Camera thumb pads (touch)',
+        get: () => campads.enabled,
+        set: (v) => campads.setEnabled(v),
+      },
+    ];
     this.speed = 1;
     this.acc = 0;
     this.last = performance.now();
@@ -251,6 +261,15 @@ class Game {
     this.last = now;
     this.handleHeldKeys(dt);
     this.pilot.update(dt);
+    if (!this.pilot.active) campads?.update(dt);
+    if (this.fling) {
+      // Momentum after a one-finger pan.
+      this.view.pan(this.fling.x * dt, this.fling.y * dt);
+      const decay = Math.exp(-dt * 4);
+      this.fling.x *= decay;
+      this.fling.y *= decay;
+      if (Math.hypot(this.fling.x, this.fling.y) < 0.5) this.fling = null;
+    }
     if (!this.ended) {
       this.acc += dt * this.speed;
       let steps = 0;
@@ -643,6 +662,7 @@ class Game {
           $('btn-director').classList.remove('on');
         } else if (down.button === 1) {
           this.view.cam.tyaw -= e.movementX * 0.006;
+          this.view.cam.tpitch += e.movementY * 0.005;
         }
       },
       opt,
@@ -783,6 +803,7 @@ class Game {
   touchDown(e) {
     this.enableTouch();
     if (!this.touches) this.touches = new Map();
+    this.fling = null;
     this.touches.set(e.pointerId, {
       x: e.clientX,
       y: e.clientY,
@@ -834,8 +855,10 @@ class Game {
       if (da > Math.PI) da -= Math.PI * 2;
       if (da < -Math.PI) da += Math.PI * 2;
       c.tyaw -= da;
+      // Two fingers sliding up/down together tilt the camera (like map apps); sideways pans.
       const s = c.dist * 0.0016;
-      this.view.pan(-(now.mx - before.mx) * s, (now.my - before.my) * s);
+      this.view.pan(-(now.mx - before.mx) * s, 0);
+      c.tpitch += (now.my - before.my) * 0.006;
       this.pinch = now;
       return;
     }
@@ -845,6 +868,10 @@ class Game {
     if (this.gesture === 'pan') {
       const s = c.dist * 0.0016;
       this.view.pan(-dx * s, dy * s);
+      const now = performance.now(),
+        el = Math.max(8, now - (this.panT || now - 16)) / 1000;
+      this.panT = now;
+      this.panV = { x: (-dx * s) / el, y: (dy * s) / el };
       this.director = false;
       $('btn-director').classList.remove('on');
     } else if (this.gesture === 'box') {
@@ -873,6 +900,11 @@ class Game {
     this.gesture = null;
     if (cancelled || this.spectator) return;
     if (g === 'box') return this.boxSelect(t.sx, t.sy, e.clientX, e.clientY, false);
+    if (g === 'pan' && this.panV && performance.now() - this.panT < 80) {
+      const cap = this.view.cam.dist * 2;
+      const m = Math.hypot(this.panV.x, this.panV.y);
+      this.fling = m > cap ? { x: (this.panV.x / m) * cap, y: (this.panV.y / m) * cap } : this.panV;
+    }
     if (g !== 'tap') return;
     this.tap(e.clientX, e.clientY);
   }
@@ -998,6 +1030,8 @@ class Game {
     if (this.keys.has('arrowup')) dz += s;
     if (this.keys.has('arrowdown')) dz -= s;
     if (this.keys.has('q')) c.tyaw += dt * 1.6;
+    if (this.keys.has('pageup')) c.tpitch -= dt * 0.9;
+    if (this.keys.has('pagedown')) c.tpitch += dt * 0.9;
     if (this.keys.has('e')) c.tyaw -= dt * 1.6;
     const m = this.mouse,
       edge = 6;
@@ -1493,6 +1527,7 @@ function start(opts) {
 
 let game = null;
 let panels = null;
+let campads = null;
 for (const b of document.querySelectorAll('[data-start]'))
   b.onclick = () => start({ mode: b.dataset.start });
 
