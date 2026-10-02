@@ -15,7 +15,7 @@
 // stick sets climb rate (centered = hold altitude).
 
 import { dsin, dcos, dtan, datan2, wrapAngle, clamp } from './dmath.js';
-import { DT, ROLES, GRAVITY as G } from './defs.js';
+import { DT, GRAVITY as G } from './defs.js';
 
 export const F_PILOT = 16,
   F_FIRE = 32;
@@ -26,15 +26,13 @@ export const MIN_ALTITUDE = 0.4;
 // Stick values are quantized so commands are exact and compact on the wire.
 export const quantize = (v) => Math.round(clamp(Number(v) || 0, -1, 1) * STICK_STEPS) / STICK_STEPS;
 
-const DRAG = ROLES.map((r) => (G * dtan(r.flight.tilt)) / r.speed);
-export const COS_CONE = ROLES.map((r) => dcos(Math.min(r.flight.cone, 3.14159)));
-
 // Advance one drone's attitude, velocity and altitude. (wantVx, wantVz) is the autopilot's
 // desired velocity; (faceX, faceZ) is where it would like the nose to point. Returns the
 // vertical impact speed if the drone hit the ground this tick (for crash damage), else 0.
 export function flightStep(w, i, wantVx, wantVz, faceX, faceZ, jammed) {
-  const f = ROLES[w.role[i]].flight,
-    drag = DRAG[w.role[i]];
+  const r = w.rs(i),
+    f = r.flight,
+    drag = r.drag; // per-team stats: drag sets top speed at max tilt
   const tiltMax = f.tilt * (jammed ? 0.7 : 1);
   let yaw = w.yaw[i],
     pitchDes,

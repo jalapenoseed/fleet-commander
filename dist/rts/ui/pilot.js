@@ -1,7 +1,6 @@
 // Manual flight: keyboard or gamepad (Mode 2) sticks -> quantized 'stick' commands, plus the
 // FPV heads-up display. The sim does the flying; this only reads input and draws instruments.
 
-import { ROLES } from '../sim/defs.js';
 import { quantize } from '../sim/flight.js';
 
 const DEADZONE = 0.08;
@@ -44,6 +43,54 @@ export class PilotController {
     this.pad = null;
     this.padButtons = [];
     this.lastAxis = 'idle';
+    this.touchSticks = { left: null, right: null, fire: false };
+    this.bindTouch();
+  }
+
+  // On-screen Mode 2 sticks: left = throttle (up/down) + yaw (left/right), right = pitch + roll.
+  bindTouch() {
+    const zone = (id, side) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const knob = el.querySelector('i');
+      const read = (e) => {
+        const r = el.getBoundingClientRect();
+        let x = ((e.clientX - r.left) / r.width) * 2 - 1,
+          y = -(((e.clientY - r.top) / r.height) * 2 - 1);
+        const m = Math.hypot(x, y);
+        if (m > 1) {
+          x /= m;
+          y /= m;
+        }
+        this.touchSticks[side] = { x, y };
+        knob.style.transform = `translate(${x * r.width * 0.35}px, ${-y * r.height * 0.35}px)`;
+      };
+      el.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        el.setPointerCapture(e.pointerId);
+        read(e);
+      });
+      el.addEventListener('pointermove', (e) => this.touchSticks[side] && read(e));
+      const end = () => {
+        this.touchSticks[side] = null;
+        knob.style.transform = '';
+      };
+      el.addEventListener('pointerup', end);
+      el.addEventListener('pointercancel', end);
+    };
+    zone('stick-left', 'left');
+    zone('stick-right', 'right');
+    const fire = document.getElementById('pilot-fire');
+    if (fire) {
+      fire.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        this.touchSticks.fire = true;
+      });
+      for (const ev of ['pointerup', 'pointercancel', 'pointerleave'])
+        fire.addEventListener(ev, () => (this.touchSticks.fire = false));
+    }
+    document.getElementById('pilot-cam')?.addEventListener('click', () => this.toggleCamera());
+    document.getElementById('pilot-exit')?.addEventListener('click', () => this.stop());
   }
 
   get active() {
@@ -150,6 +197,16 @@ export class PilotController {
     axis('p', ['i', 'arrowup'], ['k', 'arrowdown']);
     axis('r', ['l', 'arrowright'], ['j', 'arrowleft']);
     this.fire = keys.has(' ') || this.game.mouseFire;
+    const ts = this.touchSticks;
+    if (ts.left) {
+      this.sticks.t = ts.left.y;
+      this.sticks.y = ts.left.x;
+    }
+    if (ts.right) {
+      this.sticks.p = ts.right.y;
+      this.sticks.r = ts.right.x;
+    }
+    this.fire ||= ts.fire;
     const pad = this.readGamepad();
     if (pad) {
       for (const n of ['t', 'y', 'p', 'r'])
@@ -191,7 +248,7 @@ export class PilotController {
       vh = innerHeight,
       cx = vw / 2,
       cy = vh / 2;
-    const role = ROLES[w.role[i]];
+    const role = w.rs(i);
     const pose = this.game.view.pose(i, alpha);
     const speed = Math.hypot(w.vx[i], w.vz[i]);
     const green = 'rgba(140, 255, 200, 0.9)',
@@ -209,7 +266,8 @@ export class PilotController {
       ctx.translate(0, -(pose.pitch - 0.38) * pxPerRad);
       ctx.strokeStyle = dim;
       ctx.fillStyle = dim;
-      for (let deg = -60; deg <= 60; deg += 10) {
+      const span = vw < 600 ? 30 : 60;
+      for (let deg = -span; deg <= span; deg += 10) {
         const y = deg * (Math.PI / 180) * pxPerRad * -1;
         const wdt = deg === 0 ? 260 : 70;
         ctx.setLineDash(deg < 0 ? [6, 6] : []);
@@ -256,36 +314,47 @@ export class PilotController {
     // Readouts.
     const alt = w.py[i],
       hdg = ((((-pose.yaw * 180) / Math.PI) % 360) + 360) % 360; // compass: clockwise
+    const narrow = vw < 600;
+    const side = narrow ? Math.min(110, vw / 2 - 70) : 140;
     ctx.fillStyle = green;
     ctx.textAlign = 'right';
-    ctx.fillText(`SPD ${speed.toFixed(1)} m/s`, cx - 140, cy);
+    ctx.fillText(`SPD ${speed.toFixed(1)}`, cx - side, cy);
     ctx.textAlign = 'left';
-    ctx.fillText(`ALT ${alt.toFixed(1)} m`, cx + 140, cy);
-    ctx.fillText(`VS ${w.vy[i] >= 0 ? '+' : ''}${w.vy[i].toFixed(1)}`, cx + 140, cy + 18);
+    ctx.fillText(`ALT ${alt.toFixed(1)}`, cx + side, cy);
+    ctx.fillText(`VS ${w.vy[i] >= 0 ? '+' : ''}${w.vy[i].toFixed(1)}`, cx + side, cy + 18);
+    const bat = w.bat[i];
+    ctx.fillStyle = bat > 0.22 ? green : '#ff6a5a';
+    ctx.fillText(`BAT ${Math.round(bat * 100)}%${bat <= 0.22 ? ' LOW' : ''}`, cx + side, cy + 36);
+    ctx.fillStyle = green;
     ctx.textAlign = 'center';
-    ctx.fillText(`HDG ${hdg.toFixed(0).padStart(3, '0')}°`, cx, 70);
+    const top = narrow ? 112 : 70;
+    ctx.fillText(`HDG ${hdg.toFixed(0).padStart(3, '0')}°`, cx, top);
     ctx.fillText(
       `PITCH ${((pose.pitch * 180) / Math.PI).toFixed(0)}°   ROLL ${((pose.roll * 180) / Math.PI).toFixed(0)}°`,
       cx,
-      90,
+      top + 20,
     );
     const hp = w.hp[i] / role.hp;
     ctx.fillText(
       `${role.label.toUpperCase()} · ${this.mode === 'fpv' ? 'FPV' : 'CHASE'} · ANGLE MODE · ALT HOLD`,
       cx,
-      vh - 150,
+      narrow ? top + 44 : vh - 150,
     );
     ctx.fillStyle = 'rgba(0,0,0,0.5)';
-    ctx.fillRect(cx - 80, vh - 136, 160, 6);
+    ctx.fillRect(cx - 80, narrow ? top + 56 : vh - 136, 160, 6);
     ctx.fillStyle = hp > 0.5 ? green : hp > 0.25 ? '#ffd27a' : '#ff6a5a';
-    ctx.fillRect(cx - 80, vh - 136, 160 * hp, 6);
+    ctx.fillRect(cx - 80, narrow ? top + 56 : vh - 136, 160 * hp, 6);
     if (role.weapon) {
       const ready = w.cd[i] <= 0;
       ctx.fillStyle = ready ? green : dim;
-      ctx.fillText(ready ? 'WEAPON READY' : 'RELOADING', cx, vh - 118);
+      ctx.fillText(ready ? 'WEAPON READY' : 'RELOADING', cx, narrow ? top + 74 : vh - 118);
     } else {
       ctx.fillStyle = dim;
-      ctx.fillText(`NO WEAPON · ${role.blurb}`, cx, vh - 118);
+      ctx.fillText(
+        narrow ? 'NO WEAPON' : `NO WEAPON · ${role.blurb}`,
+        cx,
+        narrow ? top + 74 : vh - 118,
+      );
     }
     // Stick visualizers (Mode 2): left = throttle/yaw, right = pitch/roll.
     const s = this.sticks;
@@ -308,18 +377,30 @@ export class PilotController {
       ctx.fillText(`${vl} ↕  ${hl} ↔`, x, y + 68);
       ctx.font = '600 13px ui-monospace, Menlo, Consolas, monospace';
     };
-    stick(cx - 260, vh - 120, 'LEFT', s.y, s.t, 'yaw A/D', 'throttle W/S');
-    stick(cx + 260, vh - 120, 'RIGHT', s.r, s.p, 'roll J/L', 'pitch I/K');
+    if (!this.game.touch) {
+      stick(cx - 260, vh - 120, 'LEFT', s.y, s.t, 'yaw A/D', 'throttle W/S');
+      stick(cx + 260, vh - 120, 'RIGHT', s.r, s.p, 'roll J/L', 'pitch I/K');
+    }
     // Learn line.
     ctx.font = '13px system-ui, sans-serif';
     ctx.fillStyle = 'rgba(220, 240, 255, 0.85)';
-    ctx.fillText(this.learnText || '', cx, vh - 24);
+    const words = (this.learnText || '').split(' '),
+      lines = [''],
+      maxW = vw - 24;
+    for (const wd of words) {
+      const t = lines[lines.length - 1] ? lines[lines.length - 1] + ' ' + wd : wd;
+      if (ctx.measureText(t).width > maxW && lines[lines.length - 1]) lines.push(wd);
+      else lines[lines.length - 1] = t;
+    }
+    const ly = narrow ? top + 100 : vh - 24 - (lines.length - 1) * 16;
+    lines.forEach((l, k) => ctx.fillText(l, cx, ly + k * 16));
     ctx.fillStyle = dim;
     ctx.font = '600 11px ui-monospace, Menlo, Consolas, monospace';
-    ctx.fillText(
-      `SPACE/CLICK fire · TAB camera · ENTER/ESC exit${this.pad ? ' · gamepad: ' + this.pad.slice(0, 28) : ' · gamepad supported (Mode 2)'}`,
-      cx,
-      40,
-    );
+    if (!this.game.touch)
+      ctx.fillText(
+        `SPACE/CLICK fire · TAB camera · ENTER/ESC exit${this.pad ? ' · gamepad: ' + this.pad.slice(0, 28) : ' · gamepad supported (Mode 2)'}`,
+        cx,
+        40,
+      );
   }
 }

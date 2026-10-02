@@ -17,11 +17,16 @@ import {
   WEAPONS,
   FORMATIONS,
   PLAYS,
+  LOW_BATTERY,
 } from './defs.js';
+import { TECH, teamStats, researchBlocker, unlockedTier } from './tech.js';
 import { RULE_PERIOD, DEFAULT_RULES, runRules, validateRules } from './rules.js';
-import { flightStep, quantize, F_PILOT, F_FIRE, COS_CONE } from './flight.js';
+import { flightStep, quantize, F_PILOT, F_FIRE } from './flight.js';
 
 export { F_PILOT, F_FIRE };
+export const F_SHIELD = 64,
+  F_RTB = 128,
+  F_CLOAK = 256;
 // Ground fields (jammer and kill zones, repair) only reach drones below this altitude.
 export const FIELD_CEILING = 14;
 
@@ -69,7 +74,6 @@ const M_DEFEND = 0, // fire at targets already in weapon range
   M_PASSIVE = 2; // never fire (retreating)
 
 const weaponDps = (w) => (w ? w.damage / w.cooldown : 0);
-const roleWeaponType = ROLES.map((r) => (r.weapon ? r.weapon.type : null));
 
 export function formationOffset(type, i, n, spacing, phase = 0) {
   const c = (n - 1) / 2;
@@ -122,7 +126,7 @@ export class World {
     this.alive = new Uint8Array(N);
     this.team = new Uint8Array(N);
     this.role = new Uint8Array(N);
-    this.flags = new Uint8Array(N);
+    this.flags = new Uint16Array(N);
     this.mode = new Uint8Array(N);
     this.squadOf = new Int32Array(N);
     this.uid = new Int32Array(N);
@@ -149,6 +153,13 @@ export class World {
     this.opitch = new Float64Array(N);
     this.oroll = new Float64Array(N);
     this.stick = new Float64Array(N * 4); // pilot input: throttle, yaw, pitch, roll
+    this.bat = new Float64Array(N); // battery charge, 0..1
+    this.owner = new Int32Array(N); // carrier uid for wasps, else 0
+    this.aux = new Float64Array(N); // per-drone timer (carrier wasp rebuild)
+    this.wasps = new Map(); // carrier uid -> live wasp count
+    // Airframe definitions (base units now; custom designs are appended) and per-team stats.
+    this.roles = ROLES.map((r) => ({ ...r }));
+    this.roleStats = [];
     this.count = 0; // slot high-water mark
     this.free = [];
     this.uidMap = new Map();
@@ -196,8 +207,11 @@ export class World {
       spent: 0,
       lastAlert: -1e9,
       pilot: 0, // uid of the drone this team's player is flying, 0 if none
+      tech: new Set(),
+      researching: new Set(),
     };
     this.teams.push(team);
+    this.roleStats[t] = teamStats(this.roles, team.tech);
     this.addStructure(t, 'core', start.x, start.z, true);
     const sq = this.createSquad(t);
     const mix = [
@@ -222,7 +236,7 @@ export class World {
   spawnDrone(t, role, x, z, squad) {
     const i = this.free.length ? this.free.pop() : this.count++;
     if (i >= this.cap) return -1;
-    const r = ROLES[role];
+    const r = this.roleStats[t][role];
     this.alive[i] = 1;
     this.team[i] = t;
     this.role[i] = role;
@@ -236,6 +250,9 @@ export class World {
     this.yaw[i] = this.oyaw[i] = this.yawRate[i] = 0;
     this.stick.fill(0, i * 4, i * 4 + 4);
     this.hp[i] = r.hp;
+    this.bat[i] = 1;
+    this.owner[i] = 0;
+    this.aux[i] = 0;
     this.cd[i] = 0;
     this.target[i] = 0;
     this.uid[i] = this.nextUid++;
@@ -307,6 +324,21 @@ export class World {
   }
 
   // ---------- queries ----------
+
+  // Effective stats (base airframe + this team's research) for drone slot i.
+  rs(i) {
+    return this.roleStats[this.team[i]][this.role[i]];
+  }
+
+  refreshStats(t) {
+    this.roleStats[t] = teamStats(this.roles, this.teams[t].tech);
+  }
+
+  // Can team t see drone j? Cell visibility, minus cloaked drones.
+  seen(t, j) {
+    if (this.team[j] === t) return true;
+    return this.visible(t, this.px[j], this.pz[j]) && !(this.flags[j] & F_CLOAK);
+  }
 
   wellAt(x, z, r = 3.5) {
     for (const w of this.wells) if (len(w.x - x, w.z - z) <= r) return w;
@@ -403,9 +435,32 @@ export class World {
       case 'cancel': {
         const s = this.structMap.get(cmd.structure);
         if (!s || s.team !== cmd.team || !s.queue.length) return false;
-        const r = ROLES[s.queue.pop().role];
-        team.energy += r.cost * r.pack;
-        team.spent -= r.cost * r.pack;
+        const item = s.queue.pop();
+        const cost = item.tech
+          ? TECH[item.tech].cost
+          : this.roleStats[cmd.team][item.role].cost * this.roleStats[cmd.team][item.role].pack;
+        if (item.tech) team.researching.delete(item.tech);
+        team.energy += cost;
+        team.spent -= cost;
+        return true;
+      }
+      case 'research': {
+        if (researchBlocker(team, cmd.tech)) return false;
+        const lab = this.structures.find(
+          (x) =>
+            x.alive &&
+            x.team === cmd.team &&
+            x.progress >= 1 &&
+            STRUCTURES[x.kind].research &&
+            !x.queue.length &&
+            (cmd.structure === undefined || x.id === cmd.structure),
+        );
+        if (!lab) return false;
+        const t = TECH[cmd.tech];
+        team.energy -= t.cost;
+        team.spent += t.cost;
+        team.researching.add(cmd.tech);
+        lab.queue.push({ tech: cmd.tech, left: t.time });
         return true;
       }
       case 'rally':
@@ -510,10 +565,11 @@ export class World {
 
   cmdProduce(cmd) {
     const role = typeof cmd.role === 'number' ? cmd.role : ROLE_INDEX[cmd.role];
-    const r = ROLES[role];
     const team = this.teams[cmd.team];
-    if (!r || team.energy < r.cost * r.pack || this.bandwidthFree(cmd.team) < r.bw * r.pack)
-      return false;
+    const r = this.roleStats[cmd.team][role];
+    if (!r || r.spawnOnly || (r.tier || 1) > unlockedTier(team.tech)) return false;
+    if (r.design && r.owner !== cmd.team) return false;
+    if (team.energy < r.cost * r.pack || this.bandwidthFree(cmd.team) < r.bw * r.pack) return false;
     let best = null;
     for (const s of this.structures) {
       if (!s.alive || s.team !== cmd.team || s.progress < 1 || !STRUCTURES[s.kind].produces)
@@ -557,6 +613,8 @@ export class World {
     this.economy();
     this.grid.build(this.alive, this.px, this.pz, N);
     this.auras();
+    this.stealthAndDocking();
+    this.updateCarriers();
     for (const sq of this.squads) this.updateSquad(sq);
     this.updateDrones();
     this.updateStructures();
@@ -573,12 +631,16 @@ export class World {
       team.bwUsed = 0;
     }
     for (let i = 0; i < this.count; i++)
-      if (this.alive[i]) this.teams[this.team[i]].bwUsed += ROLES[this.role[i]].bw;
+      if (this.alive[i]) this.teams[this.team[i]].bwUsed += this.rs(i).bw;
     for (const s of this.structures) {
       if (!s.alive) continue;
       const def = STRUCTURES[s.kind],
         team = this.teams[s.team];
-      for (const q of s.queue) team.bwUsed += ROLES[q.role].bw * ROLES[q.role].pack;
+      for (const q of s.queue) {
+        if (q.tech) continue;
+        const r = this.roleStats[s.team][q.role];
+        team.bwUsed += r.bw * r.pack;
+      }
       if (s.progress < 1) continue;
       team.income += def.income || 0;
       team.bwCap += def.bandwidth || 0;
@@ -589,6 +651,9 @@ export class World {
     for (const s of this.structures) {
       if (!s.alive) continue;
       const def = STRUCTURES[s.kind];
+      // Defender's advantage: finished structures repair 1%/s after 8 s without being hit.
+      if (s.progress >= 1 && s.hp < s.maxHp && this.tick - (s.lastHit || 0) > 8 * TICK_RATE)
+        s.hp = Math.min(s.maxHp, s.hp + s.maxHp * 0.01 * DT);
       if (s.progress < 1) {
         s.progress = Math.min(1, s.progress + DT / def.build);
         s.hp = Math.min(s.maxHp, s.hp + (s.maxHp * 0.9 * DT) / def.build);
@@ -600,12 +665,23 @@ export class World {
         q.left -= DT;
         if (q.left <= 0) {
           s.queue.shift();
-          for (let k = 0; k < ROLES[q.role].pack; k++) this.produceDrone(s, q.role);
+          if (q.tech) this.completeResearch(s.team, q.tech);
+          else
+            for (let k = 0; k < this.roleStats[s.team][q.role].pack; k++)
+              this.produceDrone(s, q.role);
         }
       }
     }
     this.totals();
     for (const team of this.teams) if (team.alive) team.energy += team.income * DT;
+  }
+
+  completeResearch(t, key) {
+    const team = this.teams[t];
+    team.researching.delete(key);
+    team.tech.add(key);
+    this.refreshStats(t);
+    this.events.push({ k: 'researched', team: t, tech: key });
   }
 
   produceDrone(s, role) {
@@ -627,7 +703,8 @@ export class World {
   auras() {
     const { alive, team, role, flags, px, pz, hp, grid, scratch } = this;
     const N = this.count;
-    for (let i = 0; i < N; i++) flags[i] &= ~(F_JAMMED | F_DETECTED | F_COUNTER);
+    for (let i = 0; i < N; i++)
+      flags[i] &= ~(F_JAMMED | F_DETECTED | F_COUNTER | F_SHIELD | F_CLOAK);
     const py = this.py;
     const jamAround = (t, x, z, r, ceiling = 1e9) => {
       const k = grid.query(x, z, r, px, pz, scratch);
@@ -637,13 +714,20 @@ export class World {
     // Jamming sources, then counter-jamming from relay drones.
     for (let i = 0; i < N; i++) {
       if (!alive[i]) continue;
-      const a = ROLES[role[i]].aura;
+      const a = this.rs(i).aura;
       if (a?.jam) jamAround(team[i], px[i], pz[i], a.jam);
     }
     for (const s of this.structures) {
       if (!s.alive || s.progress < 1) continue;
       const def = STRUCTURES[s.kind];
-      if (def.jam) jamAround(s.team, s.x, s.z, def.jam, FIELD_CEILING);
+      if (def.jam)
+        jamAround(
+          s.team,
+          s.x,
+          s.z,
+          def.jam * (this.teams[s.team].tech.has('jamRange') ? 1.35 : 1),
+          FIELD_CEILING,
+        );
       if (def.detect) {
         const k = grid.query(s.x, s.z, def.detect, px, pz, scratch);
         for (let j = 0; j < k; j++)
@@ -652,7 +736,11 @@ export class World {
     }
     for (let i = 0; i < N; i++) {
       if (!alive[i]) continue;
-      const a = ROLES[role[i]].aura;
+      const a = this.rs(i).aura;
+      if (a?.shield) {
+        const k = grid.query(px[i], pz[i], a.shield, px, pz, scratch);
+        for (let j = 0; j < k; j++) if (team[scratch[j]] === team[i]) flags[scratch[j]] |= F_SHIELD;
+      }
       if (a?.counterJam) {
         const k = grid.query(px[i], pz[i], a.counterJam, px, pz, scratch);
         for (let j = 0; j < k; j++)
@@ -662,7 +750,7 @@ export class World {
         const k = grid.query(px[i], pz[i], a.heal, px, pz, scratch);
         for (let j = 0; j < k; j++) {
           const o = scratch[j];
-          if (team[o] === team[i]) hp[o] = Math.min(ROLES[role[o]].hp, hp[o] + a.healRate * DT);
+          if (team[o] === team[i]) hp[o] = Math.min(this.rs(o).hp, hp[o] + a.healRate * DT);
         }
       }
     }
@@ -675,7 +763,15 @@ export class World {
         for (let j = 0; j < k; j++) {
           const o = scratch[j];
           if (team[o] === s.team && py[o] < FIELD_CEILING)
-            hp[o] = Math.min(ROLES[role[o]].hp, hp[o] + def.heal.rate * DT);
+            hp[o] = Math.min(this.rs(o).hp, hp[o] + def.heal.rate * DT);
+        }
+      }
+      if (def.charge) {
+        const k = grid.query(s.x, s.z, def.charge.radius, px, pz, scratch);
+        for (let j = 0; j < k; j++) {
+          const o = scratch[j];
+          if (team[o] === s.team)
+            this.bat[o] = Math.min(1, this.bat[o] + def.charge.rate * this.rs(o).chargeMult * DT);
         }
       }
       if (def.zone) {
@@ -687,6 +783,70 @@ export class World {
         }
       }
     }
+  }
+
+  // Camouflaged scouts that hover still are hidden unless radar or a nearby enemy reveals them;
+  // carriers recharge their docked wasps.
+  stealthAndDocking() {
+    const { alive, team, flags, px, pz, vx, vz, grid, scratch } = this;
+    for (let i = 0; i < this.count; i++) {
+      if (!alive[i]) continue;
+      const r = this.rs(i);
+      if (r.carrier) {
+        const k = grid.query(px[i], pz[i], 4, px, pz, scratch);
+        for (let j = 0; j < k; j++) {
+          const o = scratch[j];
+          if (this.owner[o] === this.uid[i]) this.bat[o] = Math.min(1, this.bat[o] + 0.25 * DT);
+        }
+      }
+      if (!r.cloak || flags[i] & (F_DETECTED | F_PILOT) || this.cd[i] > 0) continue;
+      if (vx[i] * vx[i] + vz[i] * vz[i] > 2.25) continue;
+      let exposed = false;
+      const k = grid.query(px[i], pz[i], 6, px, pz, scratch);
+      for (let j = 0; j < k && !exposed; j++) if (team[scratch[j]] !== team[i]) exposed = true;
+      if (!exposed) flags[i] |= F_CLOAK;
+    }
+  }
+
+  // Carriers rebuild wasps over time, up to their hangar size.
+  updateCarriers() {
+    for (let i = 0; i < this.count; i++) {
+      if (!this.alive[i]) continue;
+      const c = this.rs(i).carrier;
+      if (!c) continue;
+      const u = this.uid[i];
+      if ((this.wasps.get(u) || 0) >= c.wasps) continue;
+      this.aux[i] -= DT;
+      if (this.aux[i] > 0 || this.bat[i] < LOW_BATTERY) continue;
+      this.aux[i] = c.rebuild;
+      const sq = this.squadMap.get(this.squadOf[i]);
+      if (!sq) continue;
+      const w = this.spawnDrone(this.team[i], ROLE_INDEX.wasp, this.px[i], this.pz[i], sq);
+      if (w < 0) continue;
+      this.owner[w] = u;
+      this.py[w] = this.opy[w] = this.py[i];
+      this.wasps.set(u, (this.wasps.get(u) || 0) + 1);
+    }
+  }
+
+  // Where a low-battery drone should go: its carrier (wasps) or the nearest charger/core.
+  chargerFor(i) {
+    if (this.owner[i]) {
+      const c = this.uidMap.get(this.owner[i]);
+      return c !== undefined ? { x: this.px[c], z: this.pz[c] } : null;
+    }
+    let best = null,
+      bd = 1e9;
+    for (const s of this.structures) {
+      if (!s.alive || s.team !== this.team[i] || s.progress < 1 || !STRUCTURES[s.kind].charge)
+        continue;
+      const d = len(s.x - this.px[i], s.z - this.pz[i]) + (s.kind === 'core' ? 15 : 0);
+      if (d < bd) {
+        bd = d;
+        best = s;
+      }
+    }
+    return best;
   }
 
   centroid(sq) {
@@ -703,15 +863,17 @@ export class World {
 
   sense(sq) {
     const { px, pz, team, role, hp, flags, grid, scratch } = this;
-    let health = 0,
+    let battery = 0,
+      health = 0,
       jammed = 0,
       detected = 0,
       own = 0;
     for (const i of sq.members) {
-      const r = ROLES[role[i]];
+      const r = this.rs(i);
       health += hp[i] / r.hp;
       if (flags[i] & F_JAMMED) jammed++;
       if (flags[i] & F_DETECTED) detected++;
+      battery += this.bat[i];
       own += hp[i] * (weaponDps(r.weapon) || 2);
     }
     const n = sq.members.length || 1;
@@ -723,11 +885,11 @@ export class World {
     const k = grid.query(sq.cx, sq.cz, NEAR_RADIUS, px, pz, scratch);
     for (let j = 0; j < k; j++) {
       const o = scratch[j];
-      if (team[o] === sq.team || !this.visible(sq.team, px[o], pz[o])) continue;
+      if (team[o] === sq.team || !this.seen(sq.team, o)) continue;
       const d = len(px[o] - sq.cx, pz[o] - sq.cz);
       if (d < nearest) nearest = d;
       if (d <= SENSE_RADIUS) {
-        const r = ROLES[role[o]];
+        const r = this.rs(o);
         enemyPower += hp[o] * (weaponDps(r.weapon) || 2);
         enemyCount++;
         tx += px[o];
@@ -750,6 +912,7 @@ export class World {
     sq.sensed = {
       size: sq.members.length,
       health: health / n,
+      battery: battery / n,
       jammed: jammed / n,
       detected,
       threat: enemyPower / Math.max(1, own),
@@ -853,7 +1016,7 @@ export class World {
       if (this.flags[i] & F_PILOT) continue;
       if (this.flags[i] & F_ENGAGED) engaged++;
       lag += len(this.tx[i] - this.px[i], this.tz[i] - this.pz[i]);
-      const sp = ROLES[this.role[i]].speed;
+      const sp = this.rs(i).speed;
       if (sp < minSpeed) minSpeed = sp;
     }
     lag /= n;
@@ -993,7 +1156,7 @@ export class World {
     const k = grid.query(x, z, radius, px, pz, scratch2);
     for (let j = 0; j < k; j++) {
       const o = scratch2[j];
-      if (team[o] === t || !this.visible(t, px[o], pz[o])) continue;
+      if (team[o] === t || !this.seen(t, o)) continue;
       const d = (px[o] - x) * (px[o] - x) + (pz[o] - z) * (pz[o] - z);
       if (d < bd || (d === bd && this.uid[o] < best)) {
         bd = d;
@@ -1024,7 +1187,7 @@ export class World {
       lim = this.half - 1.5;
     for (let i = 0; i < this.count; i++) {
       if (!alive[i]) continue;
-      const r = ROLES[role[i]],
+      const r = this.rs(i),
         w = r.weapon,
         jammed = flags[i] & F_JAMMED,
         piloted = flags[i] & F_PILOT;
@@ -1034,6 +1197,28 @@ export class World {
         goalZ = tz[i],
         faceX = 0,
         faceZ = 0;
+      // Low battery: break off and fly to a charger (or the carrier) until nearly full.
+      if (!piloted) {
+        // Range-aware reserve: enough charge to fly home at cruise load, plus a margin. Checked
+        // every 10 ticks per drone (staggered) since it needs the nearest-charger distance.
+        let low = this.bat[i] < LOW_BATTERY;
+        if (!low && !(flags[i] & F_RTB) && (i + this.tick) % 10 === 0) {
+          const home = this.chargerFor(i);
+          if (home) {
+            const trip = len(home.x - px[i], home.z - pz[i]) / r.speed; // seconds at top speed
+            low = this.bat[i] < 0.06 + (trip * 1.9 * 1.25 * r.drain) / r.battery;
+          }
+        }
+        if (low && !(flags[i] & F_RTB)) {
+          flags[i] |= F_RTB;
+          this.events.push({ k: 'lowBattery', i, team: team[i] });
+        } else if (flags[i] & F_RTB && this.bat[i] > 0.95) flags[i] &= ~F_RTB;
+      }
+      const rtb = flags[i] & F_RTB ? this.chargerFor(i) : null;
+      if (rtb) {
+        goalX = rtb.x;
+        goalZ = rtb.z;
+      }
       // Nose direction; weapons only fire inside the airframe's cone around it.
       const hx = dsin(this.yaw[i]),
         hz = dcos(this.yaw[i]);
@@ -1043,7 +1228,7 @@ export class World {
           const tgt = this.aimTarget(i, w.range, hx, hz);
           if (tgt) this.fire(i, tgt, w, jammed);
         }
-      } else if (w && mode[i] !== M_PASSIVE) {
+      } else if (w && mode[i] !== M_PASSIVE && !rtb) {
         const sensor = r.sensor * (jammed ? 0.6 : 1);
         const acquireR = mode[i] === M_CHASE ? Math.min(sensor, 16) : w.range;
         let tgt = this.resolveTarget(target[i]);
@@ -1070,7 +1255,7 @@ export class World {
               goalZ = pz[i];
             }
           }
-          const facing = (dx * hx + dz * hz) / d >= COS_CONE[role[i]];
+          const facing = (dx * hx + dz * hz) / d >= r.cosCone;
           if (d <= reach && cd[i] <= 0 && facing) this.fire(i, tgt, w, jammed);
         }
       } else if (mode[i] === M_PASSIVE) target[i] = 0;
@@ -1123,6 +1308,20 @@ export class World {
       // Fly: attitude -> thrust -> velocity, with the airframe's tilt/yaw/climb limits.
       const impact = flightStep(this, i, ax, az, faceX, faceZ, jammed);
       if (impact > 5) this.crash(i, (impact - 5) * 8);
+      // Battery: hover cost, plus extra thrust when tilted (1/cos tilt) and when climbing.
+      const tilt = len(this.pitch[i], this.roll[i]);
+      const load =
+        1 +
+        0.8 * (1 / dcos(tilt < 1.4 ? tilt : 1.4) - 1) +
+        (this.vy[i] > 0 ? this.vy[i] * 0.08 : 0);
+      this.bat[i] -= (load * r.drain * DT) / r.battery;
+      if (this.bat[i] <= 0) {
+        this.bat[i] = 0;
+        if (this.hp[i] > 0) {
+          this.hp[i] = 0;
+          this.events.push({ k: 'depleted', i, team: team[i], x: px[i], z: pz[i] });
+        }
+      }
       const maxSpeed = r.speed * (piloted ? 1.25 : 1.1) * (jammed ? 0.65 : 1);
       const s = len(vx[i], vz[i]);
       if (s > maxSpeed) {
@@ -1167,7 +1366,7 @@ export class World {
     const k = this.grid.query(x, z, range, this.px, this.pz, this.scratch2);
     for (let j = 0; j < k; j++) {
       const o = this.scratch2[j];
-      if (this.team[o] === t || !this.visible(t, this.px[o], this.pz[o])) continue;
+      if (this.team[o] === t || !this.seen(t, o)) continue;
       const dx = this.px[o] - x,
         dz = this.pz[o] - z,
         d = len(dx, dz) || 1,
@@ -1196,8 +1395,17 @@ export class World {
   fire(i, tgt, w, jammed) {
     const t = this.team[i];
     const mult = WEAPONS[w.type].vs;
+    this.bat[i] -= 0.15 / this.rs(i).battery;
     if (tgt.drone !== undefined) {
-      this.damageDrone(tgt.drone, w.damage * mult[ROLES[this.role[tgt.drone]].armor], t);
+      this.damageDrone(tgt.drone, w.damage * mult[this.rs(tgt.drone).armor], t);
+      if (w.splash) {
+        const k = this.grid.query(tgt.x, tgt.z, w.splash, this.px, this.pz, this.scratch2);
+        for (let j = 0; j < k; j++) {
+          const o = this.scratch2[j];
+          if (o !== tgt.drone && this.team[o] !== t)
+            this.damageDrone(o, w.damage * 0.5 * mult[this.rs(o).armor], t);
+        }
+      }
     } else this.damageStructure(tgt.struct, w.damage * mult[3], t);
     this.cd[i] = w.cooldown * (jammed ? 1.6 : 1);
     this.events.push({
@@ -1214,6 +1422,7 @@ export class World {
 
   damageDrone(j, amount, byTeam) {
     if (this.hp[j] <= 0) return;
+    if (this.flags[j] & F_SHIELD) amount *= 1 - 0.4;
     this.hp[j] -= amount;
     if (this.hp[j] <= 0) this.teams[byTeam].kills++;
   }
@@ -1221,6 +1430,7 @@ export class World {
   damageStructure(s, amount, byTeam) {
     if (!s.alive) return;
     s.hp -= amount;
+    s.lastHit = this.tick;
     const team = this.teams[s.team];
     if (this.tick - team.lastAlert > 6 * TICK_RATE) {
       team.lastAlert = this.tick;
@@ -1251,7 +1461,7 @@ export class World {
       if (tgt && s.cd <= 0) {
         this.damageDrone(
           tgt.drone,
-          w.damage * WEAPONS[w.type].vs[ROLES[this.role[tgt.drone]].armor],
+          w.damage * WEAPONS[w.type].vs[this.rs(tgt.drone).armor],
           s.team,
         );
         s.cd = w.cooldown;
@@ -1303,6 +1513,12 @@ export class World {
           z: this.pz[i],
         });
       }
+      if (this.owner[i]) {
+        const n = this.wasps.get(this.owner[i]) || 0;
+        if (n > 1) this.wasps.set(this.owner[i], n - 1);
+        else this.wasps.delete(this.owner[i]);
+      }
+      this.wasps.delete(this.uid[i]);
       this.flags[i] = 0;
       this.uidMap.delete(this.uid[i]);
       this.free.push(i);
@@ -1354,7 +1570,7 @@ export class World {
     for (const team of this.teams) team.vis.fill(0);
     for (let i = 0; i < this.count; i++) {
       if (!this.alive[i]) continue;
-      const role = ROLES[this.role[i]];
+      const role = this.rs(i);
       // Flying higher than cruise altitude extends sight (up to +40%); skimming low reduces it.
       const lift = clamp((this.py[i] - role.flight.alt) * 0.03, -0.3, 0.4);
       const r = role.sensor * (1 + lift) * (this.flags[i] & F_JAMMED ? 0.6 : 1);
@@ -1383,6 +1599,8 @@ export class World {
     h.array(this.roll, N)
       .array(this.stick, N * 4)
       .array(this.flags, N);
+    h.array(this.bat, N).array(this.owner, N);
+    for (const t of this.teams) h.num(t.tech.size).num(t.researching.size);
     for (const t of this.teams) h.num(t.energy).num(t.bwUsed).num(t.kills);
     for (const s of this.structures) h.num(s.id).num(s.hp).num(s.progress).num(s.queue.length);
     for (const sq of this.squads) h.num(sq.id).num(sq.ax).num(sq.az).num(sq.members.length);
@@ -1391,7 +1609,7 @@ export class World {
 
   stats(t) {
     const team = this.teams[t];
-    const roles = new Array(ROLES.length).fill(0);
+    const roles = new Array(this.roles.length).fill(0);
     for (let i = 0; i < this.count; i++)
       if (this.alive[i] && this.team[i] === t) roles[this.role[i]]++;
     const structures = {};

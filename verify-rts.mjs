@@ -290,6 +290,93 @@ test('flight: piloted drone loss reports a pilot handoff event', () => {
   assert.equal(w.teams[0].pilot, 0);
 });
 
+test('battery: drains with flight, low drones fly to a charger and recharge', () => {
+  const w = new World({ seed: 1 });
+  const i = 0;
+  for (let k = 0; k < 40; k++) w.step();
+  const b0 = w.bat[i];
+  for (let k = 0; k < 100; k++) w.step();
+  assert.ok(w.bat[i] < b0, 'drains while flying');
+  // Park it far from home with a low battery: it must break off and head to the core.
+  w.px[i] = w.ox[i] = 30;
+  w.pz[i] = w.oz[i] = -10;
+  w.bat[i] = 0.5; // the range-aware reserve should send it home from here
+  const core = w.structures.find((s) => s.team === 0 && s.kind === 'core');
+  const d0 = Math.hypot(w.px[i] - core.x, w.pz[i] - core.z);
+  for (let k = 0; k < 20 * 12; k++) w.step();
+  assert.ok(Math.hypot(w.px[i] - core.x, w.pz[i] - core.z) < d0 - 40, 'returns home');
+  for (let k = 0; k < 20 * 25; k++) w.step();
+  assert.ok(w.bat[i] > 0.9, 'recharged at the core');
+  // An empty battery is fatal.
+  w.bat[1] = 0.0001;
+  w.flags[1] |= F_PILOT;
+  w.step();
+  assert.ok(w.events.some((e) => e.k === 'depleted') || !w.alive[1]);
+});
+
+test('research: labs, costs, prerequisites, exclusive choices and tier unlocks', () => {
+  const w = new World({ seed: 1 });
+  const team = w.teams[0];
+  team.energy = 5000;
+  assert.equal(w.apply({ type: 'research', team: 0, tech: 'batteries' }), false, 'needs a lab');
+  const lab = w.addStructure(0, 'lab', -48, 46, true);
+  assert.equal(w.apply({ type: 'research', team: 0, tech: 'tier3' }), false, 'tier3 needs tier2');
+  assert.equal(w.apply({ type: 'produce', team: 0, role: 'lancer' }), false, 'lancer locked');
+  assert.equal(w.apply({ type: 'research', team: 0, tech: 'flakBurst' }), true);
+  assert.equal(w.apply({ type: 'research', team: 0, tech: 'tier2' }), false, 'lab busy');
+  for (let k = 0; k < 30 * 20 + 2; k++) w.step();
+  assert.ok(team.tech.has('flakBurst'));
+  assert.equal(w.roleStats[0][ROLE_INDEX.interceptor].weapon.splash, 2.5);
+  w.addStructure(0, 'lab', -40, 40, true);
+  assert.equal(w.apply({ type: 'research', team: 0, tech: 'flakRange' }), false, 'excluded');
+  assert.equal(w.apply({ type: 'research', team: 0, tech: 'tier2' }), true);
+  for (let k = 0; k < 40 * 20 + 2; k++) w.step();
+  assert.equal(w.apply({ type: 'produce', team: 0, role: 'lancer' }), true, 'lancer unlocked');
+  assert.equal(
+    w.apply({ type: 'produce', team: 0, role: 'wasp' }),
+    false,
+    'wasps are never produced',
+  );
+  assert.ok(lab.alive);
+});
+
+test('carriers launch and rebuild wasps; wardens shield; scouts can cloak', () => {
+  const w = new World({ seed: 1 });
+  const sq = w.createSquad(0),
+    foe = w.createSquad(1);
+  const c = w.spawnDrone(0, ROLE_INDEX.carrier, -20, 20, sq);
+  sq.order = { play: 'hold', x: -20, z: 20, x0: -20, z0: 20 };
+  for (let k = 0; k < 20 * 30; k++) w.step();
+  const wasps = () =>
+    [...Array(w.count).keys()].filter((i) => w.alive[i] && w.owner[i] === w.uid[c]).length;
+  assert.equal(wasps(), 8, 'full hangar');
+  const one = [...Array(w.count).keys()].find((i) => w.alive[i] && w.owner[i] === w.uid[c]);
+  w.hp[one] = -1;
+  w.step();
+  assert.equal(wasps(), 7);
+  for (let k = 0; k < 20 * 4; k++) w.step();
+  assert.equal(wasps(), 8, 'rebuilt');
+  // Shield: a drone inside a warden bubble takes 40% less damage.
+  const ward = w.spawnDrone(0, ROLE_INDEX.warden, 10, 10, sq);
+  const a = w.spawnDrone(0, ROLE_INDEX.assault, 11, 10, sq);
+  w.step();
+  const hp0 = w.hp[a];
+  w.damageDrone(a, 10, 1);
+  assert.ok(Math.abs(hp0 - w.hp[a] - 6) < 1e-9, 'shielded hit');
+  assert.ok(ward >= 0);
+  // Cloak: a hovering scout with camouflage research is invisible to a distant enemy.
+  w.teams[1].tech.add('cloak');
+  w.refreshStats(1);
+  const scout = w.spawnDrone(1, ROLE_INDEX.scout, 0, -40, foe);
+  foe.order = { play: 'hold', x: 0, z: -40, x0: 0, z0: -40 };
+  w.spawnDrone(0, ROLE_INDEX.relay, 0, -30, sq);
+  for (let k = 0; k < 60; k++) w.step();
+  assert.equal(w.seen(0, scout), false, 'cloaked');
+  w.spawnDrone(0, ROLE_INDEX.scout, 0, -36, sq);
+  for (let k = 0; k < 8; k++) w.step();
+  assert.equal(w.seen(0, scout), true, 'revealed up close');
+});
+
 test('lockstep: identical inputs give identical hashes, different inputs diverge', () => {
   const run = (extra) => {
     const s = new Session({ seed: 9, ai: { 1: 'normal' } });

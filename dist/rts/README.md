@@ -39,6 +39,23 @@ npm run test:rts   # sim, determinism, replay, AI and performance checks (Node o
 
 **Reaction scripts** (`G`): ordered `WHEN condition THEN action` rules per squad. Conditions: enemy within, threat ratio, health, jammed fraction, detected by radar, outnumbered. Actions: evade, retreat, attack, hold, regroup, change formation. Rules use hysteresis, minimum active time, priority preemption and cooldowns, so they don't flicker at the threshold. Every rule has a Learn explanation in plain English and in math, generated from the same data the sim runs. Scripts are JSON data, never code.
 
+## Depth: batteries, research and tiers
+
+- **Batteries.** Every drone has one (seconds of hover; tilt, climb and firing cost more). Drones head home on their own when the charge left is just enough to reach the nearest charger, plus a margin, and recharge at Charging Pads (`K`) or the Core. An empty battery drops the drone out of the sky. This limits how far and how long an attack can push, which makes forward Charging Pads valuable targets.
+- **Research Lab** (`L`) runs one project at a time; build more labs to research in parallel. Projects: Tier 2 and Tier 3 airframes, Extended Batteries, Fast Charging, Overclocked Motors, Armor Plating, Optical Camouflage, Wideband Jamming, and a choice between **Flak Bursts** (splash damage) and **Long Flak** (range). Picking one locks out the other.
+- **New airframes:**
+  - **Lancer** (tier 2): a rail siege drone that outranges Kill Zones and has to aim its whole body.
+  - **Warden** (tier 2): projects a shield bubble; allies inside take 40% less damage.
+  - **Carrier** (tier 3): a flying hangar that launches and rebuilds 8 short-lived **Wasps**.
+- **Defender's advantage.** The Core has 5,000 hp and a flak gun, and buildings repair 1%/s after 8 s without being hit.
+- **Reaction scripts** gain a _Battery below_ condition.
+- **Touch controls:**
+  - One finger drags to pan; tap a drone to select its squad; tap the ground or an enemy to order.
+  - Long-press attack-moves; double-tap selects that drone type on screen.
+  - Two fingers pinch to zoom and twist to rotate.
+  - **Select** turns on drag-to-box mode; **⚒** opens Build, Produce and Research.
+  - When flying, two on-screen sticks and a FIRE button appear.
+
 ## Flight model and piloting
 
 Drones fly like real multirotors, and the simulation runs on that. Each drone has a **throttle, yaw, pitch and roll**:
@@ -122,5 +139,4 @@ main.js     input, HUD and the fixed-timestep loop (20 Hz sim, interpolated rend
 3. **Sim in a Web Worker.** The sim is already isolated; moving it off the main thread is mostly plumbing.
 4. Line-of-sight sensors (the lab has them), terrain height in the sim, more maps and 2v2.
 5. Operations (campaign) and Challenges built from Training scenarios; Autonomous Arena brain upload/sharing.
-6. Mobile touch controls. The HUD is responsive, but input is mouse- and keyboard-first.
-7. GPU visual QA on real devices. Cloud screenshots use SwiftShader, which is correct but slow (about 1 fps).
+6. GPU visual QA on real devices. Cloud screenshots use SwiftShader, which is correct but slow (about 1 fps).

@@ -206,6 +206,48 @@ const BUILD = {
   },
 };
 
+Object.assign(BUILD, {
+  charger(g, glow, spin) {
+    add(g, new T.CylinderGeometry(2.0, 2.2, 0.3, 6), M.base, 0, 0.15);
+    for (let k = 0; k < 3; k++) {
+      const a = (k / 3) * Math.PI * 2;
+      add(
+        g,
+        new T.BoxGeometry(0.25, 1.4, 0.25),
+        M.plate,
+        Math.cos(a) * 1.6,
+        0.85,
+        Math.sin(a) * 1.6,
+      );
+      add(g, new T.BoxGeometry(0.3, 0.12, 0.3), glow, Math.cos(a) * 1.6, 1.6, Math.sin(a) * 1.6);
+    }
+    const coil = add(g, new T.TorusGeometry(0.9, 0.12, 6, 16), glowMaterial('#8ff0ff', 3), 0, 0.9);
+    coil.rotation.x = Math.PI / 2;
+    coil.castShadow = false;
+    spin.push({ obj: coil, rate: 2, bob: 0.3 });
+    add(g, new T.TorusGeometry(1.9, 0.05, 4, 6), glow, 0, 0.32).rotation.x = Math.PI / 2;
+  },
+  lab(g, glow, spin) {
+    add(g, new T.BoxGeometry(4, 0.4, 3.4), M.base, 0, 0.2);
+    add(g, new T.CylinderGeometry(1.3, 1.5, 1.6, 8), M.plate, -0.7, 1.2);
+    const dome = add(
+      g,
+      new T.SphereGeometry(1.3, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2),
+      M.light,
+      -0.7,
+      2.0,
+    );
+    dome.scale.y = 0.7;
+    add(g, new T.BoxGeometry(1.3, 1.1, 1.4), M.plate, 1.2, 0.95, 0.3);
+    const orb = add(g, new T.IcosahedronGeometry(0.35, 1), glowMaterial('#b48cff', 4), -0.7, 3.2);
+    orb.castShadow = false;
+    spin.push({ obj: orb, rate: 1.2, bob: 0.2, pulse: true });
+    const ring = add(g, new T.TorusGeometry(0.7, 0.04, 4, 24), glow, -0.7, 3.2);
+    ring.rotation.x = 1.1;
+    spin.push({ obj: ring, rate: 1.6 });
+  },
+});
+
 export function buildStructure(kind, teamColor) {
   const group = new T.Group();
   const glow = glowMaterial(teamColor, 3.2);

@@ -5,7 +5,6 @@
 import { Session } from './sim/lockstep.js';
 import {
   DT,
-  ROLES,
   STRUCTURES,
   FORMATIONS,
   PLAY_INFO,
@@ -15,6 +14,7 @@ import {
   ARMOR,
 } from './sim/defs.js';
 import { ACTIONS } from './sim/rules.js';
+import { TECH, TECH_KEYS, researchBlocker, unlockedTier } from './sim/tech.js';
 import { DIFFICULTY } from './sim/ai.js';
 import { GameView } from './render/view.js';
 import { Minimap } from './ui/minimap.js';
@@ -30,6 +30,8 @@ const BUILD_KEYS = {
   b: 'jammer',
   n: 'turret',
   m: 'repair',
+  k: 'charger',
+  l: 'lab',
 };
 const PLAY_KEYS = { a: 'attack', p: 'pincer', t: 'patrol', o: 'orbit' };
 const TARGETED = new Set(['move', 'attack', 'pincer', 'patrol', 'orbit']);
@@ -56,8 +58,13 @@ function roleTip(r) {
       ${r.sensor}m${w
         ? ` · ${WEAPONS[w.type].label} ${(w.damage / w.cooldown).toFixed(0)} dps, ${w.range}m · best vs ${best[1]}`
         : ''}<br />${r.cost * r.pack} energy · ${r.bw * r.pack} bandwidth · ${r.build}s · armor
-      ${ARMOR[r.armor]}
+      ${ARMOR[r.armor]} · battery ${Math.round(r.battery)}s${r.tier > 1 ? ` · tier ${r.tier}` : ''}
     </div>`;
+}
+function techTip(key, why) {
+  const t = TECH[key];
+  return html`<b>${t.label}</b>${esc(t.blurb)}
+    <div class="stat">${t.cost} energy · ${t.time}s${why ? ` · ${esc(why)}` : ''}</div>`;
 }
 function structTip(kind) {
   const d = STRUCTURES[kind];
@@ -210,10 +217,7 @@ class Game {
       if (next) {
         this.pilot.transfer(next);
         const i = this.world.uidMap.get(next);
-        this.alert(
-          `Drone lost — taking over a ${ROLES[this.world.role[i]].label.toLowerCase()}`,
-          'info',
-        );
+        this.alert(`Drone lost — taking over a ${this.world.rs(i).label.toLowerCase()}`, 'info');
       } else {
         this.pilot.stop();
         this.alert('Drone lost — no drones left to fly');
@@ -221,6 +225,14 @@ class Game {
     } else if (e.k === 'crash' && e.team === this.player && this.pilot.active) {
       const i = this.world.uidMap.get(this.pilot.uid);
       if (i === e.i) this.alert(`Impact! −${Math.round(e.damage)} hp`);
+    } else if (e.k === 'researched' && mine) {
+      this.alert(`Research complete: ${TECH[e.tech].label}`, 'good');
+      this.buildProduceButtons();
+    } else if (e.k === 'depleted' && mine) {
+      if (this.world.tick - (this.lastDepleted || -1e9) > 200) {
+        this.lastDepleted = this.world.tick;
+        this.alert('A drone ran out of battery — build Charging Pads (K) near the front');
+      }
     } else if (e.k === 'victory') this.finish(e.team);
   }
 
@@ -264,7 +276,7 @@ class Game {
       bd = 1e9;
     for (const u of this.selectedUids()) {
       const i = w.uidMap.get(u);
-      const d = Math.hypot(w.px[i] - c.x, w.pz[i] - c.z) - (ROLES[w.role[i]].weapon ? 5 : 0);
+      const d = Math.hypot(w.px[i] - c.x, w.pz[i] - c.z) - (w.rs(i).weapon ? 5 : 0);
       if (d < bd) {
         bd = d;
         best = u;
@@ -276,7 +288,7 @@ class Game {
     this.pilot.start(best);
     const i = w.uidMap.get(best);
     this.alert(
-      `Flying a ${ROLES[w.role[i]].label.toLowerCase()} — W/S throttle · A/D yaw · I/K pitch · J/L roll`,
+      `Flying a ${w.rs(i).label.toLowerCase()} — ${this.touch ? 'left stick throttle/yaw · right stick pitch/roll' : 'W/S throttle · A/D yaw · I/K pitch · J/L roll'}`,
       'info',
     );
   }
@@ -431,6 +443,7 @@ class Game {
       'pointerdown',
       (e) => {
         canvas.setPointerCapture(e.pointerId);
+        if (e.pointerType === 'touch') return this.touchDown(e);
         if (this.pilot.active) {
           if (e.button === 0) this.mouseFire = true;
           return;
@@ -442,6 +455,7 @@ class Game {
     addEventListener(
       'pointermove',
       (e) => {
+        if (e.pointerType === 'touch') return this.touchMove(e);
         this.mouse = { x: e.clientX, y: e.clientY, inside: true };
         if (this.placing) this.updatePlacement();
         if (!down) return;
@@ -477,6 +491,7 @@ class Game {
     addEventListener(
       'pointerup',
       (e) => {
+        if (e.pointerType === 'touch') return this.touchUp(e);
         if (e.button === 0) this.mouseFire = false;
         if (!down) return;
         const d = down;
@@ -519,6 +534,28 @@ class Game {
       },
       opt,
     );
+    addEventListener(
+      'pointercancel',
+      (e) => e.pointerType === 'touch' && this.touchUp(e, true),
+      opt,
+    );
+    $('touch-box').onclick = () => {
+      this.boxMode = !this.boxMode;
+      $('touch-box').classList.toggle('on', this.boxMode);
+    };
+    $('touch-all').onclick = () => {
+      const w = this.world;
+      this.view.selected = new Set();
+      for (let i = 0; i < w.count; i++)
+        if (w.alive[i] && w.team[i] === this.player) this.view.selected.add(w.uid[i]);
+      this.selStruct = null;
+    };
+    $('touch-clear').onclick = () => {
+      this.view.selected = new Set();
+      this.selStruct = null;
+      this.setTargeting(null);
+      this.setPlacing(null);
+    };
     canvas.addEventListener(
       'wheel',
       (e) => {
@@ -570,6 +607,153 @@ class Game {
     };
   }
 
+  // ---------- touch ----------
+  // One finger: drag pans (or box-selects in Select mode), tap selects or orders, long-press
+  // attack-moves. Two fingers: pinch to zoom, twist to rotate, drag to pan.
+
+  enableTouch() {
+    if (this.touch) return;
+    this.touch = true;
+    document.body.classList.add('touch');
+  }
+
+  touchDown(e) {
+    this.enableTouch();
+    if (!this.touches) this.touches = new Map();
+    this.touches.set(e.pointerId, {
+      x: e.clientX,
+      y: e.clientY,
+      sx: e.clientX,
+      sy: e.clientY,
+      t: performance.now(),
+    });
+    clearTimeout(this.longPress);
+    if (this.touches.size === 1) {
+      this.gesture = 'tap';
+      this.longPress = setTimeout(() => {
+        const cur = this.touches.get(e.pointerId);
+        if (this.gesture !== 'tap' || !cur || Math.hypot(cur.x - cur.sx, cur.y - cur.sy) > 10)
+          return;
+        this.gesture = 'done';
+        const p = this.view.groundAt(e.clientX, e.clientY);
+        if (p && this.selectedUids().length && !this.spectator) this.order('attack', p.x, p.z);
+      }, 520);
+    } else if (this.touches.size === 2) {
+      this.gesture = 'pinch';
+      $('box').hidden = true;
+      this.pinch = this.pinchState();
+    }
+  }
+
+  pinchState() {
+    const [a, b] = [...this.touches.values()];
+    return {
+      d: Math.hypot(a.x - b.x, a.y - b.y) || 1,
+      a: Math.atan2(b.y - a.y, b.x - a.x),
+      mx: (a.x + b.x) / 2,
+      my: (a.y + b.y) / 2,
+    };
+  }
+
+  touchMove(e) {
+    const t = this.touches?.get(e.pointerId);
+    if (!t) return;
+    const dx = e.clientX - t.x,
+      dy = e.clientY - t.y;
+    t.x = e.clientX;
+    t.y = e.clientY;
+    const c = this.view.cam;
+    if (this.gesture === 'pinch' && this.touches.size >= 2) {
+      const now = this.pinchState(),
+        before = this.pinch;
+      c.tdist *= before.d / now.d;
+      let da = now.a - before.a;
+      if (da > Math.PI) da -= Math.PI * 2;
+      if (da < -Math.PI) da += Math.PI * 2;
+      c.tyaw -= da;
+      const s = c.dist * 0.0016;
+      this.view.pan(-(now.mx - before.mx) * s, (now.my - before.my) * s);
+      this.pinch = now;
+      return;
+    }
+    if (this.touches.size !== 1) return;
+    if (this.gesture === 'tap' && Math.hypot(e.clientX - t.sx, e.clientY - t.sy) > 10)
+      this.gesture = this.boxMode && !this.spectator ? 'box' : 'pan';
+    if (this.gesture === 'pan') {
+      const s = c.dist * 0.0016;
+      this.view.pan(-dx * s, dy * s);
+      this.director = false;
+      $('btn-director').classList.remove('on');
+    } else if (this.gesture === 'box') {
+      const b = $('box');
+      b.hidden = false;
+      Object.assign(b.style, {
+        left: Math.min(t.sx, e.clientX) + 'px',
+        top: Math.min(t.sy, e.clientY) + 'px',
+        width: Math.abs(e.clientX - t.sx) + 'px',
+        height: Math.abs(e.clientY - t.sy) + 'px',
+      });
+    }
+  }
+
+  touchUp(e, cancelled = false) {
+    const t = this.touches?.get(e.pointerId);
+    if (!t) return;
+    this.touches.delete(e.pointerId);
+    clearTimeout(this.longPress);
+    if (this.touches.size) {
+      if (this.gesture === 'pinch' && this.touches.size === 1) this.gesture = 'done';
+      return;
+    }
+    $('box').hidden = true;
+    const g = this.gesture;
+    this.gesture = null;
+    if (cancelled || this.spectator) return;
+    if (g === 'box') return this.boxSelect(t.sx, t.sy, e.clientX, e.clientY, false);
+    if (g !== 'tap') return;
+    this.tap(e.clientX, e.clientY);
+  }
+
+  tap(x, y) {
+    const p = this.view.groundAt(x, y);
+    if (this.placing) {
+      if (p) this.updatePlacementAt(x, y);
+      if (p && this.placeCheck?.ok) {
+        this.issue({
+          type: 'build',
+          kind: this.placing,
+          x: this.placeCheck.x,
+          z: this.placeCheck.z,
+        });
+        this.view.ping(this.placeCheck.x, this.placeCheck.z, '#7dffb0');
+        this.setPlacing(null);
+      }
+      return;
+    }
+    if (this.targetPlay) {
+      if (p) this.order(this.targetPlay, p.x, p.z);
+      this.setTargeting(null);
+      return;
+    }
+    const w = this.world;
+    const i = this.view.droneAt(x, y, 26);
+    const now = performance.now();
+    if (i >= 0 && w.team[i] === this.player) {
+      if (this.lastTap?.i === i && now - this.lastTap.t < 350) this.selectRoleOnScreen(i);
+      else this.clickSelect(i, p, false);
+      this.lastTap = { i, t: now };
+      return;
+    }
+    this.lastTap = null;
+    if (this.selectedUids().length) return this.contextOrder(x, y);
+    this.clickSelect(-1, p, false);
+  }
+
+  updatePlacementAt(x, y) {
+    this.mouse = { x, y, inside: false };
+    this.updatePlacement();
+  }
+
   onKey(e) {
     if (e.target.closest?.('input, textarea, select')) return;
     const k = e.key.toLowerCase();
@@ -590,8 +774,8 @@ class Game {
     if (digit) {
       e.preventDefault();
       if (e.shiftKey && !this.spectator) {
-        const role = Number(digit) - 1;
-        if (ROLES[role]) this.produce(role, 1);
+        const role = this.producible()[Number(digit) - 1];
+        if (role !== undefined) this.produce(role, 1);
       } else if (e.ctrlKey || e.altKey || e.metaKey) {
         this.groups[digit] = this.selectedUids();
         this.alert(`Group ${digit} assigned (${this.groups[digit].length} drones)`, 'info');
@@ -754,31 +938,80 @@ class Game {
 
   // ---------- HUD ----------
 
+  // Roles this player can ever produce (base units + own designs), in button order.
+  producible() {
+    const w = this.world;
+    return w.roles
+      .map((r, i) => [r, i])
+      .filter(([r]) => !r.spawnOnly && (!r.design || r.owner === this.player))
+      .map(([, i]) => i);
+  }
+
   buildCommandPanel() {
-    const bg = $('build-grid'),
-      pg = $('produce-grid');
-    bg.textContent = pg.textContent = '';
+    const bg = $('build-grid');
+    bg.textContent = '';
     const keyFor = Object.fromEntries(Object.entries(BUILD_KEYS).map(([k, v]) => [v, k]));
     this.buildButtons = Object.keys(STRUCTURES)
-      .filter((k) => k !== 'core')
+      .filter((k) => k !== 'core' && !STRUCTURES[k].neutral)
       .map((kind) => {
         const b = document.createElement('button');
         b.className = 'cmd';
         b.dataset.tip = structTip(kind);
-        b.innerHTML = `<span>${STRUCTURES[kind].label.replace(' Field', '').replace(' Tower', '')}<kbd>${keyFor[kind].toUpperCase()}</kbd></span><span class="cost">${STRUCTURES[kind].cost}</span>`;
-        b.onclick = () => this.setPlacing(kind);
+        const key = keyFor[kind] ? `<kbd>${keyFor[kind].toUpperCase()}</kbd>` : '';
+        b.innerHTML = `<span>${STRUCTURES[kind].label.replace(' Field', '').replace(' Tower', '')}${key}</span><span class="cost">${STRUCTURES[kind].cost}</span>`;
+        b.onclick = () => {
+          this.setPlacing(kind);
+          document.body.classList.remove('cmd-open');
+        };
         bg.append(b);
         return { b, kind };
       });
-    this.produceButtons = ROLES.map((r, role) => {
+    this.buildProduceButtons();
+    const rg = $('research-grid');
+    rg.textContent = '';
+    this.researchButtons = TECH_KEYS.map((key) => {
+      const b = document.createElement('button');
+      b.className = 'cmd';
+      b.onclick = () => this.issue({ type: 'research', tech: key });
+      rg.append(b);
+      return { b, key };
+    });
+    for (const tab of document.querySelectorAll('#commands .tab'))
+      tab.onclick = () => this.showTab(tab.dataset.tab);
+    $('cmd-toggle').onclick = () => document.body.classList.toggle('cmd-open');
+    this.showTab(this.tab || 'build');
+  }
+
+  buildProduceButtons() {
+    const pg = $('produce-grid');
+    pg.textContent = '';
+    const stats = this.world.roleStats[this.player];
+    this.produceButtons = this.producible().map((role, k) => {
+      const r = stats[role];
       const b = document.createElement('button');
       b.className = 'cmd';
       b.dataset.tip = roleTip(r);
-      b.innerHTML = `<span>${r.label}<kbd>⇧${role + 1}</kbd></span><span class="cost">${r.cost * r.pack} ×${r.pack}</span>`;
+      const key = k < 9 ? `<kbd>⇧${k + 1}</kbd>` : '';
+      b.innerHTML = `<span>${esc(r.label)}${key}</span><span class="cost">${r.cost * r.pack} ×${r.pack}</span>`;
       b.onclick = (e) => this.produce(role, e.shiftKey ? 5 : 1, this.producerTarget());
       pg.append(b);
       return { b, role };
     });
+    this.produceKey = this.world.roles.length;
+  }
+
+  showTab(name) {
+    this.tab = name;
+    for (const t of document.querySelectorAll('#commands .tab'))
+      t.classList.toggle('on', t.dataset.tab === name);
+    for (const p of document.querySelectorAll('#commands [data-pane]'))
+      p.hidden = p.dataset.pane !== name;
+    const hints = {
+      build: 'Structures go inside your power grid (near the core or a Relay Tower).',
+      produce: 'Shift-click queues five. Select a Core or Fabricator to queue there.',
+      research: 'Needs a Research Lab. One project per lab at a time.',
+    };
+    $('pane-hint').textContent = hints[name];
   }
 
   producerTarget() {
@@ -804,10 +1037,38 @@ class Game {
         b.classList.toggle('on', this.placing === kind);
       }
       const free = t.bwCap - t.bwUsed;
+      if (this.produceKey !== w.roles.length) this.buildProduceButtons();
+      const tier = unlockedTier(t.tech);
       for (const { b, role } of this.produceButtons) {
-        const r = ROLES[role];
-        b.disabled = t.energy < r.cost * r.pack || free < r.bw * r.pack;
+        const r = w.roleStats[this.player][role];
+        const locked = (r.tier || 1) > tier;
+        b.classList.toggle('locked', locked);
+        b.disabled = locked || t.energy < r.cost * r.pack || free < r.bw * r.pack;
+        b.dataset.tip =
+          roleTip(r) +
+          (locked ? `<div class="stat">Research Tier ${r.tier} Airframes to unlock</div>` : '');
       }
+      const progress = new Map();
+      for (const s of w.structures)
+        if (s.team === this.player && s.queue[0]?.tech)
+          progress.set(s.queue[0].tech, 1 - s.queue[0].left / TECH[s.queue[0].tech].time);
+      for (const { b, key } of this.researchButtons) {
+        const why = researchBlocker(t, key);
+        const done = t.tech.has(key);
+        const p = progress.get(key);
+        const state = done ? 'done' : p !== undefined ? `p${Math.round(p * 20)}` : why || 'ok';
+        if (b.dataset.state === state) continue;
+        b.dataset.state = state;
+        b.className = 'cmd' + (done ? ' done' : why && p === undefined ? ' locked' : '');
+        b.disabled = !!why;
+        b.dataset.tip = techTip(key, done ? 'Researched' : p !== undefined ? 'In progress' : why);
+        b.innerHTML = `<span>${TECH[key].label}</span>${done ? '<span class="cost">✓ done</span>' : p !== undefined ? `<span class="prog"><i style="width:${Math.round(p * 100)}%"></i></span>` : `<span class="cost${why === 'Not enough energy' ? ' bad' : ''}">${TECH[key].cost} · ${TECH[key].time}s</span>`}`;
+      }
+      const hasLab = w.structures.some(
+        (s) => s.team === this.player && s.kind === 'lab' && s.progress >= 1,
+      );
+      if (this.tab === 'research' && !hasLab)
+        $('pane-hint').textContent = 'Build a Research Lab (L) to start research.';
     }
     this.renderSelection();
     if (!$('script').hidden && this.script.squad) {
@@ -865,14 +1126,16 @@ class Game {
 
   renderSquadPanel(el, squads) {
     const w = this.world;
-    const counts = new Array(ROLES.length).fill(0);
+    const counts = new Array(w.roles.length).fill(0);
+    let bat = 0;
     let hp = 0,
       max = 0;
     for (const u of this.selectedUids()) {
       const i = w.uidMap.get(u);
       counts[w.role[i]]++;
       hp += w.hp[i];
-      max += ROLES[w.role[i]].hp;
+      max += w.rs(i).hp;
+      bat += w.bat[i];
     }
     const sq = squads[0];
     const names =
@@ -886,7 +1149,7 @@ class Game {
     const chips = counts
       .map((c, r) =>
         c
-          ? `<span class="chip" data-tip='${roleTip(ROLES[r]).replace(/'/g, '&#39;')}'><b>${c}</b> ${ROLES[r].label}</span>`
+          ? `<span class="chip" data-tip='${roleTip(w.roleStats[this.player][r]).replace(/'/g, '&#39;')}'><b>${c}</b> ${esc(w.roles[r].label)}</span>`
           : '',
       )
       .join('');
@@ -911,7 +1174,7 @@ class Game {
     el.innerHTML = `
       <div class="sel-head">
         <h3>${esc(names)}</h3>
-        <span class="meta">${this.selectedUids().length} drones · ${Math.round((hp / max) * 100)}% hp${squads.length > 1 ? ' · orders will merge them into one squad' : ''}</span>
+        <span class="meta">${this.selectedUids().length} drones · ${Math.round((hp / max) * 100)}% hp · ${Math.round((bat / this.selectedUids().length) * 100)}% battery${squads.length > 1 ? ' · orders will merge them into one squad' : ''}</span>
         ${rule ? `<span class="chip firing">⚡ Rule ${sq.reaction.index + 1}: ${ACTIONS[rule.then].label}</span>` : ''}
         <span class="spacer"></span>
         <button class="btn" id="btn-fly" data-tip="<b>Fly it yourself</b>Take the sticks of one drone: throttle, yaw, pitch and roll. Its squad keeps fighting on autopilot.">Fly ✈ <kbd>Enter</kbd></button>
@@ -939,9 +1202,13 @@ class Game {
     const own = s.team === this.player;
     const queue = s.queue
       .map((q, k) => {
-        const r = ROLES[q.role];
+        if (q.tech) {
+          const pct = Math.round((1 - q.left / TECH[q.tech].time) * 100);
+          return `<span class="q">${TECH[q.tech].label}<i style="width:${pct}%"></i></span>`;
+        }
+        const r = this.world.roleStats[s.team][q.role];
         const pct = k === 0 ? Math.round((1 - q.left / r.build) * 100) : 0;
-        return `<span class="q">${r.label} ×${r.pack}<i style="width:${pct}%"></i></span>`;
+        return `<span class="q">${esc(r.label)} ×${r.pack}<i style="width:${pct}%"></i></span>`;
       })
       .join('');
     el.innerHTML = `
@@ -950,6 +1217,7 @@ class Game {
         <span class="meta">${Math.ceil(s.hp)} / ${s.maxHp} hp${s.progress < 1 ? ` · building ${Math.round(s.progress * 100)}%` : ''}</span>
       </div>
       <p class="empty">${esc(def.blurb)}</p>
+      ${own && def.research ? `<div class="btn-row"><span class="label">Project</span>${queue || '<span class="empty">idle — pick a project in the Research tab</span>'}${s.queue.length ? '<button class="btn" id="btn-cancel">Cancel</button>' : ''}</div>` : ''}
       ${own && def.produces ? `<div class="btn-row"><span class="label">Queue</span>${queue || '<span class="empty">empty — use Produce (bottom right) to build here</span>'}${s.queue.length ? '<button class="btn" id="btn-cancel">Cancel last</button>' : ''}</div><p class="empty">Right-click the ground to set the rally point for new drones.</p>` : ''}`;
     el.querySelector('#btn-cancel')?.addEventListener('click', () =>
       this.issue({ type: 'cancel', structure: s.id }),

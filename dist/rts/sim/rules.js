@@ -66,6 +66,18 @@ export const CONDITIONS = {
     say: () => 'an enemy radar field spots the squad',
     math: () => 'any member is inside an enemy radar radius',
   },
+  battery: {
+    label: 'Battery below',
+    unit: '%',
+    min: 5,
+    max: 95,
+    default: 40,
+    enter: (s, v) => s.battery * 100 < v,
+    exit: (s, v) => s.battery * 100 > Math.min(98, v + 30),
+    say: (v) => `the squad's average battery drops under ${v}%`,
+    math: (v) =>
+      `mean(charge) < ${v / 100}; drones burn 1 + 0.8·(1/cos(tilt) − 1) hover-seconds per second`,
+  },
   outnumbered: {
     label: 'Outnumbered by',
     unit: '×',

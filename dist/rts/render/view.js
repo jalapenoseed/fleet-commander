@@ -3,8 +3,8 @@
 
 import * as T from '../../three.js?v=0.9.0';
 import { ScenePostFX } from '../../scene-postfx.js?v=0.9.0';
-import { ROLES, STRUCTURES, TEAM_COLORS } from '../sim/defs.js';
-import { VIS_CELL, F_JAMMED, F_PILOT } from '../sim/world.js';
+import { STRUCTURES, TEAM_COLORS } from '../sim/defs.js';
+import { VIS_CELL, F_JAMMED, F_PILOT, F_RTB } from '../sim/world.js';
 import { buildAirframe, rotorMaterial, ROLE_SCALE } from './drone-models.js';
 import {
   makeHeight,
@@ -128,37 +128,39 @@ export class GameView {
   }
 
   buildDrones() {
-    this.droneMeshes = ROLES.map((role) => {
-      const geo = buildAirframe(role.key);
-      const cap = this.world.cap;
-      const hull = new T.InstancedMesh(
-        geo.hull,
-        new T.MeshStandardMaterial({
-          vertexColors: true,
-          roughness: 0.5,
-          metalness: 0.45,
-          flatShading: true,
-        }),
-        cap,
-      );
-      const glow = new T.InstancedMesh(
-        geo.glow,
-        new T.MeshBasicMaterial({ color: '#ffffff' }),
-        cap,
-      );
-      const rotor = new T.InstancedMesh(geo.rotor, rotorMaterial(), cap);
-      for (const m of [hull, glow, rotor]) {
-        m.instanceMatrix.setUsage(T.DynamicDrawUsage);
-        m.count = 0;
-        m.frustumCulled = false;
-        this.scene.add(m);
-      }
-      hull.castShadow = true;
-      hull.setColorAt(0, tmpC.set('#fff'));
-      glow.setColorAt(0, tmpC);
-      rotor.setColorAt(0, tmpC);
-      return { hull, glow, rotor };
-    });
+    this.droneMeshes = [];
+  }
+
+  // Instanced meshes for one airframe, created the first time a drone of that role appears.
+  meshesFor(role) {
+    if (this.droneMeshes[role]) return this.droneMeshes[role];
+    const def = this.world.roles[role];
+    const geo = buildAirframe(def.design ? def.design : def.key);
+    const cap = this.world.cap;
+    const hull = new T.InstancedMesh(
+      geo.hull,
+      new T.MeshStandardMaterial({
+        vertexColors: true,
+        roughness: 0.5,
+        metalness: 0.45,
+        flatShading: true,
+      }),
+      cap,
+    );
+    const glow = new T.InstancedMesh(geo.glow, new T.MeshBasicMaterial({ color: '#ffffff' }), cap);
+    const rotor = new T.InstancedMesh(geo.rotor, rotorMaterial(), cap);
+    for (const m of [hull, glow, rotor]) {
+      m.instanceMatrix.setUsage(T.DynamicDrawUsage);
+      m.count = 0;
+      m.frustumCulled = false;
+      this.scene.add(m);
+    }
+    hull.castShadow = true;
+    hull.setColorAt(0, tmpC.set('#fff'));
+    glow.setColorAt(0, tmpC);
+    rotor.setColorAt(0, tmpC);
+    this.droneMeshes[role] = { hull, glow, rotor, scale: geo.scale };
+    return this.droneMeshes[role];
   }
 
   buildOverlays() {
@@ -224,7 +226,8 @@ export class GameView {
         fragmentShader: `varying vec2 vUv; varying vec4 vInfo;
           void main(){ float hp = vInfo.x;
             vec3 c = hp > 0.6 ? vec3(0.35, 1.0, 0.55) : hp > 0.3 ? vec3(1.0, 0.82, 0.3) : vec3(1.0, 0.3, 0.25);
-            if (vInfo.z > 0.5) c = vec3(0.4, 0.85, 1.0);
+            if (vInfo.z > 1.5) c = hp > 0.22 ? vec3(1.0, 0.85, 0.35) : vec3(1.0, 0.35, 0.2);
+            else if (vInfo.z > 0.5) c = vec3(0.4, 0.85, 1.0);
             vec3 col = vUv.x < hp ? c : vec3(0.05, 0.06, 0.08);
             float edge = step(0.06, vUv.x) * step(vUv.x, 0.94) * step(0.2, vUv.y) * step(vUv.y, 0.8);
             gl_FragColor = vec4(mix(vec3(0.0), col, max(edge, 0.0)), 0.85 * vInfo.w); }`,
@@ -366,7 +369,7 @@ export class GameView {
     const w = this.world,
       r = this.r;
     this.updateCamera(dt, alpha);
-    const counts = new Array(ROLES.length).fill(0);
+    const counts = new Array(w.roles.length).fill(0);
     let rings = 0,
       bars = 0,
       pools = 0;
@@ -376,9 +379,9 @@ export class GameView {
       const t = w.team[i];
       const x = w.ox[i] + (w.px[i] - w.ox[i]) * alpha,
         z = w.oz[i] + (w.pz[i] - w.oz[i]) * alpha;
-      if (t !== this.playerTeam && this.fogOn && !w.visible(this.playerTeam, x, z)) continue;
+      if (t !== this.playerTeam && this.fogOn && !w.seen(this.playerTeam, i)) continue;
       const role = w.role[i],
-        def = ROLES[role];
+        def = w.rs(i);
       if (r.uid[i] !== w.uid[i]) {
         r.uid[i] = w.uid[i];
         r.flash[i] = 0;
@@ -397,7 +400,7 @@ export class GameView {
       tmpS.setScalar(1);
       tmpM.compose(tmpP, tmpQ, tmpS);
       const k = counts[role]++;
-      const dm = this.droneMeshes[role];
+      const dm = this.meshesFor(role);
       dm.rotor.setMatrixAt(k, tmpM);
       dm.hull.setMatrixAt(k, tmpM);
       dm.glow.setMatrixAt(k, tmpM);
@@ -422,8 +425,8 @@ export class GameView {
       this.pools.setColorAt(pools++, tmpC);
       tmpP.set(x, y, z);
       const sel = t === this.playerTeam && this.selected.has(w.uid[i]) && !(w.flags[i] & F_PILOT);
-      if (sel) {
-        tmpS.setScalar(ROLE_SCALE[def.key] * 0.9);
+      if (sel && !this.follow) {
+        tmpS.setScalar((ROLE_SCALE[def.key] || 1.3) * 0.9);
         tmpM.compose(tmpP.set(x, y - 0.45, z), tmpQ.identity(), tmpS);
         this.rings.setMatrixAt(rings++, tmpM);
       }
@@ -432,10 +435,17 @@ export class GameView {
         this.barInfo.setXYZW(bars, hpRatio, 1.2, 0, sel ? 1 : 0.7);
         bars++;
       }
+      // Battery bar under the health bar for selected drones (and any drone heading to charge).
+      if (t === this.playerTeam && (sel || w.flags[i] & F_RTB)) {
+        this.barPos.setXYZ(bars, x, y + 0.92, z);
+        this.barInfo.setXYZW(bars, w.bat[i], 1.2, 2, sel ? 1 : 0.8);
+        bars++;
+      }
     }
     this.droneMeshes.forEach((dm, role) => {
+      if (!dm) return;
       for (const m of [dm.hull, dm.glow, dm.rotor]) {
-        m.count = counts[role];
+        m.count = counts[role] || 0;
         m.instanceMatrix.needsUpdate = true;
         if (m.instanceColor) m.instanceColor.needsUpdate = true;
       }
@@ -521,12 +531,16 @@ export class GameView {
       if (def.jam) push(s.x, s.z, def.jam, FIELD_KIND.jammer, '#c58cff', k);
       if (def.zone) push(s.x, s.z, def.zone.radius, FIELD_KIND.turret, '#ff4a3a', k);
       if (def.heal) push(s.x, s.z, def.heal.radius, FIELD_KIND.repair, '#4dffa6', k);
+      if (def.charge && s.kind !== 'core')
+        push(s.x, s.z, def.charge.radius, FIELD_KIND.repair, '#8ff0ff', 0.7 * k);
     }
     // Mobile jammer auras.
     for (let i = 0; i < w.count && n < MAX_FIELDS; i++) {
-      if (!w.alive[i] || !ROLES[w.role[i]].aura?.jam) continue;
+      const a = w.alive[i] && w.rs(i).aura;
+      if (!a || !(a.jam || a.shield)) continue;
       if (w.team[i] !== this.playerTeam && !this.seesPoint(w.px[i], w.pz[i])) continue;
-      push(w.px[i], w.pz[i], ROLES[w.role[i]].aura.jam, FIELD_KIND.jammer, '#c58cff', 0.35);
+      if (a.jam) push(w.px[i], w.pz[i], a.jam, FIELD_KIND.jammer, '#c58cff', 0.35);
+      else push(w.px[i], w.pz[i], a.shield, FIELD_KIND.repair, '#7fb4ff', 0.45);
     }
     u.uFieldCount.value = n;
   }
@@ -738,7 +752,7 @@ export class GameView {
       bd = radius * radius;
     for (let i = 0; i < w.count; i++) {
       if (!w.alive[i]) continue;
-      if (w.team[i] !== this.playerTeam && !this.seesPoint(w.px[i], w.pz[i])) continue;
+      if (w.team[i] !== this.playerTeam && this.fogOn && !w.seen(this.playerTeam, i)) continue;
       const p = this.project(w.px[i], this.droneY(i, w.px[i], w.pz[i]), w.pz[i]);
       const d = (p.x - sx) ** 2 + (p.y - sy) ** 2;
       if (!p.behind && d < bd) {

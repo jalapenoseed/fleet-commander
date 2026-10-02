@@ -188,6 +188,88 @@ const BUILDERS = {
   },
 };
 
+Object.assign(BUILDERS, {
+  // Siege drone: long rail barrel slung under a narrow armored spine.
+  lancer(parts, glow, rotors) {
+    parts.push(
+      part(new T.BoxGeometry(0.34, 0.26, 1.2), C.hull, {}),
+      part(new T.BoxGeometry(0.22, 0.12, 0.9), C.hullLight, { y: 0.18, z: -0.1 }),
+      part(new T.CylinderGeometry(0.07, 0.09, 2.1, 6), C.metal, {
+        y: -0.22,
+        z: 0.75,
+        rx: Math.PI / 2,
+      }),
+      part(new T.BoxGeometry(0.2, 0.2, 0.35), C.dark, { y: -0.22, z: -0.2 }),
+    );
+    glow.push(
+      part(new T.BoxGeometry(0.04, 0.04, 1.6), 0xffffff, { y: -0.12, z: 0.75, x: 0.08 }),
+      part(new T.BoxGeometry(0.04, 0.04, 1.6), 0xffffff, { y: -0.12, z: 0.75, x: -0.08 }),
+      part(new T.SphereGeometry(0.06, 6, 4), 0xffffff, { y: -0.22, z: 1.82 }),
+    );
+    rotorRig(
+      parts,
+      glow,
+      rotors,
+      [
+        [0.62, 0.45],
+        [-0.62, 0.45],
+        [0.62, -0.5],
+        [-0.62, -0.5],
+      ],
+      { r: 0.34, arm: 0.07 },
+    );
+  },
+  // Shield projector: a dome with an emitter ring.
+  warden(parts, glow, rotors) {
+    parts.push(
+      part(new T.SphereGeometry(0.42, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), C.hullLight, {
+        y: -0.05,
+      }),
+      part(new T.CylinderGeometry(0.45, 0.35, 0.18, 10), C.hull, { y: -0.12 }),
+      part(new T.CylinderGeometry(0.05, 0.05, 0.4, 5), C.metal, { y: 0.45 }),
+    );
+    glow.push(
+      part(new T.TorusGeometry(0.62, 0.035, 4, 24), 0xffffff, { y: 0.0, rx: Math.PI / 2 }),
+      part(new T.IcosahedronGeometry(0.1, 0), 0xffffff, { y: 0.7 }),
+    );
+    rotorRig(parts, glow, rotors, quad(0.55), { r: 0.3 });
+  },
+  // Flying hangar: wide deck, launch bays, eight rotors.
+  carrier(parts, glow, rotors) {
+    parts.push(
+      part(new T.BoxGeometry(1.5, 0.35, 2.4), C.hull, {}),
+      part(new T.BoxGeometry(1.1, 0.18, 1.9), C.plate, { y: 0.26 }),
+      part(new T.BoxGeometry(0.4, 0.45, 0.5), C.hullLight, { y: 0.5, z: -0.7, x: 0.35 }),
+      part(new T.BoxGeometry(1.6, 0.12, 0.3), C.dark, { y: -0.2, z: 0.9 }),
+      part(new T.BoxGeometry(1.6, 0.12, 0.3), C.dark, { y: -0.2, z: -0.9 }),
+    );
+    for (const z of [-0.6, 0, 0.6])
+      glow.push(part(new T.BoxGeometry(0.9, 0.03, 0.08), 0xffffff, { y: 0.36, z }));
+    glow.push(part(new T.BoxGeometry(0.1, 0.1, 0.1), 0xffffff, { y: 0.78, z: -0.7, x: 0.35 }));
+    const ring = [
+      [1.25, 1.1],
+      [-1.25, 1.1],
+      [1.25, -1.1],
+      [-1.25, -1.1],
+      [1.35, 0.35],
+      [-1.35, 0.35],
+      [1.35, -0.35],
+      [-1.35, -0.35],
+    ];
+    rotorRig(parts, glow, rotors, ring, { r: 0.4, arm: 0.1, pod: 0.11 });
+  },
+  // Micro-drone: tiny tri-rotor.
+  wasp(parts, glow, rotors) {
+    parts.push(part(new T.OctahedronGeometry(0.16, 0), C.hullLight, { sz: 1.6, sy: 0.6 }));
+    glow.push(part(new T.SphereGeometry(0.05, 5, 3), 0xffffff, { z: 0.24 }));
+    const tri = [0, 1, 2].map((k) => {
+      const a = (k / 3) * Math.PI * 2 + Math.PI / 2;
+      return [Math.cos(a) * 0.28, Math.sin(a) * 0.28];
+    });
+    rotorRig(parts, glow, rotors, tri, { r: 0.16, arm: 0.03, pod: 0.05 });
+  },
+});
+
 // Overall scale per role: drones are exaggerated so they read at RTS camera distances.
 export const ROLE_SCALE = {
   scout: 1.1,
@@ -196,6 +278,10 @@ export const ROLE_SCALE = {
   jammer: 1.3,
   medic: 1.25,
   relay: 1.3,
+  lancer: 1.4,
+  warden: 1.35,
+  carrier: 1.9,
+  wasp: 1.0,
 };
 
 export function buildAirframe(role) {

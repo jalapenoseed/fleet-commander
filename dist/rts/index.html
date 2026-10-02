@@ -139,11 +139,34 @@
       <section id="selection" class="panel"></section>
 
       <section id="commands" class="panel">
-        <div class="cmd-title">Build</div>
-        <div class="grid" id="build-grid"></div>
-        <div class="cmd-title">Produce <small>(shift = ×5)</small></div>
-        <div class="grid" id="produce-grid"></div>
+        <div class="tabs" role="tablist">
+          <button class="tab on" data-tab="build" role="tab">Build</button>
+          <button class="tab" data-tab="produce" role="tab">Produce</button>
+          <button class="tab" data-tab="research" role="tab">Research</button>
+        </div>
+        <div class="grid" id="build-grid" data-pane="build"></div>
+        <div class="grid" id="produce-grid" data-pane="produce" hidden></div>
+        <div class="grid research" id="research-grid" data-pane="research" hidden></div>
+        <p class="pane-hint" id="pane-hint"></p>
       </section>
+      <button id="cmd-toggle" class="fab" title="Build, produce and research">⚒</button>
+      <div id="touch-bar">
+        <button class="fab small" id="touch-box" title="Drag to box-select">▢ Select</button>
+        <button class="fab small" id="touch-all" title="Select all your drones">All</button>
+        <button class="fab small" id="touch-clear" title="Clear selection">✕</button>
+      </div>
+
+      <div id="pilot-touch">
+        <div class="stick-zone" id="stick-left">
+          <span class="stick-label">throttle · yaw</span><i></i>
+        </div>
+        <div class="stick-zone" id="stick-right">
+          <span class="stick-label">pitch · roll</span><i></i>
+        </div>
+        <button class="fab" id="pilot-fire">FIRE</button>
+        <button class="fab small" id="pilot-cam">CAM</button>
+        <button class="fab small" id="pilot-exit">EXIT</button>
+      </div>
 
       <canvas id="pilot-hud" hidden></canvas>
       <aside id="script" class="panel drawer" hidden></aside>

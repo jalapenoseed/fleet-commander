@@ -16,7 +16,13 @@ export const WEAPONS = {
   pulse: { label: 'Pulse', vs: [1.0, 1.0, 1.5, 0.5] },
   flak: { label: 'Flak', vs: [1.8, 1.3, 0.5, 0.4] },
   missile: { label: 'Missile', vs: [0.6, 1.0, 1.2, 2.0] },
+  rail: { label: 'Rail', vs: [0.7, 1.0, 1.6, 2.6] },
 };
+
+// Battery: seconds of hover on a full charge. Tilting (thrust beyond hover), climbing and firing
+// cost extra. Below LOW_BATTERY a drone breaks off and flies to the nearest charger; at zero it
+// falls out of the sky.
+export const LOW_BATTERY = 0.22;
 
 // flight: cruise altitude (m), max tilt (rad), tilt rate and yaw rate (rad/s), climb rate (m/s)
 // and the weapon cone (rad either side of the nose a drone must face to fire).
@@ -24,6 +30,8 @@ export const WEAPONS = {
 export const ROLES = [
   {
     key: 'scout',
+    tier: 1,
+    battery: 100,
     label: 'Scout',
     flight: { alt: 4.2, tilt: 1.1, tiltRate: 9, yawRate: 6, climb: 6, cone: 0.7 },
     blurb: 'Fast, cheap, long sight. Swarms of them sting heavy targets.',
@@ -40,6 +48,8 @@ export const ROLES = [
   },
   {
     key: 'interceptor',
+    tier: 1,
+    battery: 110,
     label: 'Interceptor',
     flight: { alt: 3.8, tilt: 1.05, tiltRate: 8, yawRate: 5, climb: 6, cone: 0.55 },
     blurb: 'Flak hunter. Shreds scouts and support drones; weak against armor.',
@@ -56,6 +66,8 @@ export const ROLES = [
   },
   {
     key: 'assault',
+    tier: 1,
+    battery: 140,
     label: 'Assault',
     flight: { alt: 3.0, tilt: 0.75, tiltRate: 3.5, yawRate: 2.2, climb: 3, cone: 0.9 },
     blurb: 'Armored missile carrier. Breaks interceptors and structures.',
@@ -72,6 +84,8 @@ export const ROLES = [
   },
   {
     key: 'jammer',
+    tier: 1,
+    battery: 130,
     label: 'Jammer',
     flight: { alt: 3.4, tilt: 0.85, tiltRate: 5, yawRate: 3.5, climb: 4, cone: 3.2 },
     blurb: 'Enemies nearby slow down, fire slower and see less.',
@@ -88,6 +102,8 @@ export const ROLES = [
   },
   {
     key: 'medic',
+    tier: 1,
+    battery: 130,
     label: 'Medic',
     flight: { alt: 3.6, tilt: 0.85, tiltRate: 5, yawRate: 3.5, climb: 4, cone: 3.2 },
     blurb: 'Repairs damaged allies in a small radius.',
@@ -104,6 +120,8 @@ export const ROLES = [
   },
   {
     key: 'relay',
+    tier: 1,
+    battery: 150,
     label: 'Relay',
     flight: { alt: 4.6, tilt: 0.85, tiltRate: 5, yawRate: 3.5, climb: 4, cone: 3.2 },
     blurb: 'Huge sight radius and cancels enemy jamming around it.',
@@ -118,6 +136,80 @@ export const ROLES = [
     armor: 1,
     aura: { counterJam: 12 },
   },
+  {
+    key: 'lancer',
+    label: 'Lancer',
+    tier: 2,
+    battery: 130,
+    flight: { alt: 3.2, tilt: 0.7, tiltRate: 3, yawRate: 1.6, climb: 3, cone: 0.25 },
+    blurb: 'Siege rail drone. Outranges kill zones and cores; must aim its whole body.',
+    cost: 70,
+    bw: 3,
+    pack: 1,
+    build: 7,
+    hp: 140,
+    speed: 5,
+    accel: 14,
+    sensor: 19,
+    armor: 2,
+    weapon: { type: 'rail', range: 17, damage: 42, cooldown: 2.2 },
+  },
+  {
+    key: 'warden',
+    label: 'Warden',
+    tier: 2,
+    battery: 120,
+    flight: { alt: 4.0, tilt: 0.85, tiltRate: 5, yawRate: 3.5, climb: 4, cone: 3.2 },
+    blurb: 'Projects a shield bubble: allies inside take 40% less damage.',
+    cost: 60,
+    bw: 2,
+    pack: 1,
+    build: 5,
+    hp: 120,
+    speed: 6.5,
+    accel: 20,
+    sensor: 14,
+    armor: 1,
+    aura: { shield: 8, shieldCut: 0.4 },
+  },
+  {
+    key: 'carrier',
+    label: 'Carrier',
+    tier: 3,
+    battery: 300,
+    flight: { alt: 6.5, tilt: 0.45, tiltRate: 1.5, yawRate: 0.8, climb: 2, cone: 3.2 },
+    blurb: 'Flying hangar. Launches and rebuilds a cloud of 8 Wasp micro-drones.',
+    cost: 260,
+    bw: 10,
+    pack: 1,
+    build: 16,
+    hp: 950,
+    speed: 4,
+    accel: 8,
+    sensor: 22,
+    armor: 2,
+    weapon: { type: 'pulse', range: 9, damage: 6, cooldown: 0.4 },
+    carrier: { wasps: 8, rebuild: 3 },
+  },
+  {
+    key: 'wasp',
+    label: 'Wasp',
+    tier: 3,
+    spawnOnly: true,
+    battery: 40,
+    flight: { alt: 5.2, tilt: 1.15, tiltRate: 10, yawRate: 7, climb: 7, cone: 0.8 },
+    blurb: 'Carrier-launched micro-drone with a short battery. Expendable.',
+    cost: 0,
+    bw: 0,
+    pack: 1,
+    build: 0,
+    hp: 22,
+    speed: 11,
+    accel: 34,
+    sensor: 10,
+    armor: 0,
+    weapon: { type: 'pulse', range: 5, damage: 3, cooldown: 0.35 },
+  },
 ];
 export const ROLE_INDEX = Object.fromEntries(ROLES.map((r, i) => [r.key, i]));
 
@@ -127,7 +219,7 @@ export const STRUCTURES = {
     label: 'Command Core',
     blurb: 'Your base. Lose it and you lose the match. Produces drones.',
     cost: 0,
-    hp: 2500,
+    hp: 5000,
     build: 0,
     radius: 3.2,
     sensor: 22,
@@ -135,7 +227,8 @@ export const STRUCTURES = {
     income: 4,
     power: BUILD_RADIUS,
     produces: true,
-    weapon: { type: 'pulse', range: 11, damage: 8, cooldown: 0.3 },
+    weapon: { type: 'flak', range: 13, damage: 10, cooldown: 0.35 },
+    charge: { radius: 9, rate: 0.05 },
   },
   fabricator: {
     label: 'Fabricator',
@@ -210,6 +303,28 @@ export const STRUCTURES = {
     heal: { radius: 9, rate: 12 },
   },
 };
+Object.assign(STRUCTURES, {
+  charger: {
+    label: 'Charging Pad',
+    blurb: 'Recharges friendly drone batteries nearby. Low drones fly here on their own.',
+    cost: 90,
+    hp: 350,
+    build: 8,
+    radius: 1.8,
+    sensor: 10,
+    charge: { radius: 8, rate: 0.09 },
+  },
+  lab: {
+    label: 'Research Lab',
+    blurb: 'Researches new airframes and upgrades. One project at a time per lab.',
+    cost: 200,
+    hp: 600,
+    build: 15,
+    radius: 2.4,
+    sensor: 10,
+    research: true,
+  },
+});
 export const STRUCTURE_KINDS = Object.keys(STRUCTURES);
 
 export const FORMATIONS = ['swarm', 'wedge', 'line', 'column', 'ring', 'grid', 'spiral', 'diamond'];

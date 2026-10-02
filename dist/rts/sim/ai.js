@@ -3,7 +3,25 @@
 // RNG, so it is deterministic and can run identically on every lockstep peer.
 
 import { Rng, len, dcos, dsin, TAU } from './dmath.js';
-import { ROLES, ROLE_INDEX, STRUCTURES, TICK_RATE } from './defs.js';
+import { ROLE_INDEX, STRUCTURES, TICK_RATE } from './defs.js';
+import { TECH, researchBlocker, unlockedTier } from './tech.js';
+
+// Research order per difficulty: what the AI asks its labs for, first available first.
+const RESEARCH = {
+  easy: ['batteries', 'tier2'],
+  normal: ['batteries', 'tier2', 'charging', 'flakBurst', 'plating', 'tier3', 'motors'],
+  hard: [
+    'tier2',
+    'batteries',
+    'flakBurst',
+    'charging',
+    'plating',
+    'tier3',
+    'motors',
+    'jamRange',
+    'cloak',
+  ],
+};
 
 export const DIFFICULTY = {
   easy: {
@@ -78,6 +96,7 @@ export class AIPlayer {
     this.economy(world, core, energy, spend);
     // Production only spends what isn't being saved for the next structure, unless under attack.
     const underAttack = world.tick - team.lastAlert < 10 * TICK_RATE;
+    energy = this.research(world, underAttack ? energy : energy - this.saving, out);
     this.production(world, underAttack ? energy : energy - this.saving, out);
     this.army(world, core, out);
     return out;
@@ -149,6 +168,14 @@ export class AIPlayer {
       const spot = this.findSpot(world, 'fabricator', core.x, core.z, 7, 15);
       if (spot) return build('fabricator', spot);
     }
+    if (
+      secs > (this.difficulty === 'easy' ? 180 : 85) &&
+      !this.own(world, 'lab').length &&
+      want('lab')
+    ) {
+      const spot = this.findSpot(world, 'lab', core.x, core.z, 7, 15);
+      if (spot) return build('lab', spot);
+    }
     // 3. Expand toward contested wells once the base is running.
     if (
       secs > 45 &&
@@ -166,6 +193,24 @@ export class AIPlayer {
     if (secs > 120 && !this.own(world, 'repair').length && want('repair')) {
       const spot = this.findSpot(world, 'repair', core.x, core.z, 6, 12);
       if (spot) return build('repair', spot);
+    }
+    // Charging pads: one at home early, one forward toward the front later.
+    const chargers = this.own(world, 'charger').length;
+    if (secs > 55 && chargers < 1 && want('charger')) {
+      const spot = this.findSpot(world, 'charger', core.x, core.z, 6, 14);
+      if (spot) return build('charger', spot);
+    }
+    if (secs > 170 && chargers < 2 && want('charger')) {
+      const team = world.teams[t];
+      const spot = this.findSpot(
+        world,
+        'charger',
+        (core.x + team.rallyX * 2) / 3,
+        (core.z + team.rallyZ * 2) / 3,
+        4,
+        14,
+      );
+      if (spot) return build('charger', spot);
     }
     if (secs > 150 && this.own(world, 'turret').length < L.defenses && want('turret')) {
       const toward = len(core.x, core.z) || 1;
@@ -223,6 +268,25 @@ export class AIPlayer {
     return null;
   }
 
+  research(world, energy, out) {
+    const team = world.teams[this.team];
+    const idleLab = world.structures.some(
+      (s) => s.team === this.team && s.kind === 'lab' && s.progress >= 1 && !s.queue.length,
+    );
+    if (!idleLab) return energy;
+    for (const key of RESEARCH[this.difficulty] || RESEARCH.normal) {
+      const why = researchBlocker(team, key);
+      if (why === 'Not enough energy') {
+        this.saving = Math.max(this.saving, TECH[key].cost); // production holds back for it
+        return energy;
+      }
+      if (why) continue;
+      out.push({ type: 'research', team: this.team, tech: key });
+      return energy - TECH[key].cost;
+    }
+    return energy;
+  }
+
   production(world, energy, out) {
     const t = this.team;
     const producers = world.structures.filter(
@@ -235,7 +299,7 @@ export class AIPlayer {
       // fast-thinking AIs toward the cheapest unit.
       if (this.nextRole === undefined) this.nextRole = this.pickRole(world);
       const role = this.nextRole;
-      const r = ROLES[role];
+      const r = world.roleStats[t][role];
       if (energy < r.cost * r.pack || free < r.bw * r.pack) break;
       this.nextRole = undefined;
       out.push({ type: 'produce', team: t, role });
@@ -246,7 +310,7 @@ export class AIPlayer {
 
   pickRole(world) {
     // Enemy composition from every enemy drone we've scouted that is still alive.
-    const seen = new Array(ROLES.length).fill(0);
+    const seen = new Array(world.roles.length).fill(0);
     for (const [u, role] of this.scouted) {
       if (world.uidMap.has(u)) seen[role]++;
       else this.scouted.delete(u);
@@ -263,6 +327,14 @@ export class AIPlayer {
       secs > 60 ? 0.8 : 0,
       secs > 180 ? 0.4 : 0,
     ];
+    const tier = unlockedTier(world.teams[this.team].tech);
+    const enemyDefenses = [...this.memory.values()].filter(
+      (m) => m.kind === 'turret' || m.kind === 'core',
+    ).length;
+    w[ROLE_INDEX.lancer] = tier >= 2 ? 0.8 + enemyDefenses * 0.3 : 0;
+    w[ROLE_INDEX.warden] = tier >= 2 ? 0.6 : 0;
+    w[ROLE_INDEX.carrier] = tier >= 3 ? 0.5 : 0;
+    w[ROLE_INDEX.wasp] = 0;
     const sum = w.reduce((a, b) => a + b, 0);
     let pick = this.rng.next() * sum;
     for (let i = 0; i < w.length; i++) if ((pick -= w[i]) < 0) return i;
@@ -287,7 +359,7 @@ export class AIPlayer {
       if (sq.team !== t || this.armySquads.has(sq.id)) continue;
       for (const i of sq.members) {
         home.push(world.uid[i]);
-        homeValue += ROLES[world.role[i]].cost;
+        homeValue += world.rs(i).cost || 4; // wasps are free but still count a little
       }
     }
     // Defend: enemies visible near the base pull the home pool onto them.

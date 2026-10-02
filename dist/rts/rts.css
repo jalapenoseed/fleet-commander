@@ -762,3 +762,284 @@ body.piloting #script {
 body.piloting #view {
   cursor: crosshair;
 }
+
+/* ---------- command tabs ---------- */
+.tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+.tab {
+  flex: 1;
+  padding: 6px 4px;
+  border-radius: 7px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.tab.on {
+  color: var(--text);
+  border-color: var(--cyan);
+  background: rgba(63, 217, 255, 0.16);
+}
+#commands .grid.research {
+  grid-template-columns: repeat(2, 1fr);
+  max-height: 240px;
+  overflow-y: auto;
+}
+#commands .cmd.done {
+  border-color: rgba(93, 255, 168, 0.5);
+  color: var(--green);
+}
+#commands .cmd.locked {
+  opacity: 0.45;
+}
+#commands .cmd .prog {
+  display: block;
+  height: 3px;
+  width: 100%;
+  margin-top: 3px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 2px;
+  overflow: hidden;
+}
+#commands .cmd .prog i {
+  display: block;
+  height: 100%;
+  background: var(--violet);
+}
+.pane-hint {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: var(--muted);
+}
+.fab {
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  background: var(--panel);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: var(--text);
+  font: 600 18px var(--font);
+  width: 52px;
+  height: 52px;
+  cursor: pointer;
+  touch-action: none;
+}
+.fab.small {
+  width: auto;
+  height: 38px;
+  padding: 0 14px;
+  font-size: 13px;
+}
+.fab.on {
+  border-color: var(--cyan);
+  background: rgba(63, 217, 255, 0.25);
+}
+#cmd-toggle,
+#touch-bar {
+  display: none;
+}
+
+/* ---------- touch / phone layout ---------- */
+#view,
+#minimap {
+  touch-action: none;
+}
+body.touch #touch-bar {
+  display: flex;
+  gap: 6px;
+  position: fixed;
+  left: 12px;
+  bottom: calc(150px + env(safe-area-inset-bottom, 0px));
+  z-index: 6;
+}
+@media (max-width: 760px) {
+  #topbar {
+    gap: 10px;
+    padding: calc(6px + env(safe-area-inset-top, 0px)) 10px 6px;
+    flex-wrap: wrap;
+  }
+  .res small {
+    display: none;
+  }
+  .res b {
+    font-size: 15px;
+  }
+  .clock {
+    display: none;
+  }
+  .speed button {
+    padding: 4px 7px;
+  }
+  #alerts {
+    top: calc(84px + env(safe-area-inset-top, 0px));
+  }
+  #minimap-wrap {
+    padding: 4px;
+    bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+    left: 10px;
+  }
+  #minimap {
+    width: 128px;
+    height: 128px;
+  }
+  #selection {
+    left: 10px;
+    right: 10px;
+    top: calc(52px + env(safe-area-inset-top, 0px));
+    bottom: auto;
+    min-height: 0;
+    max-height: 40vh;
+    overflow-y: auto;
+    padding: 10px;
+  }
+  #selection .btn-row {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+  #selection .btn-row .label {
+    display: none;
+  }
+  #cmd-toggle {
+    display: block;
+    position: fixed;
+    right: 12px;
+    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    z-index: 7;
+  }
+  #commands {
+    width: auto;
+    left: 150px;
+    right: 10px;
+    bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+    max-height: 46vh;
+    overflow-y: auto;
+  }
+  body:not(.cmd-open) #commands {
+    display: none;
+  }
+  #commands .grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  body.touch #touch-bar {
+    bottom: calc(150px + env(safe-area-inset-bottom, 0px));
+  }
+  .drawer {
+    top: calc(52px + env(safe-area-inset-top, 0px));
+    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    left: 10px;
+    right: 10px;
+    width: auto;
+  }
+  .menu-card {
+    padding: 22px 18px;
+  }
+}
+
+/* ---------- pilot touch sticks ---------- */
+#pilot-touch {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+}
+body.touch.piloting #pilot-touch {
+  display: block;
+}
+.stick-zone {
+  position: absolute;
+  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  width: 150px;
+  height: 150px;
+  border-radius: 50%;
+  border: 1px solid rgba(140, 255, 200, 0.4);
+  background: rgba(10, 30, 24, 0.25);
+  pointer-events: auto;
+  touch-action: none;
+}
+#stick-left {
+  left: 20px;
+}
+#stick-right {
+  right: 20px;
+}
+.stick-zone i {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 52px;
+  height: 52px;
+  margin: -26px 0 0 -26px;
+  border-radius: 50%;
+  background: rgba(140, 255, 200, 0.35);
+  border: 1px solid rgba(140, 255, 200, 0.8);
+}
+.stick-label {
+  position: absolute;
+  top: -20px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font: 600 10px var(--mono);
+  letter-spacing: 0.1em;
+  color: rgba(140, 255, 200, 0.75);
+  text-transform: uppercase;
+}
+#pilot-fire {
+  position: absolute;
+  right: 190px;
+  bottom: calc(60px + env(safe-area-inset-bottom, 0px));
+  width: 72px;
+  height: 72px;
+  font-size: 13px;
+  pointer-events: auto;
+  border-color: rgba(255, 110, 90, 0.8);
+  background: rgba(80, 20, 15, 0.45);
+}
+#pilot-cam,
+#pilot-exit {
+  position: absolute;
+  top: calc(60px + env(safe-area-inset-top, 0px));
+  pointer-events: auto;
+}
+#pilot-cam {
+  right: 90px;
+}
+#pilot-exit {
+  right: 12px;
+}
+body.touch.piloting #minimap-wrap,
+body.touch.piloting #touch-bar,
+body.touch.piloting #cmd-toggle {
+  display: none;
+}
+body.touch kbd {
+  display: none;
+}
+body.cmd-open #touch-bar {
+  display: none !important;
+}
+@media (max-width: 760px) {
+  .stick-zone {
+    width: 130px;
+    height: 130px;
+  }
+  #stick-left {
+    left: 14px;
+  }
+  #stick-right {
+    right: 14px;
+  }
+  #pilot-fire {
+    right: 44px;
+    bottom: calc(176px + env(safe-area-inset-bottom, 0px));
+    width: 64px;
+    height: 64px;
+  }
+}
