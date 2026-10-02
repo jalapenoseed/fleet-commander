@@ -252,6 +252,76 @@ export class GameView {
     this.scene.add(this.lines);
   }
 
+  // ---------- scenario markers ----------
+
+  setGhost(frames) {
+    this.ghostFrames = frames && frames.length ? frames : null;
+    if (!this.ghostFrames || this.ghostMesh) return;
+    const geo = buildAirframe('scout');
+    const mat = new T.MeshBasicMaterial({
+      color: new T.Color(0.6, 1.4, 2.2),
+      transparent: true,
+      opacity: 0.45,
+      depthWrite: false,
+      blending: T.AdditiveBlending,
+    });
+    this.ghostMesh = new T.Group();
+    this.ghostMesh.add(
+      new T.Mesh(geo.hull, mat),
+      new T.Mesh(geo.glow, mat),
+      new T.Mesh(geo.rotor, mat),
+    );
+    this.ghostMesh.visible = false;
+    this.scene.add(this.ghostMesh);
+  }
+
+  frameMarkers(alpha) {
+    const sc = this.world.scenario;
+    const marks = sc?.markers?.(this.world) || [];
+    const gates = marks.filter((m) => m.type === 'gate');
+    if (gates.length && !this.gateMeshes) {
+      this.gateMeshes = gates.map((g) => {
+        const m = new T.Mesh(
+          new T.TorusGeometry(g.r, 0.16, 8, 40),
+          new T.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 1 }),
+        );
+        m.frustumCulled = false;
+        this.scene.add(m);
+        return m;
+      });
+    }
+    gates.forEach((g, k) => {
+      const m = this.gateMeshes[k];
+      m.position.set(g.x, this.height(g.x, g.z) + g.y, g.z);
+      m.rotation.y = Math.atan2(g.facing.x - g.x, g.facing.z - g.z);
+      const next = g.state === 'next';
+      m.material.color
+        .set(next ? '#ffc65a' : g.state === 'passed' ? '#3d8f6a' : '#3fd9ff')
+        .multiplyScalar(next ? 3 : 1.2);
+      m.material.opacity = g.state === 'later' ? 0.55 : 1;
+      m.scale.setScalar(next ? 1 + Math.sin(this.time * 6) * 0.06 : 1);
+    });
+    // Ghost of the best run, synced to the current run's clock.
+    if (this.ghostMesh) {
+      const f = this.ghostFrames,
+        started = sc?.start >= 0;
+      const t = started ? this.world.tick - sc.start - 1 + alpha : 0;
+      const k = Math.floor(t);
+      this.ghostMesh.visible = started && k < f.length - 1 && this.world.winner < 0;
+      if (this.ghostMesh.visible) {
+        const a = f[Math.max(0, k)],
+          b = f[Math.max(0, k) + 1],
+          u = t - k;
+        const lerp = (n) => a[n] + (b[n] - a[n]) * u;
+        const x = lerp(0),
+          z = lerp(2);
+        this.ghostMesh.position.set(x, this.height(x, z) + lerp(1), z);
+        this.ghostMesh.rotation.set(lerp(4), angleLerp(a[3], b[3], u), lerp(5), 'YXZ');
+      }
+    }
+    return marks.filter((m) => m.type === 'zone');
+  }
+
   setQuality(key) {
     const q = QUALITY[key] || QUALITY.balanced;
     this.quality = key;
@@ -459,7 +529,7 @@ export class GameView {
     bars = this.frameStructures(dt, bars);
     this.bars.geometry.instanceCount = bars;
     this.barPos.needsUpdate = this.barInfo.needsUpdate = true;
-    this.frameFields();
+    this.frameFields(this.frameMarkers(alpha));
     this.frameOrderLines();
     for (const v of this.wells) {
       v.crystals.rotation.y += dt * 0.4;
@@ -509,7 +579,7 @@ export class GameView {
     return bars;
   }
 
-  frameFields() {
+  frameFields(zones = []) {
     const w = this.world,
       u = this.terrain.uniforms;
     let n = 0;
@@ -542,6 +612,7 @@ export class GameView {
       if (a.jam) push(w.px[i], w.pz[i], a.jam, FIELD_KIND.jammer, '#c58cff', 0.35);
       else push(w.px[i], w.pz[i], a.shield, FIELD_KIND.repair, '#7fb4ff', 0.45);
     }
+    for (const z of zones) push(z.x, z.z, z.r, FIELD_KIND.repair, z.color, 1.2);
     u.uFieldCount.value = n;
   }
 

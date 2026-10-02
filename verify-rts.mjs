@@ -8,6 +8,8 @@ import { F_PILOT } from './dist/rts/sim/flight.js';
 import { validateRules, explainRule, CONDITIONS, ACTIONS, runRules } from './dist/rts/sim/rules.js';
 import { ROLES, STRUCTURES, FORMATIONS, ROLE_INDEX } from './dist/rts/sim/defs.js';
 import { MAPS } from './dist/rts/sim/maps.js';
+import { CHALLENGES, RACE_GATES } from './dist/rts/sim/modes.js';
+import { SpatialGrid } from './dist/rts/sim/grid.js';
 
 let passed = 0;
 const test = (name, fn) => {
@@ -375,6 +377,83 @@ test('carriers launch and rebuild wasps; wardens shield; scouts can cloak', () =
   w.spawnDrone(0, ROLE_INDEX.scout, 0, -36, sq);
   for (let k = 0; k < 8; k++) w.step();
   assert.equal(w.seen(0, scout), true, 'revealed up close');
+});
+
+test('altitude bands: low flies under radar, high flies over kill zones', () => {
+  const w = new World({ seed: 1 });
+  w.addStructure(1, 'radar', 0, 0, true);
+  w.addStructure(1, 'turret', 0, 0, true);
+  const low = w.createSquad(0),
+    high = w.createSquad(0);
+  low.altitude = 0;
+  high.altitude = 2;
+  const a = w.spawnDrone(0, ROLE_INDEX.assault, 2, 2, low);
+  const b = w.spawnDrone(0, ROLE_INDEX.assault, -2, -2, high);
+  low.order = { play: 'hold', x: 2, z: 2, x0: 2, z0: 2 };
+  high.order = { play: 'hold', x: -2, z: -2, x0: -2, z0: -2 };
+  for (let k = 0; k < 20 * 6; k++) w.step();
+  assert.ok(w.py[a] < 2.5 && w.py[b] > 14, 'bands reached');
+  assert.equal(w.flags[a] & 2, 0, 'low drone not detected by radar');
+  assert.ok(w.flags[b] & 2, 'high drone detected');
+  const hb = w.hp[b];
+  for (let k = 0; k < 20; k++) w.step();
+  assert.equal(w.hp[b], hb, 'high drone untouched by the kill zone');
+  assert.ok(w.hp[a] < ROLES[ROLE_INDEX.assault].hp, 'low drone burned');
+  assert.equal(
+    new SpatialGrid(10, 4, 8).query(
+      0,
+      0,
+      5,
+      new Float64Array(8),
+      new Float64Array(8),
+      new Int32Array(8),
+    ),
+    0,
+    'empty grid',
+  );
+});
+
+test('modes: survival waves escalate, challenges resolve, race gates count', () => {
+  const s = new Session({ seed: 3, mode: 'survival' });
+  for (let k = 0; k < 20 * 80; k++) s.step();
+  assert.equal(s.scenario.wave, 1, 'first wave after the build phase');
+  assert.ok(s.world.teams[1].tether, 'hostile hive has no batteries to manage');
+  let hostiles = 0;
+  for (let i = 0; i < s.world.count; i++) hostiles += s.world.alive[i] && s.world.team[i] === 1;
+  assert.ok(hostiles >= 4);
+  for (const key of Object.keys(CHALLENGES)) {
+    const c = new Session({ seed: 1, mode: 'challenge', challenge: key });
+    for (let k = 0; k < 20 * 300 && c.world.winner < 0; k++) c.step();
+    if (key !== 'carrier') assert.equal(c.world.winner, 1, `${key}: idle player loses`);
+  }
+  const blind = new Session({ seed: 1, mode: 'challenge', challenge: 'blind' });
+  const bw = blind.world,
+    uids = [];
+  for (let i = 0; i < bw.count; i++) if (bw.alive[i] && bw.team[i] === 0) uids.push(bw.uid[i]);
+  blind.issue({ type: 'order', team: 0, uids, play: 'attack', x: 26, z: -24 });
+  blind.step();
+  blind.issue({
+    type: 'altitude',
+    team: 0,
+    squad: bw.squads.find((q) => q.team === 0).id,
+    level: 2,
+  });
+  for (let k = 0; k < 20 * 200 && bw.winner < 0; k++) blind.step();
+  assert.equal(bw.winner, 0, 'blind is solvable by flying high');
+  assert.ok(bw.result.stars >= 1);
+  const r = new Session({ seed: 1, mode: 'race' });
+  const rw = r.world;
+  for (const g of RACE_GATES) {
+    const i = rw.uidMap.get(r.scenario.pilotUid);
+    for (let k = 0; k < 4; k++) {
+      rw.px[i] = g.x;
+      rw.pz[i] = g.z;
+      rw.py[i] = g.y;
+      r.step();
+    }
+  }
+  assert.equal(rw.winner, 0);
+  assert.ok(rw.result.time > 0 && rw.result.race);
 });
 
 test('lockstep: identical inputs give identical hashes, different inputs diverge', () => {

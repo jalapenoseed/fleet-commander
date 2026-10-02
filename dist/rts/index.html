@@ -13,27 +13,43 @@
 
     <section id="menu" class="screen">
       <div class="menu-card">
-        <div class="eyebrow">Working model · build 1</div>
+        <div class="eyebrow">Working model · build 2</div>
         <h1>FLEET<span>COMMANDER</span></h1>
         <p class="tag">
           You don't fly the drones. You design the forces, rules and information that make a swarm
           fly itself.
         </p>
-        <div class="menu-grid">
+        <div class="menu-grid modes">
           <button class="menu-btn primary" data-start="skirmish">
-            <strong>Skirmish</strong><small>You vs the AI on Delta Basin</small>
+            <strong>Skirmish</strong><small>You vs the AI. Destroy the enemy core.</small>
+          </button>
+          <button class="menu-btn" data-start="survival">
+            <strong>Survival</strong><small id="best-survival">Endless escalating waves</small>
+          </button>
+          <button class="menu-btn" id="open-challenges">
+            <strong>Challenges</strong><small id="best-challenges">Five hand-built puzzles</small>
+          </button>
+          <button class="menu-btn" data-start="race">
+            <strong>FPV Race</strong><small id="best-race">Ten gates. Beat your ghost.</small>
           </button>
           <button class="menu-btn" data-start="spectate">
-            <strong>Autonomous Arena</strong
-            ><small>Watch two AI swarms fight with the auto-director</small>
+            <strong>Autonomous Arena</strong><small>Watch two AI swarms fight</small>
           </button>
           <label class="menu-btn file">
-            <strong>Load replay</strong
-            ><small>Re-simulate a saved match from its command log</small>
+            <strong>Load replay</strong><small>Re-simulate a saved match</small>
             <input type="file" id="replay-file" accept=".json,application/json" hidden />
           </label>
         </div>
+        <div id="challenge-list" class="challenge-list" hidden></div>
         <div class="menu-opts">
+          <label
+            >Map
+            <select id="opt-map">
+              <option value="delta" selected>Delta Basin</option>
+              <option value="rivers">Twin Rivers</option>
+              <option value="crater">Crater Ring</option>
+            </select>
+          </label>
           <label
             >Opponent
             <select id="opt-diff">
@@ -133,6 +149,7 @@
         </button>
         <button class="icon-btn" id="btn-menu" title="Menu (Esc)">☰</button>
       </header>
+      <div id="objective" hidden><b id="obj-title"></b><span id="obj-lines"></span></div>
       <ol id="alerts"></ol>
       <div id="minimap-wrap"><canvas id="minimap" width="220" height="220"></canvas></div>
 

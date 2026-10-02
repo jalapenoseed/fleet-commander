@@ -10,6 +10,7 @@
 
 import { World } from './world.js';
 import { AIPlayer } from './ai.js';
+import { createScenario } from './modes.js';
 
 export const REPLAY_VERSION = 1;
 
@@ -21,9 +22,12 @@ export class Session {
     ai = {},
     inputDelay = 0,
     hashEvery = 20,
+    mode = 'skirmish',
+    challenge = null,
   } = {}) {
-    this.config = { seed, map, players, ai, inputDelay };
-    this.world = new World({ seed, map, players });
+    this.config = { seed, map, players, ai, inputDelay, mode, challenge };
+    this.scenario = createScenario({ mode, challenge, seed, map });
+    this.world = new World({ seed, map, players, scenario: this.scenario });
     this.ais = Object.entries(ai).map(
       ([team, difficulty]) => new AIPlayer(Number(team), { difficulty, seed }),
     );

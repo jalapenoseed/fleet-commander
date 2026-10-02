@@ -22,6 +22,8 @@ export const F_PILOT = 16,
 export const STICK_STEPS = 32;
 export const MAX_ALTITUDE = 40;
 export const MIN_ALTITUDE = 0.4;
+export const LOW_ALT = 1.6; // below radar (RADAR_FLOOR)
+export const HIGH_ALT = 17; // above ground fields (FIELD_CEILING)
 
 // Stick values are quantized so commands are exact and compact on the wire.
 export const quantize = (v) => Math.round(clamp(Number(v) || 0, -1, 1) * STICK_STEPS) / STICK_STEPS;
@@ -58,7 +60,10 @@ export function flightStep(w, i, wantVx, wantVz, faceX, faceZ, jammed) {
       cy = dcos(yaw);
     pitchDes = clamp(datan2(ax * sy + az * cy, G), -tiltMax, tiltMax);
     rollDes = clamp(datan2(-ax * cy + az * sy, G), -tiltMax, tiltMax);
-    vyDes = clamp((f.alt - w.py[i]) * 1.8, -f.climb, f.climb);
+    // Squad altitude band: 0 low (nap of the earth), 1 cruise, 2 high.
+    const band = w.altBand[i];
+    const alt = band === 0 ? LOW_ALT : band === 2 ? HIGH_ALT + f.alt * 0.3 : f.alt;
+    vyDes = clamp((alt - w.py[i]) * 1.8, -f.climb, f.climb);
   }
   yaw = wrapAngle(yaw + yawRate * DT);
   w.yaw[i] = yaw;

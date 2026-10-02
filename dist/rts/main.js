@@ -16,6 +16,7 @@ import {
 import { ACTIONS } from './sim/rules.js';
 import { TECH, TECH_KEYS, researchBlocker, unlockedTier } from './sim/tech.js';
 import { DIFFICULTY } from './sim/ai.js';
+import { CHALLENGES, MODES } from './sim/modes.js';
 import { GameView } from './render/view.js';
 import { Minimap } from './ui/minimap.js';
 import { ScriptEditor } from './ui/script-editor.js';
@@ -35,6 +36,24 @@ const BUILD_KEYS = {
 };
 const PLAY_KEYS = { a: 'attack', p: 'pincer', t: 'patrol', o: 'orbit' };
 const TARGETED = new Set(['move', 'attack', 'pincer', 'patrol', 'orbit']);
+// Personal records live in this browser only.
+const store = {
+  get(key, fallback = null) {
+    try {
+      const v = localStorage.getItem('fc-rts-' + key);
+      return v === null ? fallback : JSON.parse(v);
+    } catch {
+      return fallback;
+    }
+  },
+  set(key, value) {
+    try {
+      localStorage.setItem('fc-rts-' + key, JSON.stringify(value));
+    } catch {
+      // Storage unavailable (private mode); records just don't persist.
+    }
+  },
+};
 const fmtTime = (ticks) => {
   const s = Math.floor(ticks * DT);
   return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
@@ -73,10 +92,18 @@ function structTip(kind) {
 }
 
 class Game {
-  constructor({ mode, difficulty = 'normal', quality = 'balanced', seed = 1, replay = null }) {
+  constructor({
+    mode,
+    difficulty = 'normal',
+    quality = 'balanced',
+    seed = 1,
+    replay = null,
+    map = 'delta',
+    challenge = null,
+  }) {
     this.mode = mode;
     this.player = 0;
-    this.spectator = mode !== 'skirmish';
+    this.spectator = mode === 'spectate' || mode === 'replay';
     if (replay) {
       this.session = new Session({ ...replay.config, inputDelay: 0 });
       this.replayData = replay;
@@ -86,10 +113,14 @@ class Game {
         this.replayCmds.get(c.tick).push(c);
       }
     } else {
-      const ai = mode === 'skirmish' ? { 1: difficulty } : { 0: difficulty, 1: difficulty };
-      this.session = new Session({ seed, ai });
+      const cfg = { seed, map };
+      if (mode === 'skirmish') cfg.ai = { 1: difficulty };
+      else if (mode === 'spectate') cfg.ai = { 0: difficulty, 1: difficulty };
+      else Object.assign(cfg, { mode, challenge });
+      this.session = new Session(cfg);
     }
     this.world = this.session.world;
+    this.scenario = this.session.scenario;
     this.difficulty = difficulty;
     this.view = new GameView($('view'), this.world, {
       playerTeam: this.player,
@@ -121,6 +152,21 @@ class Game {
     this.mouseFire = false;
     this.buildCommandPanel();
     this.bindInput();
+    if (this.scenario?.forcePilot && !this.spectator) {
+      this.pilot.locked = true;
+      this.pilot.start(this.scenario.pilotUid);
+    }
+    document.body.classList.toggle(
+      'no-economy',
+      this.scenario?.key === 'race' ||
+        (this.scenario?.key === 'challenge' && !this.world.structures.some((x) => x.team === 0)),
+    );
+    this.updateHud();
+    if (this.scenario?.key === 'race') {
+      const best = store.get('race-best');
+      if (best) this.view.setGhost(best.frames);
+      this.ghostFrames = [];
+    }
     $('hud').hidden = false;
     $('menu').hidden = true;
     $('btn-director').hidden = $('btn-fog').hidden = !this.spectator;
@@ -149,6 +195,7 @@ class Game {
     this.abort.abort();
     this.view.renderer.dispose();
     $('hud').hidden = true;
+    $('objective').hidden = true;
     this.script.close();
   }
 
@@ -187,6 +234,16 @@ class Game {
     if (this.replayCmds)
       for (const c of this.replayCmds.get(w.tick) || []) this.session.schedule(c);
     const events = this.session.step();
+    const sc = this.scenario;
+    if (sc?.key === 'race' && sc.start >= 0 && this.ghostFrames && w.winner < 0) {
+      const i = w.uidMap.get(sc.pilotUid);
+      if (i !== undefined)
+        this.ghostFrames.push(
+          [w.px[i], w.py[i], w.pz[i], w.yaw[i], w.pitch[i], w.roll[i]].map(
+            (v) => Math.round(v * 100) / 100,
+          ),
+        );
+    }
     this.view.sync(events);
     for (const e of events) this.onEvent(e);
     if (this.replayCmds && w.tick >= this.replayData.ticks && w.winner < 0) this.finish(-1);
@@ -225,6 +282,8 @@ class Game {
     } else if (e.k === 'crash' && e.team === this.player && this.pilot.active) {
       const i = this.world.uidMap.get(this.pilot.uid);
       if (i === e.i) this.alert(`Impact! −${Math.round(e.damage)} hp`);
+    } else if (e.k === 'scenario') {
+      this.alert(e.text, e.alert ? '' : 'good');
     } else if (e.k === 'researched' && mine) {
       this.alert(`Research complete: ${TECH[e.tech].label}`, 'good');
       this.buildProduceButtons();
@@ -307,6 +366,34 @@ class Game {
             ? 'Verified: identical outcome ✓'
             : 'Desync: outcome differs ✗'
           : 'Replay finished';
+    } else if (w.result) {
+      const r = w.result;
+      let record = '';
+      if (r.race && winner === 0) {
+        const best = store.get('race-best');
+        if (!best || r.time < best.time) {
+          store.set('race-best', { time: r.time, frames: this.ghostFrames });
+          record = best ? ` · new record (was ${best.time.toFixed(2)} s)` : ' · first record';
+        } else record = ` · best ${best.time.toFixed(2)} s`;
+      }
+      if (r.challenge && r.stars) {
+        const stars = store.get('challenge-stars', {});
+        if ((stars[r.challenge] || 0) < r.stars) {
+          stars[r.challenge] = r.stars;
+          store.set('challenge-stars', stars);
+          record = ' · new best';
+        }
+      }
+      if (this.scenario?.key === 'survival') {
+        const best = store.get('survival-best', 0);
+        if (r.score > best) {
+          store.set('survival-best', r.score);
+          record = ' · new record';
+        }
+      }
+      $('end-eyebrow').textContent = winner === this.player ? 'Complete' : 'Over';
+      $('end-title').textContent = r.title;
+      this.endDetail = (r.detail || '') + record;
     } else if (this.spectator) {
       $('end-eyebrow').textContent = 'Arena result';
       $('end-title').textContent = `${TEAM_NAMES[winner]} swarm wins`;
@@ -316,6 +403,7 @@ class Game {
         winner === this.player ? 'Enemy core destroyed' : 'Your core has fallen';
     }
     const rows = [['Duration', fmtTime(w.tick)]];
+    if (this.endDetail) rows.unshift(['Result', this.endDetail]);
     w.teams.forEach((t, i) => {
       rows.push([`${TEAM_NAMES[i]} kills / losses`, `${t.kills} / ${t.losses}`]);
       rows.push([`${TEAM_NAMES[i]} energy spent`, Math.round(t.spent)]);
@@ -1031,6 +1119,12 @@ class Game {
       if (w.alive[i] && (this.spectator || w.team[i] === this.player)) n++;
     $('dronecount').textContent = n;
     $('clock').textContent = fmtTime(w.tick);
+    const st = this.scenario?.status(w);
+    $('objective').hidden = !st;
+    if (st) {
+      $('obj-title').textContent = st.title;
+      $('obj-lines').textContent = st.lines.join(' · ');
+    }
     if (!this.spectator) {
       for (const { b, kind } of this.buildButtons) {
         b.disabled = t.energy < STRUCTURES[kind].cost;
@@ -1103,7 +1197,7 @@ class Game {
       squads
         .map(
           (s) =>
-            `${s.id}:${s.members.length}:${s.formation}:${s.order?.play}:${s.reaction?.index ?? -1}`,
+            `${s.id}:${s.members.length}:${s.formation}:${s.order?.play}:${s.reaction?.index ?? -1}:${s.altitude}`,
         )
         .join('|') +
       '#' +
@@ -1182,7 +1276,13 @@ class Game {
       </div>
       <div class="chips">${chips}</div>
       <div class="btn-row"><span class="label">Play</span>${playBtns}</div>
-      <div class="btn-row"><span class="label">Formation</span>${formBtns}</div>`;
+      <div class="btn-row"><span class="label">Formation</span>${formBtns}</div>
+      <div class="btn-row"><span class="label">Altitude</span>${['Low', 'Cruise', 'High']
+        .map(
+          (l, k) =>
+            `<button class="btn ${sq.altitude === k ? 'on' : ''}" data-alt="${k}" data-tip="<b>${l}</b>${['Nap of the earth: under radar detection, but within reach of every ground field.', 'Normal flight height for this airframe.', 'Above kill zones, jammer and repair fields (14 m). Sees farther, burns more battery climbing.'][k]}">${l}</button>`,
+        )
+        .join('')}</div>`;
     el.querySelectorAll('[data-play]').forEach(
       (b) => (b.onclick = () => this.immediatePlay(b.dataset.play)),
     );
@@ -1194,6 +1294,13 @@ class Game {
         }),
     );
     el.querySelector('#btn-script').onclick = () => this.script.open(sq);
+    el.querySelectorAll('[data-alt]').forEach(
+      (b) =>
+        (b.onclick = () => {
+          for (const q of squads)
+            this.issue({ type: 'altitude', squad: q.id, level: Number(b.dataset.alt) });
+        }),
+    );
     el.querySelector('#btn-fly').onclick = () => this.startPilot();
   }
 
@@ -1244,19 +1351,45 @@ function start(opts) {
       difficulty: $('opt-diff').value,
       quality: $('opt-quality').value,
       seed: Math.max(1, Number($('opt-seed').value) | 0),
+      map: $('opt-map').value,
       ...opts,
     });
     window.__game = game;
   } catch (err) {
     console.error(err);
     $('menu').hidden = false;
-    alert(`Could not start: ${err.message}`);
+    document.querySelector('#menu .tag').textContent = `Could not start: ${err.message}`;
   }
 }
 
 let game = null;
 for (const b of document.querySelectorAll('[data-start]'))
   b.onclick = () => start({ mode: b.dataset.start });
+
+// Menu: personal bests and the challenge list.
+function refreshMenu() {
+  const stars = store.get('challenge-stars', {});
+  const total = Object.values(stars).reduce((a, b) => a + b, 0);
+  $('best-challenges').textContent =
+    `${Object.keys(CHALLENGES).length} puzzles · ${total}/${Object.keys(CHALLENGES).length * 3} ★`;
+  const race = store.get('race-best');
+  $('best-race').textContent = race
+    ? `Best ${race.time.toFixed(2)} s · beat your ghost`
+    : MODES.race.blurb;
+  const surv = store.get('survival-best', 0);
+  $('best-survival').textContent = surv ? `Best: ${surv} waves` : MODES.survival.blurb;
+  const list = $('challenge-list');
+  list.innerHTML = Object.entries(CHALLENGES)
+    .map(([key, c]) => {
+      const n = stars[key] || 0;
+      return `<button class="menu-btn" data-challenge="${key}"><strong>${esc(c.label)} <span class="stars">${'★'.repeat(n)}${'☆'.repeat(3 - n)}</span></strong><small>${esc(c.blurb)}</small><small>${esc(c.starText)}</small></button>`;
+    })
+    .join('');
+  for (const b of list.querySelectorAll('[data-challenge]'))
+    b.onclick = () => start({ mode: 'challenge', challenge: b.dataset.challenge });
+}
+$('open-challenges').onclick = () => ($('challenge-list').hidden = !$('challenge-list').hidden);
+refreshMenu();
 $('replay-file').onchange = async (e) => {
   const file = e.target.files[0];
   e.target.value = '';
@@ -1267,7 +1400,7 @@ $('replay-file').onchange = async (e) => {
       throw Error('Not a Fleet Commander replay file.');
     start({ mode: 'replay', replay, difficulty: Object.values(replay.config.ai)[0] || 'normal' });
   } catch (err) {
-    alert(err.message);
+    document.querySelector('#menu .tag').textContent = err.message;
   }
 };
 $('btn-resume').onclick = () => game?.togglePause();
@@ -1282,6 +1415,7 @@ const toMenu = () => {
   game = null;
   $('pause').hidden = $('end').hidden = true;
   $('menu').hidden = false;
+  refreshMenu();
 };
 $('btn-quit').onclick = toMenu;
 $('btn-end-menu').onclick = toMenu;

@@ -1043,3 +1043,79 @@ body.cmd-open #touch-bar {
     height: 64px;
   }
 }
+
+/* ---------- modes ---------- */
+.menu-grid.modes {
+  grid-template-columns: repeat(3, 1fr);
+}
+@media (max-width: 620px) {
+  .menu-grid.modes {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+.challenge-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+.challenge-list .menu-btn {
+  width: 100%;
+}
+.challenge-list .stars {
+  color: var(--gold);
+  letter-spacing: 0.1em;
+  font-size: 13px;
+}
+#objective {
+  position: fixed;
+  top: calc(48px + env(safe-area-inset-top, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 16px;
+  border-radius: 10px;
+  background: var(--panel);
+  border: 1px solid var(--line-strong);
+  font-size: 13px;
+  text-align: center;
+  pointer-events: none;
+  max-width: calc(100vw - 24px);
+}
+#objective b {
+  font-size: 15px;
+  letter-spacing: 0.03em;
+  font-variant-numeric: tabular-nums;
+}
+#objective span {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+#end-title {
+  font-variant-numeric: tabular-nums;
+}
+.record {
+  color: var(--gold);
+  font-weight: 600;
+}
+@media (max-width: 760px) {
+  #objective {
+    top: auto;
+    bottom: calc(198px + env(safe-area-inset-bottom, 0px));
+  }
+  body.piloting #objective {
+    top: calc(48px + env(safe-area-inset-top, 0px));
+    bottom: auto;
+  }
+}
+body.no-economy #topbar .res {
+  display: none;
+}
+@media (min-width: 761px) {
+  body.piloting #objective {
+    top: 112px;
+  }
+}

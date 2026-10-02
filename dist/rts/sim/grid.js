@@ -6,7 +6,7 @@ export class SpatialGrid {
     this.half = half;
     this.cell = cell;
     this.n = Math.ceil((2 * half) / cell);
-    this.head = new Int32Array(this.n * this.n);
+    this.head = new Int32Array(this.n * this.n).fill(-1); // empty until the first build()
     this.next = new Int32Array(capacity);
   }
   cellIndex(x, z) {

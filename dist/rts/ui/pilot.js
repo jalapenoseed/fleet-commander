@@ -90,7 +90,9 @@ export class PilotController {
         fire.addEventListener(ev, () => (this.touchSticks.fire = false));
     }
     document.getElementById('pilot-cam')?.addEventListener('click', () => this.toggleCamera());
-    document.getElementById('pilot-exit')?.addEventListener('click', () => this.stop());
+    document
+      .getElementById('pilot-exit')
+      ?.addEventListener('click', () => !this.locked && this.stop());
   }
 
   get active() {
@@ -150,6 +152,7 @@ export class PilotController {
       return true;
     }
     if (k === 'enter' || k === 'escape' || k === 'backspace') {
+      if (this.locked) return k !== 'escape'; // race / ace: Esc still opens the pause menu
       this.stop();
       return true;
     }

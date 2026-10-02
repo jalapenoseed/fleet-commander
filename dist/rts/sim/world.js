@@ -29,6 +29,8 @@ export const F_SHIELD = 64,
   F_CLOAK = 256;
 // Ground fields (jammer and kill zones, repair) only reach drones below this altitude.
 export const FIELD_CEILING = 14;
+// Drones flying below this are under radar coverage (nap of the earth).
+export const RADAR_FLOOR = 2.5;
 
 export const VIS_CELL = 4;
 const SENSE_RADIUS = 18;
@@ -114,7 +116,18 @@ export function formationOffset(type, i, n, spacing, phase = 0) {
 }
 
 export class World {
-  constructor({ seed = 1, map = 'delta', players = 2, capacity = MAX_DRONES } = {}) {
+  constructor({
+    seed = 1,
+    map = 'delta',
+    players = 2,
+    capacity = MAX_DRONES,
+    scenario = null,
+  } = {}) {
+    this.scenario = scenario;
+    if (scenario) {
+      map = scenario.map || map;
+      players = scenario.teams.length;
+    }
     this.mapKey = map;
     this.map = MAPS[map];
     this.half = this.map.half;
@@ -154,6 +167,7 @@ export class World {
     this.oroll = new Float64Array(N);
     this.stick = new Float64Array(N * 4); // pilot input: throttle, yaw, pitch, roll
     this.bat = new Float64Array(N); // battery charge, 0..1
+    this.altBand = new Uint8Array(N); // 0 low, 1 cruise, 2 high (from the squad)
     this.owner = new Int32Array(N); // carrier uid for wasps, else 0
     this.aux = new Float64Array(N); // per-drone timer (carrier wasp rebuild)
     this.wasps = new Map(); // carrier uid -> live wasp count
@@ -178,20 +192,24 @@ export class World {
     this.winner = -1;
     this.wells = this.map.wells.map((w, i) => ({ id: i, x: w.x, z: w.z, owner: -1 }));
     this.teams = [];
-    for (let t = 0; t < players; t++) this.addTeam(t);
+    for (let t = 0; t < players; t++) this.addTeam(t, scenario?.teams[t]);
+    scenario?.init(this);
     this.totals();
     this.updateVisibility();
   }
 
   // ---------- setup ----------
 
-  addTeam(t) {
-    const start = this.map.starts[t];
+  // spec (from a scenario) can turn off the core or starting squad and override energy/income/tech.
+  addTeam(t, spec = {}) {
+    const start = this.map.starts[t] || { x: 0, z: 0 };
     const cells = this.visN * this.visN;
     const toCenter = len(start.x, start.z) || 1;
     const team = {
       id: t,
-      energy: START_ENERGY,
+      energy: spec.energy ?? START_ENERGY,
+      incomeMult: spec.incomeMult ?? 1,
+      tether: !!spec.tether, // scenario hostiles: no battery drain
       income: 0,
       bwCap: 0,
       bwUsed: 0,
@@ -207,12 +225,13 @@ export class World {
       spent: 0,
       lastAlert: -1e9,
       pilot: 0, // uid of the drone this team's player is flying, 0 if none
-      tech: new Set(),
+      tech: new Set(spec.tech || []),
       researching: new Set(),
     };
     this.teams.push(team);
     this.roleStats[t] = teamStats(this.roles, team.tech);
-    this.addStructure(t, 'core', start.x, start.z, true);
+    if (spec.core !== false) this.addStructure(t, 'core', start.x, start.z, true);
+    if (spec.units === false) return;
     const sq = this.createSquad(t);
     const mix = [
       'scout',
@@ -251,6 +270,7 @@ export class World {
     this.stick.fill(0, i * 4, i * 4 + 4);
     this.hp[i] = r.hp;
     this.bat[i] = 1;
+    this.altBand[i] = squad.altitude ?? 1;
     this.owner[i] = 0;
     this.aux[i] = 0;
     this.cd[i] = 0;
@@ -301,6 +321,7 @@ export class World {
       members: [],
       formation: 'swarm',
       spacing: 2.4,
+      altitude: 1,
       order: null,
       ax: 0,
       az: 0,
@@ -401,6 +422,12 @@ export class World {
         const sq = this.squadMap.get(cmd.squad);
         if (!sq || sq.team !== cmd.team || !FORMATIONS.includes(cmd.formation)) return false;
         sq.formation = cmd.formation;
+        return true;
+      }
+      case 'altitude': {
+        const sq = this.squadMap.get(cmd.squad);
+        if (!sq || sq.team !== cmd.team || ![0, 1, 2].includes(cmd.level)) return false;
+        sq.altitude = cmd.level;
         return true;
       }
       case 'spacing': {
@@ -505,6 +532,7 @@ export class World {
       sq = this.createSquad(cmd.team);
       sq.formation = from.formation;
       sq.spacing = from.spacing;
+      sq.altitude = from.altitude;
       sq.rules = from.rules.map((r) => ({ ...r }));
       for (const i of slots) {
         const old = this.squadMap.get(this.squadOf[i]);
@@ -619,6 +647,7 @@ export class World {
     this.updateDrones();
     this.updateStructures();
     this.resolveDeaths();
+    if (this.scenario && this.winner < 0) this.scenario.tick(this);
     if ((this.tick & 3) === 0) this.updateVisibility();
     this.tick++;
   }
@@ -673,7 +702,8 @@ export class World {
       }
     }
     this.totals();
-    for (const team of this.teams) if (team.alive) team.energy += team.income * DT;
+    for (const team of this.teams)
+      if (team.alive) team.energy += team.income * team.incomeMult * DT;
   }
 
   completeResearch(t, key) {
@@ -731,7 +761,8 @@ export class World {
       if (def.detect) {
         const k = grid.query(s.x, s.z, def.detect, px, pz, scratch);
         for (let j = 0; j < k; j++)
-          if (team[scratch[j]] !== s.team) flags[scratch[j]] |= F_DETECTED;
+          if (team[scratch[j]] !== s.team && this.py[scratch[j]] >= RADAR_FLOOR)
+            flags[scratch[j]] |= F_DETECTED;
       }
     }
     for (let i = 0; i < N; i++) {
@@ -1055,6 +1086,7 @@ export class World {
       this.tx[i] = sq.ax + fz * ox + fx * oz;
       this.tz[i] = sq.az - fx * ox + fz * oz;
       this.mode[i] = mode;
+      this.altBand[i] = sq.altitude;
     }
   }
 
@@ -1130,6 +1162,7 @@ export class World {
         this.tx[i] = s.x + fz * ox + fx * oz;
         this.tz[i] = s.z - fx * ox + fz * oz;
         this.mode[i] = sq.stage === 0 ? M_DEFEND : mode;
+        this.altBand[i] = sq.altitude;
       }
     }
     if (n === 1) this.mode[sq.members[0]] = mode;
@@ -1314,7 +1347,7 @@ export class World {
         1 +
         0.8 * (1 / dcos(tilt < 1.4 ? tilt : 1.4) - 1) +
         (this.vy[i] > 0 ? this.vy[i] * 0.08 : 0);
-      this.bat[i] -= (load * r.drain * DT) / r.battery;
+      if (!this.teams[team[i]].tether) this.bat[i] -= (load * r.drain * DT) / r.battery;
       if (this.bat[i] <= 0) {
         this.bat[i] = 0;
         if (this.hp[i] > 0) {
@@ -1538,6 +1571,14 @@ export class World {
     }
   }
 
+  // Scenario-driven end of match (challenges, race). Core-based defeat still goes through defeat().
+  finish(winner, result) {
+    if (this.winner >= 0) return;
+    this.winner = winner;
+    this.result = result;
+    this.events.push({ k: 'victory', team: winner });
+  }
+
   defeat(t) {
     const team = this.teams[t];
     if (!team.alive) return;
@@ -1546,6 +1587,7 @@ export class World {
     const left = this.teams.filter((x) => x.alive);
     if (left.length === 1) {
       this.winner = left[0].id;
+      this.result = this.scenario?.result?.(this, this.winner);
       this.events.push({ k: 'victory', team: this.winner });
     }
   }
@@ -1599,8 +1641,9 @@ export class World {
     h.array(this.roll, N)
       .array(this.stick, N * 4)
       .array(this.flags, N);
-    h.array(this.bat, N).array(this.owner, N);
+    h.array(this.bat, N).array(this.owner, N).array(this.altBand, N);
     for (const t of this.teams) h.num(t.tech.size).num(t.researching.size);
+    this.scenario?.hash(h);
     for (const t of this.teams) h.num(t.energy).num(t.bwUsed).num(t.kills);
     for (const s of this.structures) h.num(s.id).num(s.hp).num(s.progress).num(s.queue.length);
     for (const sq of this.squads) h.num(sq.id).num(sq.ax).num(sq.az).num(sq.members.length);

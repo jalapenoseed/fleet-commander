@@ -39,6 +39,25 @@ npm run test:rts   # sim, determinism, replay, AI and performance checks (Node o
 
 **Reaction scripts** (`G`): ordered `WHEN condition THEN action` rules per squad. Conditions: enemy within, threat ratio, health, jammed fraction, detected by radar, outnumbered. Actions: evade, retreat, attack, hold, regroup, change formation. Rules use hysteresis, minimum active time, priority preemption and cooldowns, so they don't flicker at the threshold. Every rule has a Learn explanation in plain English and in math, generated from the same data the sim runs. Scripts are JSON data, never code.
 
+## Modes
+
+| Mode                 | What it is                                                                                                                                                                                                                                                                                                              |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Skirmish**         | You vs the AI on any map. Destroy the enemy Command Core.                                                                                                                                                                                                                                                               |
+| **Survival**         | A 75 s build phase, then endless waves from the map edges. Each wave is bigger and later ones bring researched, tier 2 and tier 3 units. Clearing a wave pays a bonus and brings the next one sooner. Your best wave count is saved.                                                                                    |
+| **Challenges**       | Five fixed-force puzzles, each rated with up to 3 stars (saved): _Blind Their Eyes_ (radar behind kill zones; fly high), _Hold the Line_ (no income, survive 3:00), _Ghost Courier_ (heist: fly the courier low under radar to extraction), _Carrier Strike_ (siege an outpost), _Ace Pilot_ (manual flight, 10 kills). |
+| **FPV Race**         | Fly a scout through 10 gates around the mesas. Your best run is saved as a translucent **ghost** that flies alongside you next time.                                                                                                                                                                                    |
+| **Autonomous Arena** | Two AIs fight; the auto-director follows the action.                                                                                                                                                                                                                                                                    |
+
+**Maps:** Delta Basin (2 plateaus, open basin), **Twin Rivers** (two rock ridges and fords make three lanes; long games), **Crater Ring** (a ring of rock around a rich center with four gates).
+
+**Squad altitude** (Low / Cruise / High, in the squad panel):
+
+- **Low** (nap of the earth) flies under radar detection.
+- **High** clears the 14 m reach of Kill Zones, Jammer Fields and Repair Fields, at the cost of battery spent climbing.
+
+Scenario hostiles (Survival waves and challenge garrisons) are a tethered hive with no batteries to manage. Modes are deterministic sim code, so every mode replays exactly.
+
 ## Depth: batteries, research and tiers
 
 - **Batteries.** Every drone has one (seconds of hover; tilt, climb and firing cost more). Drones head home on their own when the charge left is just enough to reach the nearest charger, plus a margin, and recharge at Charging Pads (`K`) or the Core. An empty battery drops the drone out of the sky. This limits how far and how long an attack can push, which makes forward Charging Pads valuable targets.
