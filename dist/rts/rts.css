@@ -1119,3 +1119,70 @@ body.no-economy #topbar .res {
     top: 112px;
   }
 }
+
+/* ---------- commander abilities ---------- */
+#abilities {
+  position: fixed;
+  right: 350px;
+  bottom: 140px;
+  display: flex;
+  gap: 6px;
+  z-index: 5;
+}
+.ability {
+  position: relative;
+  width: 64px;
+  height: 52px;
+  border-radius: 10px;
+  border: 1px solid var(--line-strong);
+  background: var(--panel);
+  color: var(--text);
+  font: 600 11px var(--font);
+  cursor: pointer;
+  overflow: hidden;
+  padding: 4px;
+  line-height: 1.1;
+}
+.ability .cool {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  transform-origin: bottom;
+  pointer-events: none;
+}
+.ability .t {
+  position: absolute;
+  right: 4px;
+  bottom: 2px;
+  font: 600 10px var(--mono);
+  color: var(--muted);
+}
+.ability.ready {
+  border-color: var(--gold);
+  box-shadow: 0 0 14px rgba(255, 198, 90, 0.3);
+}
+.ability.on {
+  border-color: var(--cyan);
+  background: rgba(63, 217, 255, 0.25);
+}
+@media (max-width: 1100px) {
+  #abilities {
+    right: 350px;
+    bottom: 12px;
+  }
+}
+@media (max-width: 760px) {
+  #abilities {
+    right: 74px;
+    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  }
+  .ability {
+    width: 54px;
+    height: 46px;
+    font-size: 10px;
+  }
+}
+body.piloting #abilities,
+body.no-economy #abilities {
+  display: none;
+}

@@ -7,9 +7,10 @@ import { dsin, dcos, datan2, Rng } from './dist/rts/sim/dmath.js';
 import { F_PILOT } from './dist/rts/sim/flight.js';
 import { validateRules, explainRule, CONDITIONS, ACTIONS, runRules } from './dist/rts/sim/rules.js';
 import { ROLES, STRUCTURES, FORMATIONS, ROLE_INDEX } from './dist/rts/sim/defs.js';
-import { MAPS } from './dist/rts/sim/maps.js';
+import { MAPS, rockHeight } from './dist/rts/sim/maps.js';
 import { CHALLENGES, RACE_GATES } from './dist/rts/sim/modes.js';
 import { SpatialGrid } from './dist/rts/sim/grid.js';
+import { stormEffects as stormEffectsForTest } from './dist/rts/sim/systems.js';
 
 let passed = 0;
 const test = (name, fn) => {
@@ -454,6 +455,106 @@ test('modes: survival waves escalate, challenges resolve, race gates count', () 
   }
   assert.equal(rw.winner, 0);
   assert.ok(rw.result.time > 0 && rw.result.race);
+});
+
+test('line of sight: rocks hide what is behind them unless you fly above them', () => {
+  const w = new World({ seed: 1 });
+  const rock = w.map.obstacles.find((o) => o.x === -24 && o.z === 24);
+  const sq = w.createSquad(0);
+  sq.order = { play: 'hold', x: rock.x - 12, z: rock.z, x0: rock.x - 12, z0: rock.z };
+  const i = w.spawnDrone(0, ROLE_INDEX.relay, rock.x - 12, rock.z, sq);
+  w.py[i] = 3;
+  w.updateVisibility();
+  assert.equal(w.visible(0, rock.x + rock.r + 4, rock.z), false, 'hidden behind the rock');
+  assert.equal(w.visible(0, rock.x, rock.z - rock.r - 5), true, 'visible beside it');
+  w.py[i] = rockHeight(rock) + 1;
+  w.updateVisibility();
+  assert.equal(w.visible(0, rock.x + rock.r + 4, rock.z), true, 'seen over the top');
+});
+
+test('objectives: captured spires add bandwidth and factories build scouts', () => {
+  const w = new World({ seed: 1, map: 'rivers' });
+  const spire = w.objectives.find((o) => o.kind === 'spire');
+  const fac = w.objectives.find((o) => o.kind === 'factory');
+  const sq = w.createSquad(0),
+    sq2 = w.createSquad(0);
+  sq.order = { play: 'hold', x: spire.x, z: spire.z, x0: spire.x, z0: spire.z };
+  sq2.order = { play: 'hold', x: fac.x, z: fac.z, x0: fac.x, z0: fac.z };
+  for (let k = 0; k < 3; k++) w.spawnDrone(0, ROLE_INDEX.scout, spire.x + k, spire.z, sq);
+  for (let k = 0; k < 3; k++) w.spawnDrone(0, ROLE_INDEX.scout, fac.x + k, fac.z, sq2);
+  const cap0 = w.teams[0].bwCap;
+  for (let k = 0; k < 20 * 12; k++) w.step();
+  assert.equal(spire.owner, 0);
+  assert.equal(fac.owner, 0);
+  assert.equal(w.teams[0].bwCap, cap0 + 20);
+  const n0 = w.stats(0).roles[ROLE_INDEX.scout];
+  for (let k = 0; k < 20 * 21; k++) w.step();
+  assert.ok(w.stats(0).roles[ROLE_INDEX.scout] >= n0 + 2, 'factory delivered scouts');
+});
+
+test('storms jam and slow; salvage pays the collector; abilities and hacking work', () => {
+  const w = new World({ seed: 1 });
+  const st = w.storms[0];
+  const sq = w.createSquad(0);
+  const i = w.spawnDrone(0, ROLE_INDEX.scout, st.x, st.z, sq);
+  w.grid.build(w.alive, w.px, w.pz, w.count);
+  w.auras();
+  {
+    const before = w.flags[i];
+    w.flags[i] = 0;
+    w.storms[0].x = w.px[i];
+    w.storms[0].z = w.pz[i];
+    w.grid.build(w.alive, w.px, w.pz, w.count);
+    stormEffectsForTest(w);
+    assert.ok(w.flags[i] & 1, 'jammed inside a storm');
+    w.flags[i] = before;
+  }
+  // Salvage: an enemy wreck pays whoever flies over it.
+  const foe = w.createSquad(1);
+  const v = w.spawnDrone(1, ROLE_INDEX.assault, 0, 30, foe);
+  w.hp[v] = -1;
+  w.step();
+  assert.ok(w.salvage.length >= 1);
+  const pile = w.salvage[0];
+  const e0 = w.teams[0].energy;
+  w.px[i] = w.ox[i] = pile.x;
+  w.pz[i] = w.oz[i] = pile.z;
+  sq.order = { play: 'hold', x: pile.x, z: pile.z, x0: pile.x, z0: pile.z };
+  for (let k = 0; k < 10; k++) w.step();
+  assert.ok(w.teams[0].energy > e0 + 10, 'salvage collected');
+  // Abilities: cooldown gate, EMP stun, reinforcement drop.
+  const team = w.teams[0];
+  assert.equal(
+    w.apply({ type: 'ability', team: 0, key: 'overcharge' }),
+    false,
+    'on cooldown at start',
+  );
+  team.ab.emp = team.ab.drop = team.ab.overcharge = 0;
+  const target = w.spawnDrone(1, ROLE_INDEX.interceptor, w.px[i] + 3, w.pz[i], foe);
+  w.updateVisibility();
+  assert.equal(
+    w.apply({ type: 'ability', team: 0, key: 'emp', x: w.px[target], z: w.pz[target] }),
+    true,
+  );
+  for (let k = 0; k < 32; k++) w.step();
+  assert.ok(w.stunUntil[target] > w.tick, 'stunned');
+  const n0 = w.stats(0).roles[ROLE_INDEX.scout];
+  assert.equal(w.apply({ type: 'ability', team: 0, key: 'drop', x: w.px[i], z: w.pz[i] }), true);
+  assert.equal(w.stats(0).roles[ROLE_INDEX.scout], n0 + 8);
+  assert.equal(w.apply({ type: 'ability', team: 0, key: 'overcharge' }), true);
+  assert.ok(team.overUntil > w.tick);
+  // Hacking: a jammer with Intrusion Suite converts a nearby jammed enemy.
+  const h = new World({ seed: 2 });
+  h.teams[0].tech.add('intrusion');
+  const a = h.createSquad(0),
+    b = h.createSquad(1);
+  a.order = { play: 'hold', x: 0, z: 0, x0: 0, z0: 0 };
+  b.order = { play: 'hold', x: 3, z: 0, x0: 3, z0: 0 };
+  b.rules = [];
+  h.spawnDrone(0, ROLE_INDEX.jammer, 0, 0, a);
+  const prey = h.spawnDrone(1, ROLE_INDEX.medic, 3, 0, b);
+  for (let k = 0; k < 20 * 6; k++) h.step();
+  assert.equal(h.team[prey], 0, 'hacked to team 0');
 });
 
 test('lockstep: identical inputs give identical hashes, different inputs diverge', () => {

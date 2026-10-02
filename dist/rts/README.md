@@ -17,6 +17,19 @@ Open `/rts/` on the dev server (for example `http://localhost:5173/rts/`). `?aut
 npm run test:rts   # sim, determinism, replay, AI and performance checks (Node only)
 ```
 
+## Systems: a strategic map
+
+- **Line of sight:** rocks block sensors for anything flying lower than the rock top. High altitude sees over them; ambushes hide behind them.
+- **Relay Spires** (capture by holding the ring alone for 8 s): +20 bandwidth and a 30 m sensor sweep. **Derelict Factories** (10 s): two free scouts every 20 s. Contested rings don't progress. Twin Rivers and Crater Ring have both; Delta Basin has Spires.
+- **Storms** drift across the map. Inside one, every drone is jammed, 25% slower, sees 40% less and burns battery 50% faster.
+- **Salvage:** destroyed drones leave wreckage worth 35% of their cost. The first drone to fly over it collects it, so holding the battlefield pays.
+- **Commander abilities** (`F1`–`F3` or the ability bar). Cooldowns recover up to twice as fast while you have fewer drones than the enemy, which is the comeback mechanic.
+  - _EMP Strike_: 1.5 s warning, then a 3 s stun in 10 m.
+  - _Reinforcements_: 8 scouts dropped near your forces.
+  - _Overcharge_: +40% fire rate and +25% damage for 12 s.
+- **Hacking:** research _Intrusion Suite_ (tier 3), and jammer drones take over jammed enemy drones they stay within 6 m of for 4 s.
+- The AI captures objectives on its half of the map, uses all three abilities and researches hacking.
+
 ## Modes
 
 - **Skirmish:** you (Cyan) against the AI (Crimson) on Delta Basin. Destroy the enemy Command Core.

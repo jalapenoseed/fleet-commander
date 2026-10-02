@@ -4,7 +4,7 @@
 import * as T from '../../three.js?v=0.9.0';
 import { ScenePostFX } from '../../scene-postfx.js?v=0.9.0';
 import { STRUCTURES, TEAM_COLORS } from '../sim/defs.js';
-import { VIS_CELL, F_JAMMED, F_PILOT, F_RTB } from '../sim/world.js';
+import { VIS_CELL, F_JAMMED, F_PILOT, F_RTB, F_STUN } from '../sim/world.js';
 import { buildAirframe, rotorMaterial, ROLE_SCALE } from './drone-models.js';
 import {
   makeHeight,
@@ -15,7 +15,7 @@ import {
   MAX_POWER,
   FIELD_KIND,
 } from './terrain.js';
-import { buildStructure, buildWell } from './structures.js';
+import { buildStructure, buildWell, buildObjective } from './structures.js';
 import { Effects } from './effects.js';
 
 export const QUALITY = {
@@ -94,6 +94,7 @@ export class GameView {
     });
     this.buildDrones();
     this.buildOverlays();
+    this.buildSystems();
     this.structViews = new Map();
     this.seenStructs = new Set();
     this.effects = new Effects(this.scene);
@@ -161,6 +162,92 @@ export class GameView {
     rotor.setColorAt(0, tmpC);
     this.droneMeshes[role] = { hull, glow, rotor, scale: geo.scale };
     return this.droneMeshes[role];
+  }
+
+  // Objectives, storm rain and salvage shards.
+  buildSystems() {
+    const w = this.world;
+    this.objViews = (w.objectives || []).map((o) => {
+      const v = buildObjective(o.kind);
+      v.group.position.set(o.x, this.height(o.x, o.z), o.z);
+      this.scene.add(v.group);
+      return v;
+    });
+    this.rain = (w.storms || []).map(() => {
+      const n = 500,
+        pos = new Float32Array(n * 3);
+      for (let k = 0; k < n; k++) {
+        const a = Math.random() * Math.PI * 2,
+          r = Math.sqrt(Math.random());
+        pos.set([Math.cos(a) * r, Math.random(), Math.sin(a) * r], k * 3);
+      }
+      const geo = new T.BufferGeometry();
+      geo.setAttribute('position', new T.BufferAttribute(pos, 3));
+      const mat = new T.ShaderMaterial({
+        transparent: true,
+        depthWrite: false,
+        uniforms: { uTime: { value: 0 }, uCenter: { value: new T.Vector3() }, uR: { value: 14 } },
+        vertexShader: `uniform float uTime; uniform vec3 uCenter; uniform float uR; varying float vA;
+          void main(){ vec3 p = position; float y = fract(p.y - uTime * 0.9) * 22.0;
+            vec3 wp = uCenter + vec3(p.x * uR, y, p.z * uR); vA = smoothstep(0.0, 4.0, y) * (1.0 - smoothstep(16.0, 22.0, y));
+            vec4 mv = modelViewMatrix * vec4(wp, 1.0); gl_Position = projectionMatrix * mv; gl_PointSize = 90.0 / -mv.z; }`,
+        fragmentShader: `varying float vA; void main(){ vec2 c = gl_PointCoord - 0.5; if (abs(c.x) > 0.08) discard;
+            gl_FragColor = vec4(vec3(0.65, 0.75, 0.9), 0.35 * vA); }`,
+      });
+      const pts = new T.Points(geo, mat);
+      pts.frustumCulled = false;
+      this.scene.add(pts);
+      return pts;
+    });
+    const shard = new T.OctahedronGeometry(0.35, 0);
+    this.salvageMesh = new T.InstancedMesh(
+      shard,
+      new T.MeshBasicMaterial({ color: new T.Color(2.2, 1.6, 0.6) }),
+      200,
+    );
+    this.salvageMesh.count = 0;
+    this.salvageMesh.frustumCulled = false;
+    this.scene.add(this.salvageMesh);
+  }
+
+  frameSystems(dt) {
+    const w = this.world;
+    (w.objectives || []).forEach((o, k) => {
+      const v = this.objViews[k];
+      v.glowMat.color
+        .set(o.owner >= 0 ? this.teamColor(o.owner) : '#d8e2ea')
+        .multiplyScalar(o.owner >= 0 ? 3 : 1.4);
+      for (const p of v.spin) {
+        if (p.axis === 'z') p.obj.rotation.z += dt * p.rate;
+        else p.obj.rotation.y += dt * p.rate;
+        if (p.bob)
+          p.obj.position.y =
+            (p.obj.userData.y0 ??= p.obj.position.y) + Math.sin(this.time * p.rate) * p.bob;
+        if (p.pulse) p.obj.scale.setScalar(1 + Math.sin(this.time * 4) * 0.15);
+      }
+    });
+    (w.storms || []).forEach((st, k) => {
+      const m = this.rain[k].material.uniforms;
+      m.uTime.value = this.time;
+      m.uCenter.value.set(st.x, this.height(st.x, st.z), st.z);
+      m.uR.value = st.r;
+    });
+    let n = 0;
+    for (const p of w.salvage || []) {
+      if (n >= 200) break;
+      if (this.fogOn && !w.visible(this.playerTeam, p.x, p.z)) continue;
+      const size = 0.7 + Math.min(1.6, p.value / 30);
+      tmpE.set(this.time * 1.5 + n, this.time + n, 0);
+      tmpQ.setFromEuler(tmpE);
+      tmpM.compose(
+        tmpP.set(p.x, this.height(p.x, p.z) + 0.5 + Math.sin(this.time * 2 + n) * 0.15, p.z),
+        tmpQ,
+        tmpS.setScalar(size),
+      );
+      this.salvageMesh.setMatrixAt(n++, tmpM);
+    }
+    this.salvageMesh.count = n;
+    this.salvageMesh.instanceMatrix.needsUpdate = true;
   }
 
   buildOverlays() {
@@ -378,6 +465,25 @@ export class GameView {
           this.teamColor(e.team),
           e.role === 2 ? 1.4 : 1,
         );
+      } else if (e.k === 'emp') {
+        const gy = this.height(e.x, e.z);
+        this.effects.burst({ x: e.x, y: gy + 4, z: e.z }, 22, '#7fc8ff', this.effects.time, 0.7, 1);
+        this.effects.burst({ x: e.x, y: gy + 4, z: e.z }, 12, '#ffffff', this.effects.time, 0.3, 1);
+      } else if (
+        e.k === 'hacked' ||
+        (e.k === 'ability' && e.key === 'drop') ||
+        e.k === 'captured'
+      ) {
+        const gy = this.height(e.x, e.z);
+        const col = e.k === 'hacked' ? '#c58cff' : this.teamColor(e.team);
+        this.effects.burst(
+          { x: e.x, y: gy + (e.k === 'captured' ? 10 : 4), z: e.z },
+          e.k === 'captured' ? 12 : 6,
+          col,
+          this.effects.time,
+          0.6,
+          1,
+        );
       } else if (e.k === 'destroyed') {
         const gy = this.height(e.x, e.z);
         this.effects.explode({ x: e.x, y: gy + 2, z: e.z }, gy, this.teamColor(e.team), 3);
@@ -478,7 +584,9 @@ export class GameView {
       const hpRatio = w.hp[i] / def.hp;
       const jam =
         w.flags[i] & F_JAMMED ? 0.4 + 0.6 * (Math.sin(this.time * 31 + i) > 0 ? 1 : 0) : 1;
-      tmpC.copy(teamCol[t]).multiplyScalar((4.5 + r.flash[i] * 6) * jam);
+      const stun = w.flags[i] & F_STUN ? (Math.sin(this.time * 40 + i) > 0.6 ? 1 : 0.08) : 1;
+      const over = w.teams[t].overUntil > w.tick ? 1.8 : 1;
+      tmpC.copy(teamCol[t]).multiplyScalar((4.5 + r.flash[i] * 6) * jam * stun * over);
       dm.glow.setColorAt(k, tmpC);
       tmpC.copy(teamCol[t]).multiplyScalar(0.8);
       dm.rotor.setColorAt(k, tmpC);
@@ -530,6 +638,7 @@ export class GameView {
     this.bars.geometry.instanceCount = bars;
     this.barPos.needsUpdate = this.barInfo.needsUpdate = true;
     this.frameFields(this.frameMarkers(alpha));
+    this.frameSystems(dt);
     this.frameOrderLines();
     for (const v of this.wells) {
       v.crystals.rotation.y += dt * 0.4;
@@ -613,6 +722,14 @@ export class GameView {
       else push(w.px[i], w.pz[i], a.shield, FIELD_KIND.repair, '#7fb4ff', 0.45);
     }
     for (const z of zones) push(z.x, z.z, z.r, FIELD_KIND.repair, z.color, 1.2);
+    for (const st of w.storms || []) push(st.x, st.z, st.r, FIELD_KIND.storm, '#000000', 1);
+    for (const e of w.empStrikes || []) push(e.x, e.z, 10, FIELD_KIND.emp, '#7fc8ff', 1.4);
+    for (const o of w.objectives || []) {
+      const r = o.kind === 'spire' ? 8 : 9;
+      if (o.cap > 0 && o.capTeam >= 0)
+        push(o.x, o.z, r * o.cap, FIELD_KIND.repair, this.teamColor(o.capTeam), 1.2);
+      push(o.x, o.z, r, FIELD_KIND.radar, o.owner >= 0 ? this.teamColor(o.owner) : '#9aa8b4', 0.5);
+    }
     u.uFieldCount.value = n;
   }
 

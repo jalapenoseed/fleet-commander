@@ -1,5 +1,8 @@
 import { dsin, dcos } from './dmath.js';
 
+// Rock pillar height in meters (sim and renderer share it). Drones above it see over the rock.
+export const rockHeight = (o) => 4.5 + o.r * 0.9;
+
 // Maps are point-symmetric so 1v1 starts are fair: every feature at (x, z) has a twin at (-x, -z).
 
 function mirrored(list) {
@@ -13,6 +16,11 @@ export const MAPS = {
     blurb:
       'Two plateaus split by a rocky basin. Contested wells sit on the flanks and in the middle.',
     half: 80,
+    spires: [
+      { x: -20, z: -8 },
+      { x: 20, z: 8 },
+    ],
+    storms: 1,
     starts: [
       { x: -56, z: 52 },
       { x: 56, z: -52 },
@@ -44,6 +52,15 @@ export const MAPS = {
     label: 'Twin Rivers',
     blurb: 'Two rock ridges split the field into three lanes. Fords are the only quick way across.',
     half: 88,
+    spires: [
+      { x: -42, z: -34 },
+      { x: 42, z: 34 },
+    ],
+    factories: [
+      { x: 0, z: 22 },
+      { x: 0, z: -22 },
+    ],
+    storms: 2,
     starts: [
       { x: -68, z: 8 },
       { x: 68, z: -8 },
@@ -73,6 +90,15 @@ export const MAPS = {
     blurb:
       'A ring of rock around a rich central crater with four gates. Hold the middle, win the war.',
     half: 76,
+    spires: [
+      { x: 22, z: -22 },
+      { x: -22, z: 22 },
+    ],
+    factories: [
+      { x: 0, z: 14 },
+      { x: 0, z: -14 },
+    ],
+    storms: 1,
     starts: [
       { x: -54, z: -54 },
       { x: 54, z: 54 },

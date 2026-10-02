@@ -4,10 +4,11 @@
 // all projected onto the terrain so they conform to its shape.
 
 import * as T from '../../three.js?v=0.9.0';
+import { rockHeight } from '../sim/maps.js';
 
 export const MAX_FIELDS = 40;
 export const MAX_POWER = 24;
-export const FIELD_KIND = { radar: 0, jammer: 1, turret: 2, repair: 3 };
+export const FIELD_KIND = { radar: 0, jammer: 1, turret: 2, repair: 3, storm: 4, emp: 5 };
 
 function hash(x, z) {
   const s = Math.sin(x * 127.1 + z * 311.7) * 43758.5453;
@@ -181,8 +182,18 @@ export function buildTerrain(map, height) {
           } else if (kind < 2.5) { // kill zone: pulsing hazard hex
             fill = 0.08 + 0.12 * (0.5 + 0.5 * sin(uTime * 4.0));
             fill += hexLine(xz, 1.2) * 0.25;
-          } else { // repair: rings flowing inward
+} else if (kind < 3.5) { // repair: rings flowing inward
             fill = 0.05 + 0.22 * pow(0.5 + 0.5 * sin(d * 1.6 + uTime * 3.0), 8.0);
+          } else if (kind < 4.5) { // storm: darken the ground under a swirling cloud
+            float ang = atan(dv.y, dv.x) + uTime * 0.6 - d * 0.15;
+            float swirl = 0.5 + 0.5 * sin(ang * 3.0 + d * 0.4);
+            float shade = (1.0 - smoothstep(r * 0.6, r, d)) * (0.45 + 0.25 * swirl);
+            col = mix(col, col * 0.35 + vec3(0.02, 0.03, 0.05), shade);
+            float bolt = step(0.985, h21(vec2(floor(uTime * 3.0), f.x)));
+            col += vec3(0.5, 0.6, 0.9) * bolt * (1.0 - smoothstep(0.0, r, d)) * 0.6;
+            continue;
+          } else { // EMP warning: fast-pulsing ring closing in
+            fill = 0.12 * (0.5 + 0.5 * sin(uTime * 18.0));
           }
           float m = (1.0 - smoothstep(r - 0.2, r, d));
           col += fc * (fill * m + rim * 0.6) * strength;
@@ -225,7 +236,7 @@ export function buildRocks(map, height) {
   let seed = 1;
   const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   for (const o of map.obstacles) {
-    const hgt = 3.5 + o.r * 0.9 + rnd() * 2;
+    const hgt = rockHeight(o) + 0.6; // matches the sim's line-of-sight height
     const geo = new T.CylinderGeometry(o.r * 0.82, o.r * 1.05, hgt, 7, 3);
     const p = geo.attributes.position;
     for (let i = 0; i < p.count; i++) {

@@ -9,7 +9,16 @@ import { TECH, researchBlocker, unlockedTier } from './tech.js';
 // Research order per difficulty: what the AI asks its labs for, first available first.
 const RESEARCH = {
   easy: ['batteries', 'tier2'],
-  normal: ['batteries', 'tier2', 'charging', 'flakBurst', 'plating', 'tier3', 'motors'],
+  normal: [
+    'batteries',
+    'tier2',
+    'charging',
+    'flakBurst',
+    'plating',
+    'tier3',
+    'motors',
+    'intrusion',
+  ],
   hard: [
     'tier2',
     'batteries',
@@ -19,6 +28,7 @@ const RESEARCH = {
     'tier3',
     'motors',
     'jamRange',
+    'intrusion',
     'cloak',
   ],
 };
@@ -99,6 +109,7 @@ export class AIPlayer {
     energy = this.research(world, underAttack ? energy : energy - this.saving, out);
     this.production(world, underAttack ? energy : energy - this.saving, out);
     this.army(world, core, out);
+    this.abilities(world, core, out);
     return out;
   }
 
@@ -397,6 +408,32 @@ export class AIPlayer {
       return;
     }
     this.defendOrder = null;
+    // Grab objectives on our half of the map with part of the home pool.
+    const enemyStart = world.map.starts.find((_, k) => k !== t) || { x: 0, z: 0 };
+    if (home.length >= 10 && world.tick - (this.lastCapture || -1e9) > 45 * TICK_RATE) {
+      const obj = (world.objectives || [])
+        .filter(
+          (o) =>
+            o.owner !== t &&
+            len(o.x - core.x, o.z - core.z) < len(o.x - enemyStart.x, o.z - enemyStart.z) + 15,
+        )
+        .sort((a, b) => len(a.x - core.x, a.z - core.z) - len(b.x - core.x, b.z - core.z))[0];
+      if (obj) {
+        const uids = home.slice(0, Math.ceil(home.length / 2));
+        out.push({
+          type: 'order',
+          team: t,
+          uids,
+          play: 'attack',
+          x: obj.x,
+          z: obj.z,
+          rules: DEFENSE_RULES,
+        });
+        this.pendingUids = uids;
+        this.lastCapture = world.tick;
+        return;
+      }
+    }
     const L = this.level;
     const need = L.wave + this.waves * L.waveGrowth;
     if (world.tick > 75 * TICK_RATE && homeValue >= need && home.length >= 10) {
@@ -448,6 +485,39 @@ export class AIPlayer {
         z: team.rallyZ,
         rules: DEFENSE_RULES,
       });
+  }
+
+  // Commander abilities: EMP the densest enemy cluster near our army, overcharge in big fights,
+  // drop reinforcements onto the core when the base is under attack.
+  abilities(world, core, out) {
+    const t = this.team,
+      ab = world.teams[t].ab;
+    if (!ab || this.difficulty === 'easy') return;
+    if (ab.drop === 0 && this.lastThreat && world.tick - this.lastThreat.tick < 4 * TICK_RATE)
+      return out.push({ type: 'ability', team: t, key: 'drop', x: core.x, z: core.z });
+    let best = null,
+      bestN = 0,
+      fighting = 0;
+    for (const id of this.armySquads) {
+      const sq = world.squadMap.get(id);
+      if (!sq?.sensed) continue;
+      fighting += sq.sensed.enemyCount;
+      if (ab.emp === 0 && sq.sensed.enemyCount >= 6) {
+        const x = sq.sensed.threatX,
+          z = sq.sensed.threatZ;
+        const n = world.grid.query(x, z, 10, world.px, world.pz, world.scratch2);
+        let foes = 0;
+        for (let j = 0; j < n; j++) if (world.team[world.scratch2[j]] !== t) foes++;
+        if (foes > bestN && world.visible(t, x, z)) {
+          bestN = foes;
+          best = { x, z };
+        }
+      }
+    }
+    if (best && bestN >= 6)
+      return out.push({ type: 'ability', team: t, key: 'emp', x: best.x, z: best.z });
+    if (ab.overcharge === 0 && fighting >= 12)
+      out.push({ type: 'ability', team: t, key: 'overcharge' });
   }
 
   pickTarget(world, from) {

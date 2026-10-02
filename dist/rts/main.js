@@ -17,6 +17,7 @@ import { ACTIONS } from './sim/rules.js';
 import { TECH, TECH_KEYS, researchBlocker, unlockedTier } from './sim/tech.js';
 import { DIFFICULTY } from './sim/ai.js';
 import { CHALLENGES, MODES } from './sim/modes.js';
+import { ABILITIES, ABILITY_KEYS, OBJECTIVES } from './sim/systems.js';
 import { GameView } from './render/view.js';
 import { Minimap } from './ui/minimap.js';
 import { ScriptEditor } from './ui/script-editor.js';
@@ -282,6 +283,20 @@ class Game {
     } else if (e.k === 'crash' && e.team === this.player && this.pilot.active) {
       const i = this.world.uidMap.get(this.pilot.uid);
       if (i === e.i) this.alert(`Impact! −${Math.round(e.damage)} hp`);
+    } else if (e.k === 'captured' && !this.spectator) {
+      const label = OBJECTIVES[e.kind].label;
+      if (e.team === this.player) this.alert(`${label} captured`, 'good');
+      else if (e.prev === this.player) this.alert(`${label} lost to the enemy`);
+      this.minimap.flash(e.x, e.z);
+    } else if (e.k === 'hacked' && !this.spectator) {
+      if (e.team === this.player) this.alert('Enemy drone hacked — it fights for you now', 'good');
+      else if (e.from === this.player) {
+        this.alert('One of your drones was hacked!');
+        this.view.selected.delete(this.world.uid[e.i]);
+      }
+    } else if (e.k === 'emp' && !this.spectator && e.team !== this.player && e.hit) {
+      this.alert('Enemy EMP strike — drones stunned');
+      this.lastAlert = { x: e.x, z: e.z };
     } else if (e.k === 'scenario') {
       this.alert(e.text, e.alert ? '' : 'good');
     } else if (e.k === 'researched' && mine) {
@@ -468,11 +483,27 @@ class Game {
     } else this.setTargeting(play);
   }
 
+  useAbility(key) {
+    if (this.spectator) return;
+    const d = ABILITIES[key];
+    if (this.world.teams[this.player].ab[key] > 0) return;
+    if (!d.targeted) return this.issue({ type: 'ability', key });
+    this.placing = null;
+    this.view.setPlacement(null);
+    this.targetPlay = null;
+    this.targetAbility = key;
+    document.body.classList.add('targeting');
+    this.modeHint(
+      `${d.label}: ${this.touch ? 'tap' : 'click'} a visible point · ${this.touch ? 'tap ✕' : 'right-click or Esc'} to cancel`,
+    );
+  }
+
   setTargeting(play) {
     if (!this.selectedUids().length) return;
     this.placing = null;
     this.view.setPlacement(null);
     this.targetPlay = play;
+    this.targetAbility = null;
     document.body.classList.toggle('targeting', !!play);
     this.modeHint(
       play
@@ -600,6 +631,10 @@ class Game {
             }
             return;
           }
+          if (this.targetAbility) {
+            if (p) this.fireAbility(p);
+            return;
+          }
           if (this.targetPlay) {
             if (p) this.order(this.targetPlay, p.x, p.z);
             if (!e.shiftKey) this.setTargeting(null);
@@ -616,7 +651,7 @@ class Game {
           }
         } else if (d.button === 2 && !d.moved) {
           if (this.placing) return this.setPlacing(null);
-          if (this.targetPlay) return this.setTargeting(null);
+          if (this.targetPlay || this.targetAbility) return this.setTargeting(null);
           this.contextOrder(e.clientX, e.clientY);
         }
       },
@@ -818,6 +853,10 @@ class Game {
       }
       return;
     }
+    if (this.targetAbility) {
+      if (p) this.fireAbility(p);
+      return;
+    }
     if (this.targetPlay) {
       if (p) this.order(this.targetPlay, p.x, p.z);
       this.setTargeting(null);
@@ -837,6 +876,13 @@ class Game {
     this.clickSelect(-1, p, false);
   }
 
+  fireAbility(p) {
+    const key = this.targetAbility;
+    this.issue({ type: 'ability', key, x: p.x, z: p.z });
+    this.view.ping(p.x, p.z, key === 'emp' ? '#7fc8ff' : '#7dffb0');
+    this.setTargeting(null);
+  }
+
   updatePlacementAt(x, y) {
     this.mouse = { x, y, inside: false };
     this.updatePlacement();
@@ -853,11 +899,16 @@ class Game {
       return this.startPilot();
     if (k === 'escape') {
       if (this.placing) return this.setPlacing(null);
-      if (this.targetPlay) return this.setTargeting(null);
+      if (this.targetPlay || this.targetAbility) return this.setTargeting(null);
       if (!$('script').hidden) return this.script.close();
       return this.togglePause();
     }
     if (this.ended || !$('pause').hidden) return;
+    const fkey = /^F([1-3])$/.exec(e.key)?.[1];
+    if (fkey && !this.spectator) {
+      e.preventDefault();
+      return this.useAbility(ABILITY_KEYS[Number(fkey) - 1]);
+    }
     const digit = /^Digit([1-9])$/.exec(e.code)?.[1];
     if (digit) {
       e.preventDefault();
@@ -1067,6 +1118,19 @@ class Game {
     for (const tab of document.querySelectorAll('#commands .tab'))
       tab.onclick = () => this.showTab(tab.dataset.tab);
     $('cmd-toggle').onclick = () => document.body.classList.toggle('cmd-open');
+    const ab = $('abilities');
+    ab.textContent = '';
+    ab.hidden = this.spectator;
+    this.abilityButtons = ABILITY_KEYS.map((key, k) => {
+      const d = ABILITIES[key];
+      const b = document.createElement('button');
+      b.className = 'ability';
+      b.dataset.tip = `<b>${d.label} (F${k + 1})</b>${esc(d.blurb)}<div class="stat">cooldown ${d.cooldown}s · recharges faster while you're outnumbered</div>`;
+      b.innerHTML = `${d.short}<br /><small>F${k + 1}</small><span class="t"></span><span class="cool"></span>`;
+      b.onclick = () => this.useAbility(key);
+      ab.append(b);
+      return { b, key };
+    });
     this.showTab(this.tab || 'build');
   }
 
@@ -1164,6 +1228,18 @@ class Game {
       if (this.tab === 'research' && !hasLab)
         $('pane-hint').textContent = 'Build a Research Lab (L) to start research.';
     }
+    if (!this.spectator && t.ab)
+      for (const { b, key } of this.abilityButtons) {
+        const left = t.ab[key] / 20,
+          total = ABILITIES[key].cooldown;
+        b.classList.toggle('ready', left <= 0);
+        b.classList.toggle(
+          'on',
+          this.targetAbility === key || (key === 'overcharge' && t.overUntil > w.tick),
+        );
+        b.querySelector('.cool').style.transform = `scaleY(${Math.min(1, left / total)})`;
+        b.querySelector('.t').textContent = left > 0 ? Math.ceil(left) + 's' : '';
+      }
     this.renderSelection();
     if (!$('script').hidden && this.script.squad) {
       const sq = w.squadMap.get(this.script.squad.id);

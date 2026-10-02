@@ -20,6 +20,19 @@ import {
   LOW_BATTERY,
 } from './defs.js';
 import { TECH, teamStats, researchBlocker, unlockedTier } from './tech.js';
+import {
+  initSystems,
+  stormEffects,
+  stepSystems,
+  dropSalvage,
+  useAbility,
+  hashSystems,
+  F_STORM,
+  F_STUN,
+} from './systems.js';
+import { rockHeight } from './maps.js';
+
+export { F_STORM, F_STUN };
 import { RULE_PERIOD, DEFAULT_RULES, runRules, validateRules } from './rules.js';
 import { flightStep, quantize, F_PILOT, F_FIRE } from './flight.js';
 
@@ -193,6 +206,7 @@ export class World {
     this.wells = this.map.wells.map((w, i) => ({ id: i, x: w.x, z: w.z, owner: -1 }));
     this.teams = [];
     for (let t = 0; t < players; t++) this.addTeam(t, scenario?.teams[t]);
+    initSystems(this);
     scenario?.init(this);
     this.totals();
     this.updateVisibility();
@@ -424,6 +438,8 @@ export class World {
         sq.formation = cmd.formation;
         return true;
       }
+      case 'ability':
+        return useAbility(this, cmd);
       case 'altitude': {
         const sq = this.squadMap.get(cmd.squad);
         if (!sq || sq.team !== cmd.team || ![0, 1, 2].includes(cmd.level)) return false;
@@ -641,12 +657,14 @@ export class World {
     this.economy();
     this.grid.build(this.alive, this.px, this.pz, N);
     this.auras();
+    stormEffects(this);
     this.stealthAndDocking();
     this.updateCarriers();
     for (const sq of this.squads) this.updateSquad(sq);
     this.updateDrones();
     this.updateStructures();
     this.resolveDeaths();
+    stepSystems(this);
     if (this.scenario && this.winner < 0) this.scenario.tick(this);
     if ((this.tick & 3) === 0) this.updateVisibility();
     this.tick++;
@@ -674,6 +692,9 @@ export class World {
       team.income += def.income || 0;
       team.bwCap += def.bandwidth || 0;
     }
+    for (const o of this.objectives || [])
+      if (o.kind === 'spire' && o.owner >= 0 && this.teams[o.owner])
+        this.teams[o.owner].bwCap += 20;
   }
 
   economy() {
@@ -714,17 +735,49 @@ export class World {
     this.events.push({ k: 'researched', team: t, tech: key });
   }
 
-  produceDrone(s, role) {
-    const team = this.teams[s.team];
+  // The squad new drones join (created at x, z if needed), ordered to the rally point.
+  rallySquadFor(t, x, z) {
+    const team = this.teams[t];
     let sq = this.squadMap.get(team.rallySquad);
     if (!sq) {
-      sq = this.createSquad(s.team);
+      sq = this.createSquad(t);
       team.rallySquad = sq.id;
-      sq.ax = s.x;
-      sq.az = s.z;
+      sq.ax = x;
+      sq.az = z;
       sq.anchored = true;
     }
     sq.order = { play: 'move', x: team.rallyX, z: team.rallyZ, x0: team.rallyX, z0: team.rallyZ };
+    return sq;
+  }
+
+  // Hand drone j to another team (hacking).
+  convertDrone(j, t, squadId) {
+    const from = this.team[j];
+    const old = this.squadMap.get(this.squadOf[j]);
+    if (old) {
+      old.members.splice(old.members.indexOf(j), 1);
+      if (!old.members.length) this.pruneSquads();
+    }
+    if (this.teams[from].pilot === this.uid[j]) this.teams[from].pilot = 0;
+    this.flags[j] = 0;
+    this.stick.fill(0, j * 4, j * 4 + 4);
+    if (this.owner[j]) {
+      const n = this.wasps.get(this.owner[j]) || 0;
+      if (n > 1) this.wasps.set(this.owner[j], n - 1);
+      else this.wasps.delete(this.owner[j]);
+      this.owner[j] = 0;
+    }
+    this.team[j] = t;
+    this.target[j] = 0;
+    const sq = this.squadMap.get(squadId) || this.rallySquadFor(t, this.px[j], this.pz[j]);
+    sq.members.push(j);
+    this.squadOf[j] = sq.id;
+    this.altBand[j] = sq.altitude;
+    this.events.push({ k: 'hacked', i: j, team: t, from, x: this.px[j], z: this.pz[j] });
+  }
+
+  produceDrone(s, role) {
+    const sq = this.rallySquadFor(s.team, s.x, s.z);
     const a = this.rng.next() * TAU,
       r = STRUCTURES[s.kind].radius + 1;
     this.spawnDrone(s.team, role, s.x + dcos(a) * r, s.z + dsin(a) * r, sq);
@@ -1223,7 +1276,8 @@ export class World {
       const r = this.rs(i),
         w = r.weapon,
         jammed = flags[i] & F_JAMMED,
-        piloted = flags[i] & F_PILOT;
+        piloted = flags[i] & F_PILOT,
+        stunned = flags[i] & F_STUN;
       flags[i] &= ~F_ENGAGED;
       if (cd[i] > 0) cd[i] -= DT;
       let goalX = tx[i],
@@ -1255,7 +1309,12 @@ export class World {
       // Nose direction; weapons only fire inside the airframe's cone around it.
       const hx = dsin(this.yaw[i]),
         hz = dcos(this.yaw[i]);
-      if (piloted) {
+      if (stunned) {
+        // EMP: no weapons, no navigation; the drone just tries to hold position.
+        target[i] = 0;
+        goalX = px[i];
+        goalZ = pz[i];
+      } else if (piloted) {
         target[i] = 0;
         if (w && flags[i] & F_FIRE && cd[i] <= 0) {
           const tgt = this.aimTarget(i, w.range, hx, hz);
@@ -1347,7 +1406,8 @@ export class World {
         1 +
         0.8 * (1 / dcos(tilt < 1.4 ? tilt : 1.4) - 1) +
         (this.vy[i] > 0 ? this.vy[i] * 0.08 : 0);
-      if (!this.teams[team[i]].tether) this.bat[i] -= (load * r.drain * DT) / r.battery;
+      if (!this.teams[team[i]].tether)
+        this.bat[i] -= (load * r.drain * (flags[i] & F_STORM ? 1.5 : 1) * DT) / r.battery;
       if (this.bat[i] <= 0) {
         this.bat[i] = 0;
         if (this.hp[i] > 0) {
@@ -1355,7 +1415,8 @@ export class World {
           this.events.push({ k: 'depleted', i, team: team[i], x: px[i], z: pz[i] });
         }
       }
-      const maxSpeed = r.speed * (piloted ? 1.25 : 1.1) * (jammed ? 0.65 : 1);
+      const maxSpeed =
+        r.speed * (piloted ? 1.25 : 1.1) * (jammed ? 0.65 : 1) * (flags[i] & F_STORM ? 0.75 : 1);
       const s = len(vx[i], vz[i]);
       if (s > maxSpeed) {
         vx[i] = (vx[i] / s) * maxSpeed;
@@ -1428,19 +1489,21 @@ export class World {
   fire(i, tgt, w, jammed) {
     const t = this.team[i];
     const mult = WEAPONS[w.type].vs;
+    const over = this.teams[t].overUntil > this.tick;
+    const damage = w.damage * (over ? 1.25 : 1);
     this.bat[i] -= 0.15 / this.rs(i).battery;
     if (tgt.drone !== undefined) {
-      this.damageDrone(tgt.drone, w.damage * mult[this.rs(tgt.drone).armor], t);
+      this.damageDrone(tgt.drone, damage * mult[this.rs(tgt.drone).armor], t);
       if (w.splash) {
         const k = this.grid.query(tgt.x, tgt.z, w.splash, this.px, this.pz, this.scratch2);
         for (let j = 0; j < k; j++) {
           const o = this.scratch2[j];
           if (o !== tgt.drone && this.team[o] !== t)
-            this.damageDrone(o, w.damage * 0.5 * mult[this.rs(o).armor], t);
+            this.damageDrone(o, damage * 0.5 * mult[this.rs(o).armor], t);
         }
       }
-    } else this.damageStructure(tgt.struct, w.damage * mult[3], t);
-    this.cd[i] = w.cooldown * (jammed ? 1.6 : 1);
+    } else this.damageStructure(tgt.struct, damage * mult[3], t);
+    this.cd[i] = (w.cooldown * (jammed ? 1.6 : 1)) / (over ? 1.4 : 1);
     this.events.push({
       k: 'shot',
       w: w.type,
@@ -1534,6 +1597,7 @@ export class World {
         sq.members.splice(sq.members.indexOf(i), 1);
         if (!sq.members.length) pruned = true;
       }
+      dropSalvage(this, i);
       const team = this.teams[this.team[i]];
       if (team.pilot === this.uid[i]) {
         team.pilot = 0;
@@ -1594,8 +1658,15 @@ export class World {
 
   updateVisibility() {
     const n = this.visN,
-      half = this.half;
-    const stamp = (vis, x, z, r) => {
+      half = this.half,
+      obstacles = this.map.obstacles;
+    const blockers = [];
+    // Mark the cells within r of (x, z), skipping cells hidden behind rocks taller than the
+    // viewer's altitude y (line of sight is checked against each rock's circle).
+    const stamp = (vis, x, z, r, y = 0) => {
+      blockers.length = 0;
+      for (const o of obstacles)
+        if (rockHeight(o) > y && len(o.x - x, o.z - z) < r + o.r) blockers.push(o);
       const c0 = Math.max(0, Math.floor((x - r + half) / VIS_CELL)),
         c1 = Math.min(n - 1, Math.floor((x + r + half) / VIS_CELL)),
         r0 = Math.max(0, Math.floor((z - r + half) / VIS_CELL)),
@@ -1605,7 +1676,22 @@ export class World {
         const dz = (cz + 0.5) * VIS_CELL - half - z;
         for (let cx = c0; cx <= c1; cx++) {
           const dx = (cx + 0.5) * VIS_CELL - half - x;
-          if (dx * dx + dz * dz <= rr) vis[cz * n + cx] = 1;
+          const d2 = dx * dx + dz * dz;
+          if (d2 > rr) continue;
+          let open = true;
+          for (let b = 0; b < blockers.length && open; b++) {
+            const o = blockers[b];
+            // Closest point of the sight line to the rock center.
+            const ox = o.x - x,
+              oz = o.z - z;
+            const t = d2 > 0 ? clamp((ox * dx + oz * dz) / d2, 0, 1) : 0;
+            const ex = ox - dx * t,
+              ez = oz - dz * t;
+            // Rocks hide what is behind them, not their own visible face.
+            if (ex * ex + ez * ez < o.r * o.r * 0.7 && t < 0.97 && d2 > ox * ox + oz * oz)
+              open = false;
+          }
+          if (open) vis[cz * n + cx] = 1;
         }
       }
     };
@@ -1615,13 +1701,21 @@ export class World {
       const role = this.rs(i);
       // Flying higher than cruise altitude extends sight (up to +40%); skimming low reduces it.
       const lift = clamp((this.py[i] - role.flight.alt) * 0.03, -0.3, 0.4);
-      const r = role.sensor * (1 + lift) * (this.flags[i] & F_JAMMED ? 0.6 : 1);
-      stamp(this.teams[this.team[i]].vis, this.px[i], this.pz[i], r);
+      const blind = (this.flags[i] & F_JAMMED ? 0.6 : 1) * (this.flags[i] & F_STORM ? 0.6 : 1);
+      stamp(
+        this.teams[this.team[i]].vis,
+        this.px[i],
+        this.pz[i],
+        role.sensor * (1 + lift) * blind,
+        this.py[i],
+      );
     }
     for (const s of this.structures) {
       if (!s.alive) continue;
-      stamp(this.teams[s.team].vis, s.x, s.z, s.progress >= 1 ? STRUCTURES[s.kind].sensor : 6);
+      stamp(this.teams[s.team].vis, s.x, s.z, s.progress >= 1 ? STRUCTURES[s.kind].sensor : 6, 3);
     }
+    for (const o of this.objectives || [])
+      if (o.kind === 'spire' && o.owner >= 0) stamp(this.teams[o.owner].vis, o.x, o.z, 30, 12);
     for (const team of this.teams) {
       const { vis, explored } = team;
       for (let c = 0; c < vis.length; c++) explored[c] |= vis[c];
@@ -1644,6 +1738,7 @@ export class World {
     h.array(this.bat, N).array(this.owner, N).array(this.altBand, N);
     for (const t of this.teams) h.num(t.tech.size).num(t.researching.size);
     this.scenario?.hash(h);
+    hashSystems(this, h);
     for (const t of this.teams) h.num(t.energy).num(t.bwUsed).num(t.kills);
     for (const s of this.structures) h.num(s.id).num(s.hp).num(s.progress).num(s.queue.length);
     for (const sq of this.squads) h.num(sq.id).num(sq.ax).num(sq.az).num(sq.members.length);

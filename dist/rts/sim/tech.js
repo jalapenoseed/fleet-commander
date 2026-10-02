@@ -66,6 +66,13 @@ export const TECH = {
     time: 40,
     requires: ['tier2'],
   },
+  intrusion: {
+    label: 'Intrusion Suite',
+    blurb: 'Jammer drones hack jammed enemy drones they stay within 6 m of for 4 s (not carriers).',
+    cost: 300,
+    time: 45,
+    requires: ['tier3'],
+  },
   jamRange: {
     label: 'Wideband Jamming',
     blurb: 'Jammer drones and Jammer Fields reach 35% farther.',

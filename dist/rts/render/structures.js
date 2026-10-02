@@ -264,6 +264,53 @@ export function buildStructure(kind, teamColor) {
   return { group, holo, spin };
 }
 
+// Neutral objectives. Glow parts are returned so the owner's color can be applied.
+export function buildObjective(kind) {
+  const g = new T.Group();
+  const glowMat = new T.MeshBasicMaterial({ color: new T.Color(2, 2, 2.2) });
+  const glow = [];
+  const spin = [];
+  if (kind === 'spire') {
+    add(g, new T.CylinderGeometry(2.6, 3.0, 0.6, 6), M.base, 0, 0.3);
+    add(g, new T.CylinderGeometry(0.5, 1.2, 9, 5), M.plate, 0, 5);
+    for (let k = 0; k < 3; k++) {
+      const a = (k / 3) * Math.PI * 2;
+      const fin = add(
+        g,
+        new T.BoxGeometry(0.2, 6, 1.0),
+        M.light,
+        Math.cos(a) * 0.9,
+        4,
+        Math.sin(a) * 0.9,
+      );
+      fin.rotation.y = -a;
+    }
+    const crystal = add(g, new T.OctahedronGeometry(0.9, 0), glowMat, 0, 10.5);
+    crystal.scale.y = 1.8;
+    crystal.castShadow = false;
+    glow.push(crystal);
+    spin.push({ obj: crystal, rate: 0.8, bob: 0.3 });
+    const ring = add(g, new T.TorusGeometry(1.6, 0.08, 4, 24), glowMat, 0, 9.4);
+    ring.rotation.x = Math.PI / 2;
+    glow.push(ring);
+    spin.push({ obj: ring, rate: -1.2, axis: 'z' });
+  } else {
+    add(g, new T.BoxGeometry(7, 0.5, 5.5), M.base, 0, 0.25);
+    add(g, new T.BoxGeometry(5.5, 3, 4), M.dark, -0.5, 1.9);
+    add(g, new T.BoxGeometry(1.2, 4.5, 1.2), M.plate, 2.8, 2.6, -1.6);
+    add(g, new T.BoxGeometry(1.2, 4.5, 1.2), M.plate, 2.8, 2.6, 1.6);
+    const roof = add(g, new T.CylinderGeometry(2.2, 2.2, 5.5, 3), M.light, -0.5, 3.6);
+    roof.rotation.z = Math.PI / 2;
+    roof.scale.set(1, 1, 0.5);
+    const door = add(g, new T.BoxGeometry(0.1, 1.6, 3), glowMat, 2.26, 1.2);
+    glow.push(door);
+    const lamp = add(g, new T.SphereGeometry(0.3, 8, 6), glowMat, 2.8, 5.1, -1.6);
+    glow.push(lamp);
+    spin.push({ obj: lamp, rate: 3, pulse: true });
+  }
+  return { group: g, glowMat, spin };
+}
+
 export function buildWell() {
   const g = new T.Group();
   const gold = glowMaterial('#ffc65a', 2.2);

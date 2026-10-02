@@ -72,6 +72,20 @@ export class Minimap {
       ctx.arc(X(w.x), Z(w.z), 3, 0, Math.PI * 2);
       ctx.fill();
     }
+    for (const st of world.storms || []) {
+      ctx.fillStyle = 'rgba(150, 170, 200, 0.22)';
+      ctx.beginPath();
+      ctx.arc(X(st.x), Z(st.z), st.r * k, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    for (const o of world.objectives || []) {
+      ctx.fillStyle = o.owner >= 0 ? TEAM_COLORS[o.owner] : '#d8e2ea';
+      ctx.save();
+      ctx.translate(X(o.x), Z(o.z));
+      ctx.rotate(Math.PI / 4);
+      ctx.fillRect(-4, -4, 8, 8);
+      ctx.restore();
+    }
     const fogOn = view.fogOn,
       pt = view.playerTeam;
     for (const s of world.structures) {
